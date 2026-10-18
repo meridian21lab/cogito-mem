@@ -7,6 +7,9 @@ in §12. Evidence: [`literature/memory_api_notation_and_digests.md`](literature/
 (survey). The earlier design pages in [`notes/`](notes/) are background; where they disagree with this file,
 this file wins.
 
+**Built (2026-10-18):** v0 as specified here, in `src/cogito_mem/`, with the tests in `tests/`. Choices made
+while building, which still need the author's yes, are in §15. Stage 0 has not been run yet.
+
 **Product focus (added 2026-10-18, after the review):** chats with Claude, Codex and ChatGPT; MCP in v0; setup
 in one command; no competing on benchmark numbers. See §1.1, §3.5 and decisions 14–18 in §11.
 
@@ -532,3 +535,45 @@ repository, at commit c8051d3 on branch `e33-multihop`.
 
 From these, a whole CPU query at 10M tokens should take about 65 ms, almost all of it embedding the question.
 At 100M tokens it took about 120 ms, which is over budget; the fixes are a graph index or a GPU.
+
+## 15. Choices made while building v0 (author to confirm)
+
+These fill gaps the sections above leave open. Each can change without touching the API.
+
+1. **Storage: SQLite.** Each namespace is `~/.cogito-mem/memory/<namespace>/log.sqlite3`, one table that triggers
+   keep append-only (any UPDATE or DELETE is refused). The keyword index, the row arrays for filtering and the
+   vector matrix are held in memory and rebuilt from the log. Several processes may open one namespace: writes
+   take SQLite's lock and reads first pick up rows others added. §4 leaves the format to stage 0; this is the
+   baseline that stage 0 measures.
+2. **Vectors live in a shared, content-addressed cache** (`~/.cogito-mem/cache/embeddings.sqlite3`, keyed by
+   sha256 of model name + prompt). Text seen twice, in any namespace, is embedded once (§5's "embedded once and
+   cached by content hash"); deleting the cache only costs re-embedding.
+3. **Runtime: llama.cpp's own `llama-server`,** started as a child process, not Python bindings. The bindings
+   lag llama.cpp: llama-cpp-python 0.3.36 (2026-10-01) predates EmbeddingGemma 2 (2026-10-06), whose GGUF
+   uses the new `gemma-embedding2` architecture. The server also brings Metal and CUDA builds for free. The
+   model is `embeddinggemma-2-Q8_0.gguf` (310 MB) from `ggml-org/embeddinggemma-2-GGUF`. A watchdog stops the
+   server if the memory process dies.
+4. **One warm service.** `cogito-mem serve` holds the memory and the model; the MCP server, the hooks and the
+   CLI are thin clients that start it on demand. It listens on 127.0.0.1:7327, stops after one idle hour, and
+   refuses requests whose body is not JSON or whose `Host` is not local, so a web page cannot read or write it.
+5. **The default `as_of` is the memory's clock:** max(now, the latest `created_at`). `created_at` strictly
+   increases by at least 1 ms, so a burst of appends can run a few milliseconds ahead of the wall clock; with
+   "now" alone, a query right after such a burst would miss the newest items.
+6. **Pieces are packed.** After splitting at paragraph and sentence breaks, neighbouring parts are joined while
+   they fit in 256 tokens, so pieces are close to 256 tokens rather than one per paragraph. A sentence longer
+   than 256 tokens is cut at token boundaries.
+7. **Keyword search:** BM25 over the item's text and its title. Common English function words ("do", "you",
+   "that"…) are dropped from the query, not from the index; a query made only of them still matches.
+8. **Score:** reciprocal rank fusion (k = 60) of the vector and keyword lists, divided by its maximum, so an item
+   ranked first in every list scores 1. With a reranker, the top 30 take the reranker's score.
+9. **Arm U3** prepends the previous message in the thread (for a later piece, the previous piece), cut to its
+   last 1,000 characters.
+10. **Capture keeps** the user's typed messages and the assistant's text replies. It leaves out tool calls and
+    output, thinking, sub-agent turns, slash-command output and injected system reminders. Obvious secrets (API
+    keys, tokens, private keys, `password=…`) are replaced with `[redacted]` before they are stored. Backfills
+    (`capture … --all`, exports) use `import`.
+11. **MCP details:** `author` is the client's name from `initialize`; `thread_id` is the Claude Code session
+    (Claude Code passes `CLAUDE_CODE_SESSION_ID` to MCP servers), else `default`. Tool errors come back as tool
+    results with `isError`, and every result carries the §3.2 response as text and as `structuredContent`.
+12. **Limits:** at most 1,000 items per append and 4M characters per text; `max_tokens` at most 100,000.
+    Imports may not be dated more than 5 minutes in the future.
