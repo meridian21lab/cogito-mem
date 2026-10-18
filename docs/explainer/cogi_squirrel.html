@@ -1,0 +1,1290 @@
+<title>Cogi the Memory Squirrel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grandstander:wght@600;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a picture book. Squirrel hero, a four-panel comic of the problem, an animated
+   film where Cogi does the work, a catch game, the playable hollow, the other squirrels,
+   and a plain grown-up pitch. Kid copy first; small "For grown-ups" notes carry the facts. */
+:root {
+  --bg: #eaf2e3;
+  --surface: #fbfdf7;
+  --surface-2: #dfeccf;
+  --ink: #2b2017;
+  --ink-2: #584a3d;
+  --ink-3: #7b6d60;
+  --rule: #c9d8bb;
+  --leaf: #2e7a4a;
+  --leaf-soft: #cfe8d3;
+  --on-leaf: #fbfdf7;
+  --sky: #2b78aa;
+  --sky-soft: #d6eaf6;
+  --plum: #8a4fa3;
+  --plum-soft: #ecdff2;
+  --berry: #b4385b;
+  --berry-soft: #f6dbe3;
+  --amber: #a85c0a;
+  --amber-soft: #f8e4c4;
+  --bark: #8b6142;
+  --bark-2: #6e4a30;
+  --hollow: #3a2617;
+  --hollow-2: #24170c;
+  --hollow-ink: #f6e7cf;
+  --mv-sky: #d4ecf7;
+  --mv-hill: #bfe0a8;
+  --mv-ground: #9fcb7d;
+  --mv-sun: #ffd66b;
+  --mv-canopy: #5aa86a;
+  --mv-canopy-2: #4a9a5c;
+  /* illustration colours, the same in both themes */
+  --fur: #c8662b;
+  --fur-dark: #9c4a1c;
+  --fur-light: #f6d2a6;
+  --blush: #f0948a;
+  --eye: #2a1a12;
+  --shine: #ffffff;
+  --nut: #d68a2a;
+  --nut-shine: #f7c477;
+  --cap: #7a5230;
+  --cap-line: #5a3a1f;
+  --skin: #f2c39b;
+  --hair: #5a3a1f;
+
+  --f-display: "Grandstander", "Comic Sans MS", "Chalkboard SE", "Trebuchet MS", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Verdana", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1c17; --surface: #16271f; --surface-2: #1d3328; --ink: #efe8dc; --ink-2: #c9bfae; --ink-3: #9a907f;
+    --rule: #2c4437; --leaf: #74d19a; --leaf-soft: #1b3a2a; --on-leaf: #0f1c17; --sky: #8cc8ee; --sky-soft: #173041;
+    --plum: #d3a4ea; --plum-soft: #2f2238; --berry: #ff8fae; --berry-soft: #3d1c27; --amber: #f2b25a; --amber-soft: #3b2a12;
+    --bark: #5a3f2b; --bark-2: #47311f; --hollow: #1a110a; --hollow-2: #0f0904; --hollow-ink: #f6e7cf;
+    --mv-sky: #13283a; --mv-hill: #1a3527; --mv-ground: #22432f; --mv-sun: #e9e4c8; --mv-canopy: #2f6b45; --mv-canopy-2: #285c3b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1c17; --surface: #16271f; --surface-2: #1d3328; --ink: #efe8dc; --ink-2: #c9bfae; --ink-3: #9a907f;
+  --rule: #2c4437; --leaf: #74d19a; --leaf-soft: #1b3a2a; --on-leaf: #0f1c17; --sky: #8cc8ee; --sky-soft: #173041;
+  --plum: #d3a4ea; --plum-soft: #2f2238; --berry: #ff8fae; --berry-soft: #3d1c27; --amber: #f2b25a; --amber-soft: #3b2a12;
+  --bark: #5a3f2b; --bark-2: #47311f; --hollow: #1a110a; --hollow-2: #0f0904; --hollow-ink: #f6e7cf;
+  --mv-sky: #13283a; --mv-hill: #1a3527; --mv-ground: #22432f; --mv-sun: #e9e4c8; --mv-canopy: #2f6b45; --mv-canopy-2: #285c3b;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 18px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 72px; overflow-x: hidden;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 76px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 800; line-height: 1.08; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(2.6rem, 7vw, 4.6rem); letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.9rem, 4.4vw, 2.8rem); }
+h3 { font-size: 1.35rem; font-weight: 600; }
+p { margin: 0; }
+a { color: var(--leaf); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--sky); outline-offset: 3px; border-radius: 6px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.section { display: flex; flex-direction: column; gap: 22px; }
+.lead { font-size: 1.15rem; color: var(--ink-2); max-width: 62ch; }
+.mono { font-family: var(--f-mono); }
+
+.grown { font-size: 0.92rem; color: var(--ink-2); background: var(--sky-soft); border-radius: 12px; padding: 10px 14px; max-width: 72ch; }
+.grown b { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--sky); margin-right: 6px; font-weight: 600; }
+
+.btn { font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; border: 0; border-radius: 999px; padding: 12px 22px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.btn.primary { background: var(--leaf); color: var(--on-leaf); }
+.btn.ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+.btn.small { font-size: 0.95rem; padding: 8px 16px; }
+.btn:hover { transform: translateY(-1px); }
+.chip { font-family: var(--f-body); font-size: 0.92rem; border: 2px solid var(--rule); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+.chip:hover { border-color: var(--leaf); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; align-items: center; padding-block: 40px 0; position: relative; }
+.hero-text { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.hero h1 .nut-word { color: var(--amber); }
+.hero .ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+.hero-art { position: relative; min-width: 0; display: flex; justify-content: center; }
+.poke { background: none; border: 0; padding: 0; cursor: pointer; width: 100%; max-width: 420px; position: relative; }
+.poke svg { width: 100%; height: auto; display: block; animation: hop 3.2s ease-in-out infinite; }
+.poke.boing svg { animation: boing .6s ease-out; }
+@keyframes hop { 0%, 70%, 100% { transform: translateY(0); } 78% { transform: translateY(-14px); } 86% { transform: translateY(0); } 90% { transform: translateY(-5px); } }
+@keyframes boing { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-40px) scale(1.05, .95); } 60% { transform: translateY(0) scale(1.08, .92); } 100% { transform: translateY(0) scale(1); } }
+.say { position: absolute; left: 0; top: 4%; background: var(--amber-soft); border: 2px solid var(--amber); color: var(--ink); font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; padding: 8px 14px; border-radius: 16px 16px 16px 4px; max-width: 70%; }
+.poke-hint { position: absolute; right: 4%; bottom: 0; font-family: var(--f-mono); font-size: 0.75rem; color: var(--ink-3); }
+.ground { position: absolute; left: 10%; right: 10%; bottom: 4%; height: 18px; border-radius: 50%; background: var(--surface-2); z-index: -1; }
+.leafy { position: absolute; width: 18px; height: 18px; border-radius: 0 70% 0 70%; opacity: .85; animation: fall 9s linear infinite; pointer-events: none; }
+.leafy.l1 { left: 8%; top: 4%; background: var(--leaf); animation-delay: -1s; }
+.leafy.l2 { left: 70%; top: 0; background: var(--amber); animation-delay: -4s; width: 14px; height: 14px; }
+.leafy.l3 { left: 40%; top: 10%; background: var(--berry); animation-delay: -6.5s; width: 12px; height: 12px; }
+.leafy.l4 { left: 88%; top: 30%; background: var(--leaf); animation-delay: -2.5s; }
+@keyframes fall { 0% { transform: translate(0, 0) rotate(0); } 50% { transform: translate(-20px, 120px) rotate(160deg); } 100% { transform: translate(10px, 240px) rotate(320deg); opacity: 0; } }
+
+/* comic */
+.comic { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.panel { background: var(--surface); border: 3px solid var(--ink); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; box-shadow: 5px 5px 0 var(--ink); }
+.panel .when { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+.panel .when.bad { color: var(--berry); }
+.panel .when.good { color: var(--leaf); }
+.scene { min-height: 190px; background: var(--surface-2); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; justify-content: center; position: relative; overflow: hidden; }
+.panel p { font-size: 0.98rem; color: var(--ink-2); }
+.bubble { font-size: 0.92rem; line-height: 1.35; padding: 8px 12px; border-radius: 14px; max-width: 92%; }
+.bubble.you { align-self: flex-end; background: var(--surface); border-bottom-right-radius: 4px; }
+.bubble.bot { align-self: flex-start; background: var(--sky-soft); border-bottom-left-radius: 4px; }
+.bubble.sad { background: var(--berry-soft); }
+.bubble.tiny { font-size: 0.76rem; padding: 4px 9px; opacity: .8; }
+.scene .acorn-glow { width: 44px; height: 52px; align-self: center; filter: drop-shadow(0 0 10px var(--nut-shine)); }
+.scene .rolling { position: absolute; right: -6px; bottom: 6px; width: 34px; height: 40px; transform: rotate(70deg); opacity: .55; }
+.scene .huh { font-family: var(--f-display); font-size: 3rem; line-height: 1; align-self: center; color: var(--berry); }
+.scene .mini-cogi { width: 82px; height: 82px; align-self: flex-start; }
+
+/* film */
+.film { display: flex; flex-direction: column; gap: 14px; }
+.stage { position: relative; border-radius: 22px; overflow: hidden; border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); background: var(--mv-sky); }
+.stage svg { display: block; width: 100%; height: auto; }
+.mv-sky { fill: var(--mv-sky); }
+.mv-hill { fill: var(--mv-hill); }
+.mv-ground { fill: var(--mv-ground); }
+.mv-sun { fill: var(--mv-sun); }
+.mv-trunk { fill: var(--bark); }
+.mv-canopy { fill: var(--mv-canopy); }
+.mv-canopy-2 { fill: var(--mv-canopy-2); }
+.mv-hole { fill: var(--hollow); }
+.mv-count { fill: var(--hollow-ink); font-family: var(--f-mono); font-size: 15px; }
+.mv-win rect { fill: var(--surface); stroke: var(--rule); stroke-width: 2; transition: stroke .2s; }
+.mv-win.talk rect { stroke: var(--ink); stroke-width: 3.5; }
+.mv-name { fill: var(--ink); font-family: var(--f-display); font-weight: 600; font-size: 20px; }
+.mv-label { fill: var(--ink-2); font-family: var(--f-mono); font-size: 14px; }
+.mv-board { fill: var(--bark); }
+.mv-post { fill: var(--bark-2); }
+.mv-day { fill: var(--hollow-ink); font-family: var(--f-mono); font-size: 15px; font-weight: 600; }
+.mv-text { fill: var(--ink); font-family: var(--f-body); font-size: 19px; }
+.dot-Claude { fill: var(--amber); }
+.dot-Codex { fill: var(--sky); }
+.dot-ChatGPT { fill: var(--plum); }
+.bk-helper path { fill: var(--sky-soft); stroke: var(--sky); stroke-width: 2; }
+.bk-you path { fill: var(--surface); stroke: var(--ink-3); stroke-width: 2; }
+.bk-cogi path { fill: var(--amber-soft); stroke: var(--amber); stroke-width: 2; }
+.bk-tag path { fill: var(--surface); stroke: var(--amber); stroke-width: 2; stroke-dasharray: 5 4; }
+.mv-glow { filter: drop-shadow(0 0 6px var(--nut-shine)) drop-shadow(0 0 3px var(--nut-shine)); }
+#mvCogi { cursor: pointer; }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 40%, transparent); }
+.bigplay { font-family: var(--f-display); font-weight: 800; font-size: clamp(1.1rem, 3vw, 1.6rem); background: var(--leaf); color: var(--on-leaf); border: 0; border-radius: 999px; padding: 14px 28px; cursor: pointer; box-shadow: 4px 4px 0 var(--ink); }
+.bigplay:hover { transform: translateY(-2px); }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.chapters { display: flex; flex-wrap: wrap; gap: 6px; }
+.chap { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--rule); background: var(--surface); color: var(--ink); font-family: var(--f-display); font-weight: 600; font-size: 1rem; cursor: pointer; }
+.chap.done { border-color: var(--amber); }
+.chap[aria-current="step"] { background: var(--amber); border-color: var(--amber); color: var(--surface); }
+.btns { display: flex; gap: 8px; }
+.caption { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 24px; background: var(--surface); border-radius: 18px; padding: 16px 18px; align-items: start; }
+.caption .left { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.caption .kid { font-size: 1.12rem; }
+.caption .grown { max-width: none; }
+
+/* catch game */
+.catch { position: relative; aspect-ratio: 16 / 9; width: 100%; border-radius: 22px; overflow: hidden; border: 3px solid var(--ink); box-shadow: 6px 6px 0 var(--ink); background: linear-gradient(var(--mv-sky) 0 86%, var(--mv-ground) 86% 100%); user-select: none; -webkit-user-select: none; }
+.catch.playing { touch-action: none; }
+.cloud { position: absolute; top: 4%; transform: translateX(-50%); background: var(--surface); border-radius: 999px; padding: 4px 14px 4px 10px; font-family: var(--f-display); font-weight: 600; font-size: clamp(0.72rem, 1.8vw, 1rem); box-shadow: 0 3px 0 var(--rule); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.cloud i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.cloud.Claude i { background: var(--amber); } .cloud.Codex i { background: var(--sky); } .cloud.ChatGPT i { background: var(--plum); }
+.cg-cogi { position: absolute; left: 0; bottom: 4%; width: 14%; will-change: transform; }
+.cg-cogi svg { width: 100%; height: auto; display: block; }
+.cg-cogi.yum svg { animation: yum .35s ease-out; }
+@keyframes yum { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10%) scale(1.08); } }
+.cg-nut { position: absolute; left: 0; top: 0; width: 5%; will-change: transform; }
+.cg-nut svg { width: 100%; height: auto; display: block; }
+.cg-over { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 55%, transparent); padding: 10px; }
+.cg-card { background: var(--surface); border-radius: 18px; padding: 16px 20px; max-width: 460px; display: flex; flex-direction: column; gap: 10px; align-items: center; text-align: center; box-shadow: 4px 4px 0 var(--ink); }
+.cg-card p { color: var(--ink-2); font-size: clamp(0.85rem, 2vw, 1rem); }
+.hud { display: flex; flex-wrap: wrap; gap: 8px 18px; justify-content: space-between; font-family: var(--f-mono); font-size: 0.92rem; color: var(--ink-2); }
+.hud .last { color: var(--amber); }
+
+/* nut hollow game */
+.game { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; padding-top: 40px; }
+.tree { background: linear-gradient(90deg, var(--bark-2), var(--bark) 30%, var(--bark) 70%, var(--bark-2)); border-radius: 40px 40px 14px 14px; padding: 26px 22px 30px; position: relative; min-width: 0; }
+.tree::before { content: ""; position: absolute; left: -14px; right: -14px; top: -34px; height: 60px; border-radius: 50%; background: var(--leaf); opacity: .9; z-index: -1; }
+.tree-cogi { position: absolute; right: 14px; top: -72px; width: 78px; height: 78px; z-index: 1; }
+.tree-cogi.hop { animation: thop .8s ease-out; }
+.tree-cogi.shrug { animation: tshrug .9s ease-in-out; }
+.tree-cogi.catch { animation: tcatch .6s ease-out; }
+@keyframes thop { 0%, 100% { transform: translateY(0); } 35% { transform: translateY(-26px) rotate(-8deg); } 65% { transform: translateY(0) rotate(4deg); } }
+@keyframes tshrug { 0%, 100% { transform: rotate(0); } 20%, 60% { transform: rotate(-12deg); } 40%, 80% { transform: rotate(12deg); } }
+@keyframes tcatch { 0% { transform: scale(1); } 40% { transform: scale(1.2) translateY(-8px); } 100% { transform: scale(1); } }
+.tree-label { font-family: var(--f-display); font-weight: 600; color: var(--hollow-ink); font-size: 1.1rem; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-right: 70px; }
+.tree-label span.count { font-family: var(--f-mono); font-size: 0.85rem; opacity: .85; padding-top: 3px; }
+.hollow { background: radial-gradient(ellipse at 50% 35%, var(--hollow), var(--hollow-2)); border-radius: 46% 46% 40% 40% / 30% 30% 22% 22%; padding: 26px 16px 22px; display: flex; flex-wrap: wrap; gap: 10px 8px; justify-content: center; min-height: 260px; align-content: flex-start; }
+.nut { background: transparent; border: 0; padding: 4px 2px 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 64px; position: relative; color: var(--hollow-ink); border-radius: 10px; }
+.nut svg { width: 38px; height: 46px; transition: transform .2s; }
+.nut:hover svg { transform: rotate(-10deg) scale(1.08); }
+.nut .nd { font-family: var(--f-mono); font-size: 0.68rem; opacity: .9; }
+.nut .who { width: 9px; height: 9px; border-radius: 50%; position: absolute; top: 4px; right: 12px; box-shadow: 0 0 0 2px var(--hollow); }
+.nut.h-claude .who { background: var(--amber); }
+.nut.h-codex .who { background: var(--sky); }
+.nut.h-chatgpt .who { background: var(--plum); }
+.nut.rotten svg { filter: grayscale(.85) brightness(.75); }
+.nut .sticker { position: absolute; top: 18px; left: 50%; transform: translateX(-50%) rotate(-12deg); background: var(--berry-soft); color: var(--berry); font-family: var(--f-mono); font-size: 0.6rem; font-weight: 600; padding: 1px 5px; border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.nut.picked { background: color-mix(in srgb, var(--hollow-ink) 14%, transparent); }
+.nut.sniffed svg { animation: wiggle .8s ease-in-out 2; filter: drop-shadow(0 0 8px var(--nut-shine)); }
+@keyframes wiggle { 0%, 100% { transform: rotate(0) translateY(0); } 25% { transform: rotate(-14deg) translateY(-6px); } 75% { transform: rotate(14deg) translateY(-6px); } }
+.nut.dropping svg { animation: drop .7s cubic-bezier(.3, 1.6, .6, 1); }
+@keyframes drop { 0% { transform: translateY(-90px) rotate(-40deg); opacity: 0; } 100% { transform: translateY(0) rotate(0); opacity: 1; } }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--hollow-ink); margin-top: 12px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+.legend .c1 { background: var(--amber); } .legend .c2 { background: var(--sky); } .legend .c3 { background: var(--plum); }
+.tag { margin-top: 14px; background: var(--surface); color: var(--ink); border-radius: 12px; padding: 12px 14px; font-size: 0.95rem; min-height: 64px; }
+.tag .meta { font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink-3); display: block; margin-top: 4px; }
+.tag .note { display: block; margin-top: 6px; color: var(--berry); font-size: 0.88rem; }
+.controls { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.box { background: var(--surface); border: 2px solid var(--rule); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.box label, .box .lbl { font-family: var(--f-display); font-weight: 600; font-size: 1.15rem; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row input[type=text] { flex: 1 1 200px; min-width: 0; }
+input[type=text], select { font: inherit; font-size: 1rem; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--rule); background: var(--bg); color: var(--ink); }
+input[type=text]:focus, select:focus { border-color: var(--leaf); outline: none; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick .lbl2, .whenrow .lbl2 { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); width: 100%; }
+.whenrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.pouch { background: var(--amber-soft); border: 3px dashed var(--amber); border-radius: 22px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pouch-head { display: flex; gap: 12px; align-items: center; }
+.pouch-head svg { width: 64px; height: 64px; flex: none; }
+.pouch-head h3 { font-size: 1.25rem; }
+.pouch-head .cap { font-family: var(--f-mono); font-size: 0.75rem; color: var(--amber); display: block; margin-top: 2px; }
+.pouch-msg { font-size: 0.98rem; color: var(--ink-2); }
+.pouch-msg.found { color: var(--ink); }
+.pnut { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; align-items: start; background: var(--surface); border-radius: 14px; padding: 10px 12px; animation: pop .35s ease-out both; }
+.pnut svg { width: 30px; height: 36px; }
+.pnut q { font-size: 1.02rem; display: block; quotes: "\201C" "\201D"; }
+.pnut .meta { font-family: var(--f-mono); font-size: 0.78rem; color: var(--ink-3); display: block; margin-top: 3px; }
+@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.extra { font-size: 0.88rem; color: var(--ink-2); border-top: 1px dashed var(--amber); padding-top: 10px; }
+
+/* other squirrels */
+.squad { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.sq { background: var(--surface); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; border: 2px solid var(--rule); }
+.sq svg { width: 70px; height: 70px; }
+.sq.chewer svg { filter: hue-rotate(-20deg) saturate(.6); }
+.sq.home svg { filter: grayscale(.4) brightness(.9); }
+.sq.far svg { filter: hue-rotate(160deg) saturate(.5); opacity: .7; }
+.sq.wait svg { filter: grayscale(.9); }
+.sq.cogi { border: 3px solid var(--leaf); background: var(--leaf-soft); }
+.sq .flag { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 600; }
+.sq .flag.no { color: var(--berry); }
+.sq .flag.yes { color: var(--leaf); }
+.sq p { color: var(--ink-2); font-size: 0.98rem; }
+.sq .grown { font-size: 0.84rem; }
+
+/* pitch */
+.pitch { background: var(--surface); border-radius: 24px; padding: 26px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px 32px; }
+.pitch .blk { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pitch .k { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: .08em; text-transform: uppercase; color: var(--leaf); font-weight: 600; }
+.pitch p, .pitch li { color: var(--ink-2); font-size: 1rem; }
+.pitch ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; }
+.pitch .wide { grid-column: 1 / -1; }
+.pitch code { font-family: var(--f-mono); font-size: 0.88em; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+.pebbles { display: flex; gap: 8px; align-items: center; font-size: 0.95rem; color: var(--ink-2); }
+.pebble { width: 18px; height: 14px; border-radius: 50%; background: linear-gradient(135deg, var(--sky), var(--plum)); flex: none; }
+
+footer { border-top: 2px dashed var(--rule); padding-top: 22px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center; }
+footer svg { width: 70px; height: 84px; }
+footer h3 { margin-bottom: 4px; }
+footer p { color: var(--ink-2); max-width: 62ch; }
+
+@media (max-width: 900px) {
+  .comic { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .game, .pitch, .caption { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .hero { grid-template-columns: minmax(0, 1fr); padding-top: 24px; }
+  .hero-art { order: -1; }
+  .poke { max-width: 260px; }
+  .comic { grid-template-columns: minmax(0, 1fr); }
+  .catch { aspect-ratio: 4 / 3; }
+  footer { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .leafy { display: none; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="acorn" viewBox="0 0 40 48">
+      <path d="M8 19 C8 33 13 43 20 46 C27 43 32 33 32 19 Z" style="fill:var(--nut)"/>
+      <path d="M14 24 C14 32 16 38 19 41" style="fill:none;stroke:var(--nut-shine);stroke-width:2.2;stroke-linecap:round;opacity:.75"/>
+      <path d="M3 19 C3 8 37 8 37 19 C37 22 3 22 3 19 Z" style="fill:var(--cap)"/>
+      <path d="M8 15 L11 18 M14 13 L16 18 M21 12 L22 18 M28 13 L28.5 18" style="fill:none;stroke:var(--cap-line);stroke-width:1.4;stroke-linecap:round"/>
+      <rect x="18.5" y="3" width="3" height="7" rx="1.5" style="fill:var(--cap)"/>
+    </symbol>
+    <symbol id="squirrel" viewBox="0 0 200 200">
+      <path d="M108 172 C58 184 14 142 26 92 C35 50 78 28 106 47 C130 63 121 99 93 99 C76 99 69 82 80 73 C71 92 88 113 106 121 C121 129 124 161 108 172 Z" style="fill:var(--fur-dark)"/>
+      <path d="M104 164 C64 172 32 138 39 96 C46 62 80 45 101 58 C117 69 111 91 94 91 C86 91 82 84 86 79 C80 96 96 112 107 120 C117 128 117 156 104 164 Z" style="fill:var(--fur)"/>
+      <ellipse cx="122" cy="146" rx="34" ry="40" style="fill:var(--fur)"/>
+      <ellipse cx="134" cy="152" rx="19" ry="27" style="fill:var(--fur-light)"/>
+      <ellipse cx="112" cy="184" rx="16" ry="7" style="fill:var(--fur-dark)"/>
+      <ellipse cx="146" cy="184" rx="14" ry="7" style="fill:var(--fur-dark)"/>
+      <path d="M122 66 L118 38 L140 60 Z" style="fill:var(--fur-dark)"/>
+      <circle cx="140" cy="88" r="30" style="fill:var(--fur)"/>
+      <path d="M134 62 L138 32 L155 62 Z" style="fill:var(--fur)"/>
+      <path d="M139 58 L140 42 L149 59 Z" style="fill:var(--blush)"/>
+      <ellipse cx="160" cy="98" rx="15" ry="12" style="fill:var(--fur-light)"/>
+      <circle cx="148" cy="82" r="5.5" style="fill:var(--eye)"/>
+      <circle cx="150" cy="80" r="1.8" style="fill:var(--shine)"/>
+      <ellipse cx="174" cy="94" rx="4" ry="3.2" style="fill:var(--eye)"/>
+      <ellipse cx="151" cy="101" rx="6" ry="4" style="fill:var(--blush);opacity:.75"/>
+      <path d="M164 104 q5 4 10 0" style="fill:none;stroke:var(--eye);stroke-width:2;stroke-linecap:round"/>
+    </symbol>
+    <symbol id="cogi-nut" viewBox="0 0 200 200">
+      <use href="#squirrel"/>
+      <use href="#acorn" x="140" y="108" width="34" height="41"/>
+      <ellipse cx="146" cy="132" rx="8" ry="11" transform="rotate(-25 146 132)" style="fill:var(--fur-dark)"/>
+      <ellipse cx="170" cy="130" rx="7" ry="10" transform="rotate(20 170 130)" style="fill:var(--fur-dark)"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+<header class="hero">
+  <div class="hero-text">
+    <span class="eyebrow">cogito-mem · a memory for your AI chats</span>
+    <h1>Cogi never loses a <span class="nut-word">nut.</span></h1>
+    <p class="lead">Every good idea you have while chatting with an AI helper is a nut. Most helpers drop their nuts and forget them. Cogi the squirrel picks up every single one, keeps it safe, and finds it again in a blink.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#story">Watch Cogi work</a>
+      <a class="btn ghost" href="#catchgame">Play catch</a>
+      <a class="btn ghost" href="#pitch">The grown-up version</a>
+    </div>
+    <p class="grown"><b>For grown-ups</b>cogito-mem is a memory that runs on your own computer. Claude, Codex and other assistants share it through MCP. It keeps your chats word for word and finds the right message when you ask.</p>
+  </div>
+  <div class="hero-art">
+    <span class="leafy l1"></span><span class="leafy l2"></span><span class="leafy l3"></span><span class="leafy l4"></span>
+    <button class="poke" id="poke" type="button" aria-label="Poke Cogi">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><use href="#cogi-nut"/></svg>
+    </button>
+    <p class="say" id="say" hidden></p>
+    <span class="poke-hint">psst… poke Cogi</span>
+    <div class="ground"></div>
+  </div>
+</header>
+
+<section class="section" aria-labelledby="h-problem">
+  <span class="eyebrow">The problem</span>
+  <h2 id="h-problem">The forgetful forest</h2>
+  <div class="comic">
+    <article class="panel">
+      <span class="when">Monday 5 October</span>
+      <div class="scene">
+        <div class="bubble you">A treehouse with a slide and a rope ladder!</div>
+        <svg class="acorn-glow" viewBox="0 0 40 48" aria-hidden="true"><use href="#acorn"/></svg>
+        <div class="bubble bot">What a great idea!</div>
+      </div>
+      <p>You and your chat helper dream up a great idea. That's a nut.</p>
+    </article>
+    <article class="panel">
+      <span class="when">Tuesday to Sunday</span>
+      <div class="scene">
+        <div class="bubble you tiny">Help with my homework</div>
+        <div class="bubble bot tiny">Sure, page 12…</div>
+        <div class="bubble you tiny">Fix my code</div>
+        <div class="bubble you tiny">Plan the trip to Gran's</div>
+        <div class="bubble bot tiny">Here's a list…</div>
+        <svg class="rolling" viewBox="0 0 40 48" aria-hidden="true"><use href="#acorn"/></svg>
+      </div>
+      <p>A busy week with lots of new chats. Nobody writes the idea down. The nut rolls away.</p>
+    </article>
+    <article class="panel">
+      <span class="when bad">Monday 12 October, no Cogi</span>
+      <div class="scene">
+        <div class="bubble you">Do you remember the treehouse idea from last week?</div>
+        <span class="huh" aria-hidden="true">?</span>
+        <div class="bubble bot sad">Sorry, I don't remember that.</div>
+      </div>
+      <p>The helper starts every chat fresh. The idea is gone.</p>
+    </article>
+    <article class="panel">
+      <span class="when good">Monday 12 October, with Cogi</span>
+      <div class="scene">
+        <svg class="mini-cogi" viewBox="0 0 200 200" aria-hidden="true"><use href="#cogi-nut"/></svg>
+        <div class="bubble bot">Found it! On Monday 5 October you said: “A treehouse with a slide and a rope ladder!”</div>
+      </div>
+      <p>Cogi kept the nut, so the helper finds it, word for word, with the date.</p>
+    </article>
+  </div>
+  <p class="grown"><b>For grown-ups</b>Chat assistants start each session fresh. Built-in memory, where it exists, stays inside one app. Ideas mentioned in passing are the first to go, and people waste time explaining things again.</p>
+</section>
+
+<section class="section film" id="story" aria-labelledby="h-story">
+  <span class="eyebrow">The story · plays by itself</span>
+  <h2 id="h-story">Watch Cogi work</h2>
+  <div class="stage">
+    <svg id="mv" viewBox="0 0 800 450" role="img" aria-labelledby="mvT">
+      <title id="mvT">Animated story: Cogi the squirrel catches idea nuts from chat helpers, tags them, keeps them in a tree hollow, and finds the right one when asked.</title>
+      <rect width="800" height="450" class="mv-sky"/>
+      <circle cx="560" cy="70" r="26" class="mv-sun"/>
+      <ellipse cx="170" cy="405" rx="270" ry="90" class="mv-hill"/>
+      <ellipse cx="560" cy="415" rx="300" ry="80" class="mv-hill"/>
+      <rect y="382" width="800" height="68" class="mv-ground"/>
+
+      <g id="mvW0" class="mv-win"><rect x="20" y="14" width="150" height="44" rx="12"/><circle cx="42" cy="36" r="7" class="dot-Claude"/><text x="104" y="43" text-anchor="middle" class="mv-name">Claude</text></g>
+      <g id="mvW1" class="mv-win"><rect x="180" y="14" width="150" height="44" rx="12"/><circle cx="202" cy="36" r="7" class="dot-Codex"/><text x="264" y="43" text-anchor="middle" class="mv-name">Codex</text></g>
+      <g id="mvW2" class="mv-win"><rect x="340" y="14" width="150" height="44" rx="12"/><circle cx="362" cy="36" r="7" class="dot-ChatGPT"/><text x="424" y="43" text-anchor="middle" class="mv-name">ChatGPT</text></g>
+
+      <rect x="615" y="130" width="120" height="256" rx="18" class="mv-trunk"/>
+      <circle cx="630" cy="120" r="62" class="mv-canopy-2"/>
+      <circle cx="728" cy="112" r="60" class="mv-canopy-2"/>
+      <circle cx="680" cy="70" r="66" class="mv-canopy"/>
+      <circle cx="610" cy="80" r="40" class="mv-canopy"/>
+      <circle cx="756" cy="62" r="40" class="mv-canopy"/>
+      <ellipse cx="675" cy="262" rx="46" ry="60" class="mv-hole"/>
+      <text id="mvCount" x="675" y="352" text-anchor="middle" class="mv-count">empty</text>
+
+      <g>
+        <rect x="42" y="336" width="40" height="48" rx="14" class="dot-Codex"/>
+        <circle cx="62" cy="316" r="22" style="fill:var(--skin)"/>
+        <path d="M40 312 Q44 288 62 290 Q82 288 84 312 Q74 300 62 302 Q50 300 40 312 Z" style="fill:var(--hair)"/>
+        <circle cx="55" cy="318" r="2.6" style="fill:var(--eye)"/>
+        <circle cx="69" cy="318" r="2.6" style="fill:var(--eye)"/>
+        <path d="M56 326 Q62 331 68 326" style="fill:none;stroke:var(--eye);stroke-width:2;stroke-linecap:round"/>
+        <text x="62" y="408" text-anchor="middle" class="mv-label">you</text>
+      </g>
+
+      <g>
+        <rect x="181" y="340" width="6" height="45" class="mv-post"/>
+        <rect x="138" y="314" width="92" height="30" rx="6" class="mv-board"/>
+        <text id="mvDay" x="184" y="335" text-anchor="middle" class="mv-day">Mon 5 Oct</text>
+      </g>
+
+      <g id="mvHollow"></g>
+      <g id="mvGround"></g>
+      <g id="mvCogi" tabindex="0" role="button" aria-label="Poke Cogi">
+        <use href="#squirrel" x="-60" y="-110" width="110" height="110"/>
+        <ellipse id="mvCheek" cx="25" cy="-55" rx="8" ry="6" style="fill:var(--fur-light);opacity:0"/>
+        <g id="mvCarry" style="opacity:0">
+          <use href="#acorn" x="14" y="-53" width="22" height="26"/>
+          <ellipse cx="18" cy="-38" rx="4.5" ry="6" style="fill:var(--fur-dark)"/>
+          <ellipse cx="33" cy="-39" rx="4" ry="5.5" style="fill:var(--fur-dark)"/>
+        </g>
+      </g>
+      <g id="mvFly"></g>
+      <g id="mvBubbles"></g>
+    </svg>
+    <div class="overlay" id="mvOver"><button class="bigplay" id="mvBig" type="button">Play the story</button></div>
+  </div>
+  <div class="bar">
+    <div class="chapters" id="chapters" role="group" aria-label="Chapters"></div>
+    <div class="btns">
+      <button class="btn primary small" id="mvToggle" type="button">Play</button>
+      <button class="btn ghost small" id="mvRestart" type="button">Start over</button>
+    </div>
+  </div>
+  <div class="caption" aria-live="polite">
+    <div class="left">
+      <span class="eyebrow" id="mvStep">Chapter 1 of 7</span>
+      <h3 id="mvTitle"></h3>
+      <p class="kid" id="mvKid"></p>
+    </div>
+    <p class="grown" id="mvGrown"></p>
+  </div>
+</section>
+
+<section class="section" id="catchgame" aria-labelledby="h-catch">
+  <span class="eyebrow">Game</span>
+  <h2 id="h-catch">Help Cogi catch the ideas</h2>
+  <p class="lead">Ideas fall out of chats all the time. Move Cogi to catch them before they roll away. Use your finger, your mouse or the arrow keys.</p>
+  <div class="catch" id="cg">
+    <div class="cloud Claude" style="left:17%"><i></i>Claude</div>
+    <div class="cloud Codex" style="left:50%"><i></i>Codex</div>
+    <div class="cloud ChatGPT" style="left:83%"><i></i>ChatGPT</div>
+    <div class="cg-cogi" id="cgCogi"><svg viewBox="0 0 200 200" aria-hidden="true"><use href="#squirrel"/></svg></div>
+    <div class="cg-over" id="cgOver">
+      <div class="cg-card">
+        <h3 id="cgTitle">Ready, catcher?</h3>
+        <p id="cgText">15 idea-nuts will fall from the chats. Catch as many as you can!</p>
+        <button class="btn primary" id="cgStart" type="button">Start</button>
+      </div>
+    </div>
+  </div>
+  <div class="hud"><span id="cgScore">Caught 0 · Rolled away 0 · Still to fall 15</span><span class="last" id="cgLast"></span></div>
+  <p class="grown"><b>For grown-ups</b>Every message that scrolls out of view is a nut that can roll away. People catch a few by saving notes by hand. cogito-mem catches all of them, because hooks in Claude Code and Codex append every message automatically.</p>
+</section>
+
+<section class="section" id="play" aria-labelledby="h-play">
+  <span class="eyebrow">Try it</span>
+  <h2 id="h-play">The Nut Hollow</h2>
+  <p class="lead">This hollow already holds nuts from the last two weeks of chats. Ask Cogi to find one, or hide a new nut of your own. In this story, today is Sunday 18 October.</p>
+  <div class="game">
+    <div class="tree">
+      <svg class="tree-cogi" id="treeCogi" viewBox="0 0 200 200" aria-hidden="true"><use href="#squirrel"/></svg>
+      <div class="tree-label"><span>Cogi's hollow</span><span class="count" id="count"></span></div>
+      <div class="hollow" id="hollow" aria-label="Nuts in the hollow"></div>
+      <div class="legend"><span><i class="c1"></i>said with Claude</span><span><i class="c2"></i>said with Codex</span><span><i class="c3"></i>said with ChatGPT</span></div>
+      <div class="tag" id="tag" aria-live="polite">Tap a nut to read its tag.</div>
+    </div>
+
+    <div class="controls">
+      <form class="box" id="askForm" autocomplete="off">
+        <label for="q">Ask Cogi</label>
+        <div class="row">
+          <input type="text" id="q" placeholder="Do you remember the treehouse idea?">
+          <button class="btn primary" type="submit">Sniff it out</button>
+        </div>
+        <div class="quick" id="quick">
+          <span class="lbl2">Or try one of these</span>
+          <button type="button" class="chip">the treehouse idea from a week ago</button>
+          <button type="button" class="chip">what did we call the robot?</button>
+          <button type="button" class="chip">when are the library books due?</button>
+          <button type="button" class="chip">the pancake trick</button>
+          <button type="button" class="chip">the dinosaur party</button>
+        </div>
+        <div class="whenrow" id="whenrow" role="group" aria-label="When was it said?">
+          <span class="lbl2">When was it said?</span>
+          <button type="button" class="chip" data-w="any" aria-pressed="true">Any time</button>
+          <button type="button" class="chip" data-w="last" aria-pressed="false">Last week, 5–11 Oct</button>
+          <button type="button" class="chip" data-w="this" aria-pressed="false">This week, 12–18 Oct</button>
+        </div>
+      </form>
+
+      <div class="pouch" aria-live="polite">
+        <div class="pouch-head">
+          <svg viewBox="0 0 200 200" aria-hidden="true"><use href="#cogi-nut"/></svg>
+          <div><h3>Cogi's cheek pouch</h3><span class="cap">fits 3 nuts, no more</span></div>
+        </div>
+        <p class="pouch-msg" id="pmsg">Ask a question and Cogi brings the best nuts back here.</p>
+        <div id="pnuts" style="display:flex;flex-direction:column;gap:8px"></div>
+        <p class="extra" id="pextra" hidden></p>
+      </div>
+
+      <form class="box" id="hideForm" autocomplete="off">
+        <label for="newnut">Hide a new nut</label>
+        <input type="text" id="newnut" placeholder="My idea: a birdhouse made from a milk carton">
+        <div class="row">
+          <select id="who" aria-label="Which chat helper heard it">
+            <option>Claude</option><option>Codex</option><option>ChatGPT</option>
+          </select>
+          <button class="btn ghost" type="submit">Hide it</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <p class="grown"><b>For grown-ups</b>Hiding a nut is <span class="mono">append</span>: the message is stored word for word, with who said it and when. Asking is <span class="mono">query</span>: search by meaning and by exact words, with date filters. The cheek pouch is the token budget: only the few best messages come back, so the assistant reads less. This demo matches words in your browser; the real memory also matches by meaning.</p>
+</section>
+
+<section class="section" aria-labelledby="h-squad">
+  <span class="eyebrow">Other squirrels</span>
+  <h2 id="h-squad">Not every squirrel is a Cogi</h2>
+  <div class="squad">
+    <article class="sq chewer">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><use href="#squirrel"/></svg>
+      <span class="flag no">The Chewer</span>
+      <p>Chews every nut into mush before storing it. Later you get mush back, and sometimes a crumb that was never in the nut.</p>
+      <p class="grown"><b>For grown-ups</b>Memories that summarize chats with an AI model on every save. Each save costs a model call and can drop or invent details.</p>
+    </article>
+    <article class="sq home">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><use href="#squirrel"/></svg>
+      <span class="flag no">The Stay-at-Home</span>
+      <p>Only remembers nuts from its own tree. Nuts from the tree next door? Never heard of them.</p>
+      <p class="grown"><b>For grown-ups</b>Memory built into one chat app stays in that app. Ideas from your coding assistant never reach your chat app.</p>
+    </article>
+    <article class="sq far">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><use href="#squirrel"/></svg>
+      <span class="flag no">The Far-Away Stash</span>
+      <p>Keeps your nuts in a forest far away that belongs to somebody else.</p>
+      <p class="grown"><b>For grown-ups</b>Hosted memory services keep your chats on their servers.</p>
+    </article>
+    <article class="sq wait">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><use href="#squirrel"/></svg>
+      <span class="flag no">The Wait-to-Be-Told</span>
+      <p>Only keeps a nut when you say “please keep this nut”. Most nuts roll away.</p>
+      <p class="grown"><b>For grown-ups</b>Note-style memories keep only what the assistant decides to write down.</p>
+    </article>
+    <article class="sq cogi">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><use href="#cogi-nut"/></svg>
+      <span class="flag yes">Cogi</span>
+      <p>Keeps whole nuts. One hollow for all your helpers. Lives in your own tree. Catches nuts without being asked.</p>
+      <p class="grown"><b>For grown-ups</b>Word for word, one memory across MCP clients, on your machine, with automatic capture.</p>
+    </article>
+  </div>
+</section>
+
+<section class="section" id="pitch" aria-labelledby="h-pitch">
+  <span class="eyebrow">For investors, partners and curious parents</span>
+  <h2 id="h-pitch">The grown-up version</h2>
+  <div class="pitch">
+    <div class="blk">
+      <span class="k">Problem</span>
+      <p>AI assistants forget between sessions, and each app keeps its own memory. Ideas mentioned in passing get lost, and people spend time explaining things again.</p>
+    </div>
+    <div class="blk">
+      <span class="k">Product</span>
+      <p>cogito-mem: a memory that runs on your own computer. Assistants use two tools through MCP, <code>append</code> and <code>query</code>. Setup is one command, such as <code>uvx cogito-mem install claude-code</code>.</p>
+    </div>
+    <div class="blk">
+      <span class="k">Why it's different</span>
+      <ul>
+        <li>No AI model calls to store or search, so each message costs nothing to keep.</li>
+        <li>Exact words with dates and source positions, so every answer can be checked.</li>
+        <li>One memory shared by Claude Code, Codex and Claude Desktop.</li>
+        <li>Runs on a laptop CPU. The goal is an answer in under 100 milliseconds.</li>
+      </ul>
+    </div>
+    <div class="blk">
+      <span class="k">Who it's for</span>
+      <p>Developers and everyday users of AI chat assistants who want their past ideas back without having saved them.</p>
+    </div>
+    <div class="blk wide">
+      <span class="k">Where it stands</span>
+      <p>October 2026: design agreed, first version being built. Next come short digests of long texts, built only from their own sentences. After that, pictures and screenshots.</p>
+      <p class="pebbles"><span class="pebble" aria-hidden="true"></span>For kids: one day Cogi will keep shiny pebbles too. Those are your pictures and screenshots.</p>
+      <p class="grown"><b>Note</b>The speed figure is a goal for the first version. It has not yet been measured on the build that will ship.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <svg viewBox="0 0 40 48" aria-hidden="true"><use href="#acorn"/></svg>
+  <div>
+    <h3>A true squirrel fact</h3>
+    <p>Real squirrels bury far more nuts than they dig up again. The forgotten ones can sprout into new trees. With Cogi, your forgotten ideas get a chance to grow too.</p>
+  </div>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+  var RM = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var COGI_LINES = ["Nuts are my favourite!", "I never lose a nut.", "Got an idea? I'll keep it!", "Tag it, tuck it, done!", "Sniff sniff… found it!", "Hey, that tickles!", "Whole nuts only. No chewing!"];
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function restart(el, cls) { el.classList.remove(cls); void el.getBoundingClientRect(); el.classList.add(cls); }
+
+  /* ---------- hero poke ---------- */
+  var sayTimer = null;
+  $("poke").addEventListener("click", function () {
+    restart($("poke"), "boing");
+    $("say").textContent = pick(COGI_LINES);
+    $("say").hidden = false;
+    clearTimeout(sayTimer);
+    sayTimer = setTimeout(function () { $("say").hidden = true; }, 2200);
+  });
+
+  /* ================= THE FILM ================= */
+  var NS = "http://www.w3.org/2000/svg";
+  function mk(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+
+  var tweens = [], paused = true, lastT = null, gen = 0, STOP = { stop: true };
+  function lin(p) { return p; }
+  function inOut(p) { return p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; }
+  function outBack(p) { var c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
+  function bounce(p) {
+    var n1 = 7.5625, d1 = 2.75;
+    if (p < 1 / d1) return n1 * p * p;
+    if (p < 2 / d1) { p -= 1.5 / d1; return n1 * p * p + 0.75; }
+    if (p < 2.5 / d1) { p -= 2.25 / d1; return n1 * p * p + 0.9375; }
+    p -= 2.625 / d1; return n1 * p * p + 0.984375;
+  }
+  function frame(t) {
+    var dt = lastT == null ? 0 : Math.min(t - lastT, 100);
+    lastT = t;
+    if (!paused && tweens.length) {
+      var list = tweens.slice();
+      for (var i = 0; i < list.length; i++) {
+        var tw = list[i];
+        if (tweens.indexOf(tw) < 0) continue;
+        tw.el += dt;
+        var p = Math.min(1, tw.el / tw.dur);
+        tw.fn(tw.ease(p));
+        if (p >= 1) { tweens.splice(tweens.indexOf(tw), 1); tw.res(); }
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  function tween(dur, fn, ease) {
+    return new Promise(function (res) {
+      if (!(dur > 0)) { fn(1); res(); return; }
+      tweens.push({ dur: dur, el: 0, fn: fn, ease: ease || inOut, res: res });
+    });
+  }
+  function wait(ms) { return tween(ms, function () {}, lin); }
+  function mv(ms) { return RM ? 0 : ms; }
+  function W(g, p) { return p.then(function () { if (g !== gen) throw STOP; }); }
+
+  function ent(el, x, y) { var e = { el: el, x: x || 0, y: y || 0, s: 1, r: 0, f: 1, o: 1 }; put(e); return e; }
+  function put(e) {
+    e.el.setAttribute("transform", "translate(" + e.x.toFixed(1) + " " + e.y.toFixed(1) + ") rotate(" + e.r.toFixed(1) + ") scale(" + (e.f * e.s).toFixed(3) + " " + e.s.toFixed(3) + ")");
+    e.el.style.opacity = e.o;
+  }
+  function removeEnt(e) { if (e && e.el.parentNode) e.el.parentNode.removeChild(e.el); }
+  function nutEnt(layer, x, y) {
+    var g = mk("g", {}, layer);
+    mk("use", { href: "#acorn", x: -11, y: -26, width: 22, height: 26 }, g);
+    return ent(g, x, y);
+  }
+
+  /* speech bubbles */
+  function bubblePath(l, t, w, h, ax, ay, dir) {
+    var r = 12, a = Math.max(l + r + 10, Math.min(l + w - r - 10, ax));
+    var R = l + w, B = t + h;
+    var top = dir === "up" ? "H" + (a - 9) + " L" + ax + " " + ay + " L" + (a + 9) + " " + t + " H" + (R - r) : "H" + (R - r);
+    var bot = dir === "down" ? "H" + (a + 9) + " L" + ax + " " + ay + " L" + (a - 9) + " " + B + " H" + (l + r) : "H" + (l + r);
+    return "M" + (l + r) + " " + t + " " + top + " Q" + R + " " + t + " " + R + " " + (t + r) + " V" + (B - r) + " Q" + R + " " + B + " " + (R - r) + " " + B + " " + bot +
+      " Q" + l + " " + B + " " + l + " " + (B - r) + " V" + (t + r) + " Q" + l + " " + t + " " + (l + r) + " " + t + " Z";
+  }
+  function Bubble() {
+    this.g = mk("g", { "class": "bub" }, $("mvBubbles"));
+    this.p = mk("path", {}, this.g);
+    this.t = mk("text", { "class": "mv-text", "text-anchor": "middle" }, this.g);
+    this.g.style.opacity = 0;
+  }
+  Bubble.prototype.show = function (ax, ay, text, dir, kind) {
+    var t = this.t;
+    while (t.firstChild) t.removeChild(t.firstChild);
+    var spans = text.split("\n").map(function (L) { var s = mk("tspan", {}, t); s.textContent = L; return s; });
+    this.g.setAttribute("class", "bub bk-" + kind);
+    this.g.style.opacity = 1;
+    var w = 0;
+    spans.forEach(function (s) { w = Math.max(w, s.getComputedTextLength()); });
+    if (!w) w = 9.5 * Math.max.apply(null, text.split("\n").map(function (L) { return L.length; }));
+    var pad = 12, lh = 24, bw = w + pad * 2, bh = spans.length * lh + pad * 2 - 4;
+    var l = Math.max(8, Math.min(800 - 8 - bw, ax - bw / 2));
+    var top = dir === "up" ? ay + 14 : dir === "down" ? ay - 14 - bh : ay - bh / 2;
+    var cx = l + bw / 2;
+    spans.forEach(function (s, i) { s.setAttribute("x", cx); s.setAttribute("y", top + pad + 15 + i * lh); });
+    this.p.setAttribute("d", bubblePath(l, top, bw, bh, ax, ay, dir));
+  };
+  Bubble.prototype.hide = function () { this.g.style.opacity = 0; };
+  var BH = new Bubble(), BK = new Bubble(), BT = new Bubble(), BC = new Bubble(), BE = new Bubble();
+
+  /* actors */
+  var cogi = ent($("mvCogi"), 560, 385); cogi.f = -1; put(cogi);
+  function carry(on) { $("mvCarry").style.opacity = on ? 1 : 0; $("mvCheek").style.opacity = on ? 1 : 0; }
+  function paw() { return { x: cogi.x + cogi.f * 25 * cogi.s, y: cogi.y - 27 * cogi.s }; }
+  function run(x, speed) {
+    var dx = x - cogi.x;
+    if (Math.abs(dx) < 1) return Promise.resolve();
+    cogi.f = dx < 0 ? -1 : 1;
+    var x0 = cogi.x, y0 = cogi.y, hops = Math.max(1, Math.round(Math.abs(dx) / 70));
+    return tween(mv(Math.abs(dx) / speed * 1000), function (p) {
+      cogi.x = x0 + dx * p; cogi.y = y0 - Math.abs(Math.sin(p * Math.PI * hops)) * 12; put(cogi);
+    }, lin).then(function () { cogi.y = y0; put(cogi); });
+  }
+  function dive() {
+    var x0 = cogi.x, y0 = cogi.y;
+    cogi.f = 1;
+    return tween(mv(650), function (p) {
+      cogi.x = x0 + (675 - x0) * p; cogi.y = y0 + (300 - y0) * p - Math.sin(p * Math.PI) * 60;
+      cogi.s = 1 - 0.55 * p; cogi.o = 1 - p; put(cogi);
+    }).then(function () { cogi.x = 675; cogi.y = 300; cogi.s = 0.45; cogi.o = 0; put(cogi); });
+  }
+  function popOut(toX) {
+    return tween(mv(650), function (p) {
+      cogi.x = 675 + (toX - 675) * p; cogi.y = 300 + 85 * p - Math.sin(p * Math.PI) * 60;
+      cogi.s = 0.45 + 0.55 * p; cogi.o = Math.min(1, p * 2); put(cogi);
+    }).then(function () { cogi.x = toX; cogi.y = 385; cogi.s = 1; cogi.o = 1; put(cogi); });
+  }
+  function shrug() { return tween(mv(900), function (p) { cogi.r = Math.sin(p * Math.PI * 4) * 9; put(cogi); }, lin).then(function () { cogi.r = 0; put(cogi); }); }
+  function happyHop() { return tween(mv(800), function (p) { cogi.y = 385 - Math.abs(Math.sin(p * Math.PI * 2)) * 32; put(cogi); }, lin).then(function () { cogi.y = 385; put(cogi); }); }
+  function fall(e, toY) { var y0 = e.y; return tween(mv(800), function (p) { e.y = y0 + (toY - y0) * p; put(e); }, bounce); }
+  function popIn(e) { e.s = RM ? 1 : 0; put(e); return tween(mv(280), function (p) { e.s = p; put(e); }, outBack); }
+  function toss(from, to, dur) {
+    var e = nutEnt($("mvFly"), from.x, from.y);
+    return tween(mv(dur || 550), function (p) {
+      e.x = from.x + (to.x - from.x) * p; e.y = from.y + (to.y - from.y) * p - Math.sin(p * Math.PI) * 80; e.r = p * 360; put(e);
+    }, lin).then(function () { removeEnt(e); });
+  }
+  function wiggle(e, d) { return tween(mv(d || 260), function (p) { e.r = Math.sin(p * Math.PI * 3) * 16; put(e); }, lin).then(function () { e.r = 0; put(e); }); }
+  function talk(i) { for (var k = 0; k < 3; k++) $("mvW" + k).classList.toggle("talk", k === i); }
+
+  var hollow = [];
+  function slot(i) { return { x: 675 + ((i % 3) - 1) * 26, y: 236 + Math.floor(i / 3) * 30 }; }
+  function addHollow(i, who) {
+    var g = mk("g", {}, $("mvHollow"));
+    mk("use", { href: "#acorn", x: -11, y: -26, width: 22, height: 26 }, g);
+    mk("circle", { cx: 9, cy: -22, r: 4, "class": "dot-" + who }, g);
+    var p = slot(i), e = ent(g, p.x, p.y);
+    hollow[i] = e; return e;
+  }
+  function setCount(n) { $("mvCount").textContent = n === 0 ? "empty" : n === 1 ? "1 nut" : n + " nuts"; }
+
+  var HELP = ["Claude", "Codex", "ChatGPT"], HX = [95, 255, 415];
+  var WEEK = [
+    { w: 2, t: "Call the robot\nSir Beep-a-Lot", x: 300, d: "Tue 6 Oct" },
+    { w: 1, t: "Fix the login bug", x: 470, d: "Wed 7 Oct" },
+    { w: 2, t: "Banana pancakes!", x: 390, d: "Thu 8 Oct" },
+    { w: 0, t: "Grandma's card\nwith stickers", x: 280, d: "Fri 9 Oct" },
+    { w: 1, t: "Bigger letters on\nthe start screen", x: 500, d: "Sat 10 Oct" },
+    { w: 0, t: "A squirrel game!", x: 340, d: "Sat 10 Oct" },
+    { w: 2, t: "Library books\ndue Friday", x: 440, d: "Sun 11 Oct" },
+    { w: 0, t: "Fly a kite\non Sunday", x: 310, d: "Mon 12 Oct" }
+  ];
+  var ALLWHO = ["Claude"].concat(WEEK.map(function (x) { return HELP[x.w]; }));
+
+  var CH = [
+    { t: "Ideas pop out", k: "When you chat with an AI helper, good ideas pop out. Each idea is a nut.",
+      g: "Any message in Claude, Codex or ChatGPT can hold something worth keeping: an idea, a decision, a fix, a date." },
+    { t: "Cogi catches it", k: "Cogi runs over and catches the nut. Nobody had to say “please save this”.",
+      g: "Hooks in Claude Code and Codex append each new message automatically. Apps without hooks save through the MCP tool." },
+    { t: "Tag it, tuck it in", k: "Cogi ties on a tag with the day and who said it. Then the whole nut goes into the hollow. No chewing!",
+      g: "Each message is stored word for word with its time and author. No AI model rewrites it, so nothing gets invented." },
+    { t: "Every nut, every helper", k: "A busy week, with lots of chats and different helpers. Cogi catches every single nut.",
+      g: "One memory shared by all your MCP clients. It lives in a folder on your own computer and only ever grows." },
+    { t: "A week later, you ask", k: "You ask about the treehouse. Cogi dives into the hollow and sniffs every nut, quick as a blink.",
+      g: "Search by meaning and by exact words, with date filters such as “a week ago”. The goal is an answer in under 100 ms on a laptop CPU." },
+    { t: "Just the right nut", k: "Cogi brings back the right nut, with the exact words and the day you said it. Then it goes back in the hollow for next time.",
+      g: "Only the best few messages come back, within a token budget, each pointing to the exact spot in the original. Nothing is removed by reading it." },
+    { t: "No nut? No made-up answer", k: "If there is no nut about something, Cogi says so. Cogi never makes up a nut.",
+      g: "The memory only returns what was stored. Nothing is generated when you ask, so it cannot invent an answer." }
+  ];
+  var chapWrap = $("chapters");
+  CH.forEach(function (c, i) {
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chap"; b.textContent = String(i + 1);
+    b.setAttribute("aria-label", "Chapter " + (i + 1) + ": " + c.t);
+    b.addEventListener("click", function () { startFrom(i + 1); });
+    chapWrap.appendChild(b);
+  });
+  function caption(n) {
+    var c = CH[n - 1];
+    $("mvStep").textContent = "Chapter " + n + " of " + CH.length;
+    $("mvTitle").textContent = c.t;
+    $("mvKid").textContent = c.k;
+    $("mvGrown").innerHTML = "<b>For grown-ups</b>" + esc(c.g);
+    Array.prototype.forEach.call(chapWrap.children, function (b, i) {
+      if (i === n - 1) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+      b.classList.toggle("done", i < n - 1);
+    });
+  }
+
+  var groundNut = null;
+  function clear(layer) { var l = $(layer); while (l.firstChild) l.removeChild(l.firstChild); }
+  function setup(n) {
+    [BH, BK, BT, BC, BE].forEach(function (b) { b.hide(); });
+    talk(-1); clear("mvGround"); clear("mvFly"); clear("mvHollow"); hollow = []; groundNut = null;
+    var count = n <= 3 ? 0 : n === 4 ? 1 : 9;
+    for (var i = 0; i < count; i++) addHollow(i, ALLWHO[i]);
+    setCount(count);
+    $("mvDay").textContent = n >= 5 ? "Mon 12 Oct" : "Mon 5 Oct";
+    cogi.r = 0; cogi.s = 1; cogi.o = 1; cogi.y = 385; carry(false);
+    if (n === 3) { cogi.x = 355; cogi.f = -1; carry(true); }
+    else if (n === 6) { cogi.x = 675; cogi.y = 300; cogi.s = 0.45; cogi.o = 0; cogi.f = 1; }
+    else { cogi.x = 560; cogi.f = -1; }
+    put(cogi);
+    if (n === 2) groundNut = nutEnt($("mvGround"), 330, 383);
+    if (n === 6 && hollow[0]) hollow[0].el.classList.add("mv-glow");
+    caption(n);
+  }
+
+  var SC = [
+    async function (g) {
+      await W(g, wait(700));
+      talk(0); BH.show(95, 62, "A treehouse with a slide\nand a rope ladder!", "up", "helper");
+      await W(g, wait(1500));
+      var n = nutEnt($("mvGround"), 330, 160);
+      await W(g, popIn(n));
+      await W(g, fall(n, 383));
+      talk(-1);
+      await W(g, wait(1500));
+    },
+    async function (g) {
+      await W(g, wait(500));
+      await W(g, run(355, 260));
+      removeEnt(groundNut); carry(true);
+      BC.show(cogi.x, 268, "Got it!", "down", "cogi");
+      await W(g, wait(1600));
+      BC.hide();
+    },
+    async function (g) {
+      await W(g, wait(400));
+      await W(g, run(590, 260));
+      BT.show(675, 165, "Mon 5 Oct · Claude", "none", "tag");
+      await W(g, wait(1300));
+      var from = paw(); carry(false);
+      await W(g, toss(from, slot(0), 600));
+      addHollow(0, "Claude"); setCount(1);
+      await W(g, wait(500));
+      BT.hide();
+      BC.show(cogi.x, 268, "Whole. Not chewed!", "down", "cogi");
+      await W(g, wait(1700));
+      BC.hide();
+    },
+    async function (g) {
+      await W(g, wait(400));
+      for (var i = 0; i < WEEK.length; i++) {
+        var it = WEEK[i];
+        talk(it.w); $("mvDay").textContent = it.d;
+        BH.show(HX[it.w], 62, it.t, "up", "helper");
+        var n = nutEnt($("mvGround"), it.x, 160);
+        await W(g, popIn(n));
+        await W(g, fall(n, 383));
+        BH.hide(); talk(-1);
+        var stand = it.x < cogi.x ? it.x + 25 : it.x - 25;
+        await W(g, run(stand, 560));
+        cogi.f = it.x < cogi.x ? -1 : 1; put(cogi);
+        removeEnt(n); carry(true);
+        await W(g, wait(160));
+        var from = paw(); carry(false);
+        await W(g, toss(from, slot(i + 1), 520));
+        addHollow(i + 1, HELP[it.w]); setCount(i + 2);
+      }
+      await W(g, run(560, 420));
+      cogi.f = -1; put(cogi);
+      BC.show(560, 268, "Every nut,\nfrom every helper!", "down", "cogi");
+      await W(g, wait(1900));
+      BC.hide();
+    },
+    async function (g) {
+      await W(g, wait(400));
+      BK.show(70, 286, "Do you remember the\ntreehouse idea\nfrom a week ago?", "down", "you");
+      await W(g, wait(2100));
+      await W(g, run(620, 320));
+      await W(g, dive());
+      BC.show(675, 196, "sniff… sniff…", "down", "cogi");
+      for (var i = 0; i < hollow.length; i++) await W(g, wiggle(hollow[i], 220));
+      hollow[0].el.classList.add("mv-glow");
+      BC.show(675, 196, "This one!", "down", "cogi");
+      await W(g, wait(1400));
+      BC.hide(); BK.hide();
+    },
+    async function (g) {
+      await W(g, wait(300));
+      carry(true);
+      await W(g, popOut(600));
+      await W(g, run(230, 320));
+      talk(0);
+      BH.show(95, 62, "Found it! Mon 5 Oct:\n“A treehouse with a slide\nand a rope ladder!”", "up", "helper");
+      await W(g, wait(1700));
+      BK.show(70, 286, "Yes! That one!", "down", "you");
+      await W(g, wait(1900));
+      BK.hide(); BH.hide(); talk(-1);
+      await W(g, run(590, 340));
+      cogi.f = 1; put(cogi);
+      var from = paw(); carry(false);
+      await W(g, toss(from, slot(0), 520));
+      hollow[0].el.classList.remove("mv-glow");
+      BC.show(590, 268, "Back in the hollow.\nSafe for next time!", "down", "cogi");
+      await W(g, wait(1900));
+      BC.hide();
+    },
+    async function (g) {
+      await W(g, wait(300));
+      BK.show(70, 286, "What about the\ndinosaur party?", "down", "you");
+      await W(g, wait(1800));
+      await W(g, run(620, 320));
+      await W(g, dive());
+      BC.show(675, 196, "sniff… sniff…", "down", "cogi");
+      for (var i = 0; i < hollow.length; i++) await W(g, wiggle(hollow[i], 160));
+      BC.show(675, 196, "No dinosaur nut!", "down", "cogi");
+      await W(g, wait(1000));
+      BC.hide();
+      await W(g, popOut(600));
+      await W(g, shrug());
+      talk(0);
+      BH.show(95, 62, "There's nothing about that.\nI won't make it up!", "up", "helper");
+      await W(g, wait(2300));
+      BK.hide(); BH.hide(); talk(-1);
+      BC.show(600, 268, "Cogi never makes\nup a nut!", "down", "cogi");
+      await W(g, happyHop());
+      await W(g, wait(1700));
+    }
+  ];
+
+  var started = false, ended = false, cur = 1, autoPaused = false;
+  function setPaused(v) {
+    paused = v;
+    $("mvToggle").textContent = ended ? "Play again" : v ? "Play" : "Pause";
+  }
+  function showOverlay(label) { $("mvBig").textContent = label; $("mvOver").hidden = false; }
+  function startFrom(n) {
+    gen++; tweens.length = 0;
+    var g = gen;
+    started = true; ended = false; autoPaused = false;
+    $("mvOver").hidden = true;
+    setPaused(false);
+    (async function () {
+      try {
+        for (var i = n; i <= SC.length; i++) {
+          cur = i; setup(i);
+          await SC[i - 1](g);
+          if (g !== gen) return;
+        }
+        ended = true; setPaused(true);
+        showOverlay("Watch again");
+      } catch (e) { if (e !== STOP) throw e; }
+    })();
+  }
+  $("mvBig").addEventListener("click", function () { startFrom(ended ? 1 : cur); });
+  $("mvToggle").addEventListener("click", function () {
+    if (!started || ended) { startFrom(ended ? 1 : cur); return; }
+    autoPaused = false;
+    setPaused(!paused);
+  });
+  $("mvRestart").addEventListener("click", function () { startFrom(1); });
+  function pokeFilm() {
+    BE.show(cogi.x, cogi.y - 116 * cogi.s, pick(COGI_LINES), "down", "cogi");
+    setTimeout(function () { BE.hide(); }, 1600);
+  }
+  $("mvCogi").addEventListener("click", pokeFilm);
+  $("mvCogi").addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pokeFilm(); } });
+
+  setup(1);
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (entries) {
+      var vis = entries[0].isIntersecting;
+      if (vis && !started && !RM) startFrom(1);
+      else if (!vis && started && !ended && !paused) { autoPaused = true; setPaused(true); }
+      else if (vis && autoPaused && !ended) { autoPaused = false; setPaused(false); }
+    }, { threshold: 0.55 }).observe($("mv"));
+  }
+
+  /* ================= CATCH GAME ================= */
+  var IDEAS = ["Treehouse with a slide", "Robot named Sir Beep-a-Lot", "Banana pancakes", "A card for Grandma", "Bigger letters",
+    "A squirrel game", "Library books due Friday", "Birdhouse from a milk carton", "Picnic on the moon", "Paint the bike blue",
+    "A song about socks", "Fix the login bug", "Build a kite", "Plant sunflowers", "A pet rock called Steve"];
+  var CLOUDX = [0.17, 0.5, 0.83], CLOUDW = ["Claude", "Codex", "ChatGPT"];
+  var cg = { on: false, nuts: [], caught: 0, missed: 0, spawned: 0, total: 15, t: 0, next: 0, cx: 0.5, target: 0.5, l: false, r: false, last: null, list: [] };
+  var box = $("cg"), cat = $("cgCogi");
+  function cgHud() {
+    $("cgScore").textContent = "Caught " + cg.caught + " · Rolled away " + cg.missed + " · Still to fall " + (cg.total - cg.spawned);
+  }
+  function cgStart() {
+    cg.nuts.forEach(function (n) { if (n.el.parentNode) n.el.parentNode.removeChild(n.el); });
+    cg.nuts = []; cg.caught = 0; cg.missed = 0; cg.spawned = 0; cg.t = 0; cg.next = 0.6; cg.cx = 0.5; cg.target = 0.5; cg.last = null; cg.list = [];
+    var order = IDEAS.slice().sort(function () { return Math.random() - 0.5; });
+    cg.order = order;
+    cg.on = true; box.classList.add("playing");
+    $("cgOver").hidden = true; $("cgLast").textContent = "";
+    cgHud();
+    requestAnimationFrame(cgLoop);
+  }
+  function cgEnd() {
+    cg.on = false; box.classList.remove("playing");
+    var all = cg.caught === cg.total;
+    $("cgTitle").textContent = all ? "Wow, all " + cg.total + "!" : "You caught " + cg.caught + " of " + cg.total + "!";
+    $("cgText").textContent = all
+      ? "You're as quick as Cogi. The real Cogi does this every time, all day, while you just keep chatting."
+      : cg.missed + (cg.missed === 1 ? " idea" : " ideas") + " rolled away and got forgotten. The real Cogi catches every single one, every time, while you just keep chatting.";
+    $("cgStart").textContent = "Play again";
+    $("cgOver").hidden = false;
+  }
+  function cgLoop(t) {
+    if (!cg.on) return;
+    var dt = cg.last == null ? 0 : Math.min((t - cg.last) / 1000, 0.05);
+    cg.last = t; cg.t += dt;
+    var W_ = box.clientWidth, H_ = box.clientHeight;
+    if (cg.spawned < cg.total && cg.t >= cg.next) {
+      var k = Math.floor(Math.random() * 3);
+      var el = document.createElement("div");
+      el.className = "cg-nut";
+      el.innerHTML = '<svg viewBox="0 0 40 48" aria-hidden="true"><use href="#acorn"/></svg>';
+      box.insertBefore(el, $("cgOver"));
+      cg.nuts.push({ el: el, x: Math.min(0.93, Math.max(0.07, CLOUDX[k] + (Math.random() - 0.5) * 0.16)), y: 0.14, v: 0.24 + 0.014 * cg.spawned, idea: cg.order[cg.spawned], who: CLOUDW[k], miss: 0, rot: 0 });
+      cg.spawned++;
+      cg.next = cg.t + Math.max(0.85, 1.7 - 0.06 * cg.spawned);
+      cgHud();
+    }
+    if (cg.l) cg.target -= 1.1 * dt;
+    if (cg.r) cg.target += 1.1 * dt;
+    cg.target = Math.min(0.93, Math.max(0.07, cg.target));
+    var step = 1.6 * dt, d = cg.target - cg.cx;
+    cg.cx += Math.max(-step, Math.min(step, d));
+    var cw = cat.clientWidth, chRel = cat.clientHeight / H_;
+    cat.style.transform = "translateX(" + (cg.cx * W_ - cw / 2).toFixed(1) + "px)" + (cg.target < cg.cx - 0.002 ? " scaleX(-1)" : "");
+    var zoneTop = 0.96 - chRel;
+    for (var i = cg.nuts.length - 1; i >= 0; i--) {
+      var n = cg.nuts[i], nw = n.el.clientWidth, nh = n.el.clientHeight;
+      if (n.miss) {
+        n.miss += dt; n.x += 0.18 * dt; n.rot += 420 * dt;
+        n.el.style.opacity = Math.max(0, 1 - n.miss / 0.9);
+        if (n.miss > 0.9) { n.el.parentNode.removeChild(n.el); cg.nuts.splice(i, 1); continue; }
+      } else {
+        n.y += n.v * dt;
+        if (n.y >= zoneTop + 0.03 && n.y <= zoneTop + chRel * 0.7 && Math.abs(n.x - cg.cx) < 0.085) {
+          n.el.parentNode.removeChild(n.el); cg.nuts.splice(i, 1);
+          cg.caught++; restart(cat, "yum");
+          $("cgLast").textContent = "Caught: " + n.idea + " (" + n.who + ")";
+          cgHud(); continue;
+        }
+        if (n.y >= 0.965) { n.y = 0.965; n.miss = 0.001; cg.missed++; $("cgLast").textContent = "Oops, rolled away: " + n.idea; cgHud(); }
+      }
+      n.el.style.transform = "translate(" + (n.x * W_ - nw / 2).toFixed(1) + "px," + (n.y * H_ - nh).toFixed(1) + "px) rotate(" + n.rot.toFixed(0) + "deg)";
+    }
+    if (cg.spawned >= cg.total && cg.nuts.length === 0) { cgEnd(); return; }
+    requestAnimationFrame(cgLoop);
+  }
+  function aim(e) { if (!cg.on) return; var r = box.getBoundingClientRect(); cg.target = (e.clientX - r.left) / r.width; }
+  box.addEventListener("pointermove", aim);
+  box.addEventListener("pointerdown", aim);
+  document.addEventListener("keydown", function (e) {
+    if (!cg.on) return;
+    if (e.key === "ArrowLeft") { cg.l = true; e.preventDefault(); }
+    if (e.key === "ArrowRight") { cg.r = true; e.preventDefault(); }
+  });
+  document.addEventListener("keyup", function (e) {
+    if (e.key === "ArrowLeft") cg.l = false;
+    if (e.key === "ArrowRight") cg.r = false;
+  });
+  $("cgStart").addEventListener("click", cgStart);
+  cat.style.transform = "translateX(" + (box.clientWidth * 0.5 - cat.clientWidth / 2) + "px)";
+
+  /* ================= NUT HOLLOW ================= */
+  var TODAY = "2026-10-18";
+  var CLS = { Claude: "h-claude", Codex: "h-codex", ChatGPT: "h-chatgpt" };
+  var RANGES = {
+    last: ["2026-10-05", "2026-10-11", "last week (5 to 11 October)"],
+    "this": ["2026-10-12", "2026-10-18", "this week (12 to 18 October)"]
+  };
+  var nuts = [
+    { id: "n1", d: "2026-10-05", who: "Claude", text: "A treehouse with a slide and a rope ladder!" },
+    { id: "n2", d: "2026-10-06", who: "ChatGPT", text: "Let's call the robot Mr Clank." },
+    { id: "n3", d: "2026-10-07", who: "ChatGPT", text: "Actually, let's call the robot Sir Beep-a-Lot.", retracts: ["n2"] },
+    { id: "n4", d: "2026-10-08", who: "Codex", text: "Found the bug: the login page breaks when the password has a space in it." },
+    { id: "n5", d: "2026-10-10", who: "ChatGPT", text: "Pancake trick: squash a banana into the batter." },
+    { id: "n6", d: "2026-10-13", who: "Claude", text: "Grandma's birthday is on 3 November. Make her a card with stickers." },
+    { id: "n7", d: "2026-10-14", who: "Codex", text: "Make the letters on the start screen bigger so they are easy to read." },
+    { id: "n8", d: "2026-10-16", who: "Claude", text: "Game idea: a squirrel has to collect nuts before winter comes." },
+    { id: "n9", d: "2026-10-18", who: "ChatGPT", text: "The library books are due back on Friday 23 October." }
+  ];
+  var when = "any";
+  var LONGDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function dt(d) { return new Date(d + "T12:00:00Z"); }
+  function shortDate(d) { var x = dt(d); return x.getUTCDate() + " " + MONTHS[x.getUTCMonth()]; }
+  function longDate(d) { var x = dt(d); return LONGDAYS[x.getUTCDay()] + " " + x.getUTCDate() + " " + MONTHS[x.getUTCMonth()]; }
+  function retractedBy(id) {
+    for (var i = 0; i < nuts.length; i++) { if ((nuts[i].retracts || []).indexOf(id) >= 0) return nuts[i]; }
+    return null;
+  }
+  var STOPSET = {};
+  ("the a an that this those these do does did done you your remember from about what whats when where who how is are was were be been " +
+    "my me i it its of to on in with for and or again revisit week weeks ago last please cogi find found idea ideas thing things something " +
+    "we us our can could tell said say let lets there any some have has had which one remind nut nuts just").split(" ").forEach(function (w) { STOPSET[w] = true; });
+  var SYN = { name: ["call"], call: ["name"], named: ["call"], bug: ["break", "fix"], broken: ["break", "bug"], font: ["letter"], text: ["letter"],
+    letter: ["font"], due: ["back"], recipe: ["pancake", "batter"], gran: ["grandma"], granny: ["grandma"], present: ["card", "birthday"],
+    house: ["treehouse"], tree: ["treehouse"] };
+  function stem(w) {
+    if (w.length > 4 && /ies$/.test(w)) return w.slice(0, -3) + "y";
+    if (w.length > 3 && /s$/.test(w) && !/ss$/.test(w)) return w.slice(0, -1);
+    return w;
+  }
+  function words(s) {
+    return s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+      .filter(function (w) { return w && !STOPSET[w]; })
+      .map(stem)
+      .filter(function (w) { return w.length > 1 && !STOPSET[w]; });
+  }
+  function score(qw, nut) {
+    var nw = words(nut.text), s = 0;
+    qw.forEach(function (q) {
+      if (nw.indexOf(q) >= 0) { s += 2; return; }
+      var part = q.length >= 4 && nw.some(function (w) { return w.length >= 4 && (w.indexOf(q) >= 0 || q.indexOf(w) >= 0); });
+      if (part) { s += 1.5; return; }
+      var syn = SYN[q] || [];
+      if (syn.some(function (x) { return nw.indexOf(x) >= 0; })) s += 1;
+    });
+    return s;
+  }
+  function inRange(d, r) { if (r === "any") return true; return d >= RANGES[r][0] && d <= RANGES[r][1]; }
+  function acornSvg() { return '<svg viewBox="0 0 40 48" aria-hidden="true"><use href="#acorn"/></svg>'; }
+  function react(kind) { var c = $("treeCogi"); ["hop", "shrug", "catch"].forEach(function (k) { c.classList.remove(k); }); void c.getBoundingClientRect(); c.classList.add(kind); }
+
+  function renderHollow(dropId) {
+    $("hollow").innerHTML = nuts.map(function (n) {
+      var rot = retractedBy(n.id);
+      return '<button type="button" class="nut ' + CLS[n.who] + (rot ? " rotten" : "") + (n.id === dropId ? " dropping" : "") +
+        '" data-id="' + n.id + '" aria-label="Nut from ' + esc(n.who) + ", " + esc(longDate(n.d)) + ": " + esc(n.text) + '">' +
+        acornSvg() + '<span class="who"></span>' + (rot ? '<span class="sticker">changed</span>' : "") +
+        '<span class="nd">' + esc(shortDate(n.d)) + "</span></button>";
+    }).join("");
+    $("count").textContent = nuts.length + " nuts, none lost";
+  }
+  function showTag(id) {
+    var n = nuts.filter(function (x) { return x.id === id; })[0]; if (!n) return;
+    Array.prototype.forEach.call(document.querySelectorAll(".nut"), function (b) { b.classList.toggle("picked", b.dataset.id === id); });
+    var rot = retractedBy(id);
+    $("tag").innerHTML = "“" + esc(n.text) + "”" +
+      '<span class="meta">' + esc(longDate(n.d)) + " · said with " + esc(n.who) + "</span>" +
+      (rot ? '<span class="note">You changed your mind on ' + esc(longDate(rot.d)) + ": “" + esc(rot.text) + "” Cogi still keeps this old nut, with a sticker, because Cogi never throws a nut away.</span>" : "");
+  }
+  function sniff(ids) {
+    Array.prototype.forEach.call(document.querySelectorAll(".nut"), function (b) {
+      b.classList.remove("sniffed");
+      if (ids.indexOf(b.dataset.id) >= 0) { void b.offsetWidth; b.classList.add("sniffed"); }
+    });
+  }
+  function setPouch(msg, list, extra, found) {
+    $("pmsg").innerHTML = msg;
+    $("pmsg").classList.toggle("found", !!found);
+    $("pnuts").innerHTML = (list || []).map(function (n, i) {
+      return '<div class="pnut" style="animation-delay:' + (i * 0.12) + 's">' + acornSvg() +
+        '<div><q>' + esc(n.text) + '</q><span class="meta">' + esc(longDate(n.d)) + " · said with " + esc(n.who) + "</span></div></div>";
+    }).join("");
+    $("pextra").hidden = !extra;
+    $("pextra").innerHTML = extra || "";
+  }
+  function ask(q) {
+    q = (q || "").trim();
+    if (!q) { setPouch("Type a question first, then Cogi can start sniffing."); sniff([]); return; }
+    var range = when, heard = "";
+    if (when === "any") {
+      if (/(a week ago|last week)/i.test(q)) { range = "last"; heard = "Cogi heard “" + (/(a week ago)/i.test(q) ? "a week ago" : "last week") + "”, so it only looked at nuts from " + RANGES.last[2] + ". "; }
+      else if (/(this week|today|yesterday)/i.test(q)) { range = "this"; heard = "Cogi only looked at nuts from " + RANGES["this"][2] + ". "; }
+    }
+    var qw = words(q);
+    if (!qw.length) { setPouch("Cogi needs a word to sniff for. Try “treehouse” or “robot”."); sniff([]); react("shrug"); return; }
+    var looked = nuts.filter(function (n) { return !retractedBy(n.id) && inRange(n.d, range); });
+    var hits = looked.map(function (n) { return { n: n, s: score(qw, n) }; })
+      .filter(function (x) { return x.s > 0; })
+      .sort(function (a, b) { return b.s - a.s || (a.n.d < b.n.d ? 1 : -1); })
+      .slice(0, 3).map(function (x) { return x.n; });
+    var oldOnes = nuts.filter(function (n) { return retractedBy(n.id) && inRange(n.d, range) && score(qw, n) > 0; });
+    var extra = oldOnes.length ? "Cogi also has an older nut: “" + esc(oldOnes[0].text) + "” You changed your mind later, so it stays in the hollow with a sticker and doesn't come back in the pouch." : "";
+    sniff(hits.map(function (n) { return n.id; }));
+    if (!hits.length) {
+      react("shrug");
+      setPouch(esc(heard) + "Cogi sniffed all " + looked.length + " nuts" + (range === "any" ? "" : " from then") + ". None of them are about that, so the pouch stays empty. Cogi never makes up a nut.", [], extra);
+      return;
+    }
+    react("hop");
+    setPouch(esc(heard) + "Cogi sniffed " + looked.length + " nuts and brought back " + (hits.length === 1 ? "this one" : "these " + hits.length) + ":", hits, extra, true);
+  }
+  $("hollow").addEventListener("click", function (e) { var b = e.target.closest(".nut"); if (b) showTag(b.dataset.id); });
+  $("askForm").addEventListener("submit", function (e) { e.preventDefault(); ask($("q").value); });
+  Array.prototype.forEach.call($("quick").querySelectorAll(".chip"), function (c) {
+    c.addEventListener("click", function () { $("q").value = c.textContent; ask(c.textContent); });
+  });
+  Array.prototype.forEach.call($("whenrow").querySelectorAll(".chip"), function (c) {
+    c.addEventListener("click", function () {
+      when = c.dataset.w;
+      Array.prototype.forEach.call($("whenrow").querySelectorAll(".chip"), function (x) { x.setAttribute("aria-pressed", x === c ? "true" : "false"); });
+      if ($("q").value.trim()) ask($("q").value);
+    });
+  });
+  $("treeCogi").addEventListener("animationend", function () { this.classList.remove("hop", "shrug", "catch"); });
+  $("hideForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var t = $("newnut").value.trim(), who = $("who").value;
+    if (!t) { setPouch("Type an idea in the box first, then Cogi can hide it."); return; }
+    var n = { id: "u" + Date.now(), d: TODAY, who: who, text: t };
+    nuts.push(n);
+    renderHollow(n.id);
+    showTag(n.id);
+    react("catch");
+    $("newnut").value = "";
+    setPouch("Hidden! Cogi tagged your nut: " + esc(longDate(TODAY)) + " · said with " + esc(who) + ". Now try asking Cogi for it.");
+    sniff([]);
+  });
+  renderHollow();
+  showTag("n1");
+})();
+</script>
