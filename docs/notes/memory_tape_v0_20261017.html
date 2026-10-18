@@ -1,0 +1,614 @@
+<title>Memory Tape v0</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* Layout: a build sheet. Hero with the four choices, then the interactive wiring diagram
+   (the page's centre), component cards, the two-op protocol with a time demo, numbers, plan. */
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --surface-2: #e8edf1;
+  --ink: #13202a;
+  --ink-2: #3f4e59;
+  --ink-3: #66757f;
+  --rule: #d3dbe1;
+  --rule-strong: #9fb0bb;
+  --accent: #0a756d;
+  --accent-soft: #d3eeea;
+  --signal: #9a5f06;
+  --signal-soft: #f5e8cf;
+  --yes: #2c7a48;
+  --no: #a8465a;
+  --code-bg: #eef2f5;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418; --surface: #151d23; --surface-2: #1c262d; --ink: #e4ecf0; --ink-2: #b2bfc7;
+    --ink-3: #85949d; --rule: #29353d; --rule-strong: #4a5b66; --accent: #4cc2b4; --accent-soft: #12332e;
+    --signal: #e2a948; --signal-soft: #392b12; --yes: #5fc287; --no: #e27d8f; --code-bg: #111a1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418; --surface: #151d23; --surface-2: #1c262d; --ink: #e4ecf0; --ink-2: #b2bfc7;
+  --ink-3: #85949d; --rule: #29353d; --rule-strong: #4a5b66; --accent: #4cc2b4; --accent-soft: #12332e;
+  --signal: #e2a948; --signal-soft: #392b12; --yes: #5fc287; --no: #e27d8f; --code-bg: #111a1f;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+h1, h2, h3, h4 { font-family: var(--f-display); text-wrap: balance; line-height: 1.15; margin: 0; color: var(--ink); }
+h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+h4 { font-size: 1rem; font-weight: 500; }
+p { margin: 0; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.section { display: flex; flex-direction: column; gap: 18px; }
+.lead { color: var(--ink-2); max-width: 68ch; }
+.mono { font-family: var(--f-mono); font-size: 0.92em; }
+.small { font-size: 0.88rem; }
+.muted { color: var(--ink-3); }
+
+header.hero { padding-block: 48px 32px; display: flex; flex-direction: column; gap: 18px; border-bottom: 1px solid var(--rule); }
+.hero .sub { font-size: 1.2rem; color: var(--ink-2); max-width: 62ch; }
+.picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.pick { border-top: 2px solid var(--ink); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pick .k { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
+.pick .v { font-family: var(--f-display); font-weight: 500; font-size: 1.08rem; }
+.pick p { font-size: 0.93rem; color: var(--ink-2); }
+
+/* diagram */
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.tgroup { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tgroup .lbl { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; }
+.chip { font-family: var(--f-mono); font-size: 0.84rem; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--rule-strong); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.chip:hover { border-color: var(--accent); color: var(--ink); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.chip.stage[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.arch { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.diagram { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 8px; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.node rect { fill: var(--surface-2); stroke: var(--rule-strong); stroke-width: 1.2; transition: fill .2s, stroke .2s, opacity .2s; }
+.node text { fill: var(--ink); font-family: var(--f-display); font-size: 14.5px; font-weight: 500; }
+.node text.sub { fill: var(--ink-3); font-family: var(--f-mono); font-size: 10.5px; font-weight: 400; }
+.node { cursor: pointer; }
+.node:hover rect { stroke: var(--ink-2); }
+.node.on rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.node.focus rect { stroke: var(--signal); stroke-width: 2.4; }
+.node.off rect { stroke-dasharray: 5 4; fill: transparent; }
+.node.off text { fill: var(--ink-3); }
+.edge { fill: none; stroke: var(--rule-strong); stroke-width: 1.4; transition: stroke .2s; }
+.edge.on { stroke: var(--accent); stroke-width: 2.6; }
+.edge.off { stroke-dasharray: 4 4; opacity: .55; }
+.mk { fill: var(--rule-strong); }
+.mk-on { fill: var(--accent); }
+.lane { fill: none; stroke: var(--rule); stroke-dasharray: 3 6; }
+.lane-label { fill: var(--ink-3); font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .1em; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel .tag { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.panel ol { margin: 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; }
+.panel dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: 0.93rem; }
+.panel dt { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding-top: 3px; }
+.panel dd { margin: 0; }
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; overflow-x: auto; font-family: var(--f-mono); font-size: 0.78rem; line-height: 1.5; color: var(--ink); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; color: var(--ink-2); }
+.legend i { display: inline-block; width: 22px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.legend .l-on { background: var(--accent-soft); border: 2px solid var(--accent); }
+.legend .l-std { background: var(--surface-2); border: 1px solid var(--rule-strong); }
+.legend .l-off { border: 1.5px dashed var(--rule-strong); }
+
+/* components */
+.comps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.comp { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; cursor: pointer; transition: border-color .2s; }
+.comp:hover { border-color: var(--rule-strong); }
+.comp.sel { border-color: var(--signal); box-shadow: 0 0 0 1px var(--signal); }
+.comp .role { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); display: flex; justify-content: space-between; gap: 8px; }
+.comp .when { color: var(--accent); }
+.comp .when.later { color: var(--signal); }
+.comp .choice { font-family: var(--f-display); font-weight: 700; font-size: 1.1rem; }
+.comp p { font-size: 0.93rem; color: var(--ink-2); }
+.comp .alt { font-size: 0.85rem; color: var(--ink-3); }
+
+/* protocol */
+.proto { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.proto article { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.rules { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 5px; font-size: 0.94rem; }
+table.fields { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+.fields th, .fields td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.fields th { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+.fields td:first-child { font-family: var(--f-mono); white-space: nowrap; }
+
+/* time demo */
+.timedemo { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+.tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tl li { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 10px; font-size: 0.92rem; padding: 6px 8px; border-radius: 6px; border: 1px solid transparent; }
+.tl li .d { font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink-3); padding-top: 2px; }
+.tl li.future { opacity: .38; }
+.tl li.retracted .t { text-decoration: line-through; color: var(--ink-3); }
+.tl li.kind-retract .t { font-style: italic; color: var(--no); }
+.ctl { display: flex; flex-direction: column; gap: 6px; }
+.ctl label { font-family: var(--f-display); font-weight: 500; display: flex; justify-content: space-between; gap: 8px; font-size: 0.95rem; }
+.ctl output { font-family: var(--f-mono); color: var(--accent); font-size: 0.88rem; }
+.ctl input[type=range] { width: 100%; accent-color: var(--accent); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { font-family: var(--f-mono); font-size: 0.82rem; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--rule-strong); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.answers { display: flex; flex-direction: column; gap: 10px; }
+.ans { border-left: 3px solid var(--accent); padding: 6px 12px; background: var(--surface-2); border-radius: 0 8px 8px 0; font-size: 0.92rem; }
+.ans .q { font-family: var(--f-mono); font-size: 0.75rem; color: var(--ink-3); }
+.ans .older { font-size: 0.84rem; color: var(--ink-3); }
+
+/* numbers */
+.scroll-x { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; background: var(--surface); }
+table.nums { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 0.92rem; }
+.nums th, .nums td { padding: 9px 12px; border-bottom: 1px solid var(--rule); text-align: right; font-variant-numeric: tabular-nums; }
+.nums th:first-child, .nums td:first-child { text-align: left; }
+.nums thead th { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+.nums td { font-family: var(--f-mono); font-size: 0.86rem; }
+.nums td:first-child { font-family: var(--f-body); font-size: 0.92rem; }
+.pill { font-family: var(--f-mono); font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.pill.vend { background: var(--surface-2); color: var(--ink-2); }
+.pill.est { background: var(--signal-soft); color: var(--signal); }
+.pill.meas { background: var(--accent-soft); color: var(--accent); }
+.ladder { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.rung { padding: 14px 16px; border-right: 1px solid var(--rule); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rung:last-child { border-right: 0; }
+.rung .b { font-family: var(--f-mono); font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.rung .n { font-family: var(--f-mono); font-size: 0.72rem; color: var(--ink-3); letter-spacing: .05em; text-transform: uppercase; }
+.rung p { font-size: 0.88rem; color: var(--ink-2); }
+.rung.later .n { color: var(--signal); }
+
+/* plan */
+.plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; counter-reset: s; }
+.plan .st { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.plan .st h3 { display: flex; gap: 10px; align-items: baseline; }
+.plan .st h3::before { counter-increment: s; content: "v" counter(s); font-family: var(--f-mono); font-size: 0.82rem; color: var(--bg); background: var(--ink); border-radius: 4px; padding: 0 7px; }
+.plan .st ul { margin: 0; padding-left: 1.1em; font-size: 0.93rem; display: flex; flex-direction: column; gap: 4px; }
+.plan .st .done { font-size: 0.88rem; color: var(--yes); }
+.callout { border: 1px solid var(--signal); background: var(--signal-soft); border-radius: 10px; padding: 14px 16px; font-size: 0.96rem; }
+footer { border-top: 1px solid var(--rule); padding-top: 16px; font-size: 0.85rem; color: var(--ink-3); }
+
+@media (max-width: 860px) {
+  .arch, .timedemo { grid-template-columns: minmax(0, 1fr); }
+  .rung { border-right: 0; border-bottom: 1px solid var(--rule); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <span class="eyebrow">MrCogito · agent memory · simplified design · 17 October 2026</span>
+  <div style="margin:0 0 18px;padding:12px 16px;border-left:4px solid #c0392b;background:rgba(192,57,43,.08);font:14px/1.5 system-ui,sans-serif"><b>Superseded on 18 Oct 2026; kept as background.</b> <code>docs/requirements.md</code> is the current design. Changes since this page:
+    <ul style="margin:6px 0 6px;padding-left:1.2em">
+      <li><b>Protocol.</b> Keys are always static. The unit is one message. The query only retrieves (no named questions, no <code>latest</code>/<code>timeline</code> modes, no trimming inside a message). The two times are now <code>valid_at</code> and <code>created_at</code>, with <code>as_of</code> as the viewpoint.</li>
+      <li><b>Who it is for.</b> People's own chats with Claude, Codex and ChatGPT: getting back "that idea from a week ago" that nobody wrote down.</li>
+      <li><b>MCP and setup.</b> MCP ships in v0. Setup is one command (for example <code>uvx cogito-mem install claude-code</code>), and automatic capture uses Claude Code and Codex hooks. The MVP runs locally for the author alone; access from claude.ai and ChatGPT on the web is postponed.</li>
+      <li><b>No race on numbers.</b> The benchmarks remain internal checks on quality and speed, not a leaderboard target. The "Done when" lines in the plan below are replaced by the acceptance tests in requirements §3.5.</li>
+      <li><b>Competition.</b> Claude's and ChatGPT's built-in memory, claude-mem, OpenMemory and Basic Memory. See section J of <code>docs/literature/agent_memory_systems.md</code>.</li>
+    </ul>
+    The measured speed numbers below still hold (PyTorch on Polonez, 17 Oct).</div>
+  <h1>Memory Tape v0</h1>
+  <p class="sub">Two operations and off-the-shelf parts, with no training to start. Messages go onto an append-only tape, an open embedding model indexes them, and any LLM queries in plain JSON with a question and a time.</p>
+  <div class="picks">
+    <div class="pick"><span class="k">Embed</span><span class="v">EmbeddingGemma 2, cut to 256 numbers</span><p>Google's open embedding model (Apache 2.0, released 6 October 2026; 270M parameters for text, inputs up to 8k tokens). Its first 256 of 768 numbers work on their own: 3× smaller for under one benchmark point, no quantization.</p></div>
+    <div class="pick"><span class="k">Store</span><span class="v">One SQLite file + one vector file</span><p>The tape holds exact text and both times, never updated in place. A plain array of vectors sits beside it, one row per chunk.</p></div>
+    <div class="pick"><span class="k">Search</span><span class="v">Vector + keyword, filtered by time</span><p>Exact vector search plus keyword search (catches names, numbers and ids), merged by rank. No search server.</p></div>
+    <div class="pick"><span class="k">Protocol</span><span class="v"><span class="mono">append</span> and <span class="mono">query</span></span><p>Corrections, retractions and later offline summaries are all appends. Queries are named questions with an optional time, answered by name, like Jev.</p></div>
+  </div>
+</header>
+
+<!-- architecture -->
+<section class="section" id="arch">
+  <span class="eyebrow">Interactive architecture</span>
+  <h2>How the pieces connect</h2>
+  <p class="lead">Pick an operation to trace its path. Pick a version to see what switches on as we add small pieces of training and, later, the offline librarian. Click any box for the chosen component and why.</p>
+  <div class="toolbar">
+    <div class="tgroup" role="group" aria-label="Operation"><span class="lbl">Operation</span>
+      <button class="chip" id="op-append" type="button">append</button>
+      <button class="chip" id="op-query" type="button">query</button>
+      <button class="chip" id="op-offline" type="button">offline pass</button></div>
+    <div class="tgroup" role="group" aria-label="Version"><span class="lbl">Version</span>
+      <button class="chip stage" id="v-0" type="button">v0 · no training</button>
+      <button class="chip stage" id="v-1" type="button">v1 · small training</button>
+      <button class="chip stage" id="v-2" type="button">v2 · offline librarian</button></div>
+  </div>
+  <div class="legend"><span><i class="l-on"></i>on the selected path</span><span><i class="l-std"></i>part of this version</span><span><i class="l-off"></i>not in this version yet</span></div>
+  <div class="arch">
+    <div class="diagram">
+      <svg viewBox="0 0 1000 650" role="img" aria-labelledby="dgT" id="dg">
+        <title id="dgT">Memory Tape v0: callers, gateway, write path (chunk, embed, shrink), stores (tape, keyword index, vectors), read path (embed question, hybrid search with time filter, optional rerank, trim), and an offline librarian that appends derived notes.</title>
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0 0 L10 5 L0 10 z"/></marker>
+          <marker id="arrOn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-on" d="M0 0 L10 5 L0 10 z"/></marker>
+        </defs>
+        <rect class="lane" x="318" y="22" width="672" height="102" rx="8"/><text class="lane-label" x="976" y="40" text-anchor="end">WRITE PATH</text>
+        <rect class="lane" x="318" y="150" width="672" height="222" rx="8"/><text class="lane-label" x="976" y="168" text-anchor="end">STORES · APPEND-ONLY</text>
+        <rect class="lane" x="318" y="384" width="672" height="152" rx="8"/><text class="lane-label" x="976" y="402" text-anchor="end">READ PATH</text>
+        <rect class="lane" x="318" y="560" width="672" height="78" rx="8"/><text class="lane-label" x="976" y="578" text-anchor="end">OFFLINE · LATER</text>
+
+        <path class="edge" id="e-llm-gw" d="M160 228 L 188 228" marker-end="url(#arr)"/>
+        <path class="edge" id="e-gw-llm" d="M190 262 L 162 262" marker-end="url(#arr)"/>
+        <path class="edge" id="e-gw-ch" d="M300 75 L 328 75" marker-end="url(#arr)"/>
+        <path class="edge" id="e-gw-tp" d="M300 265 L 328 265" marker-end="url(#arr)"/>
+        <path class="edge" id="e-ch-em" d="M460 75 L 488 75" marker-end="url(#arr)"/>
+        <path class="edge" id="e-em-sh" d="M620 75 L 648 75" marker-end="url(#arr)"/>
+        <path class="edge" id="e-ch-kw" d="M420 110 C 420 142, 555 140, 555 178" marker-end="url(#arr)"/>
+        <path class="edge" id="e-sh-vx" d="M715 110 L 715 178" marker-end="url(#arr)"/>
+        <path class="edge" id="e-gw-qe" d="M300 450 L 328 450" marker-end="url(#arr)"/>
+        <path class="edge" id="e-qe-se" d="M460 432 C 478 432, 490 416, 500 374" marker-end="url(#arr)"/>
+        <path class="edge" id="e-kw-se" d="M555 250 L 555 306" marker-end="url(#arr)"/>
+        <path class="edge" id="e-vx-se" d="M715 250 L 715 306" marker-end="url(#arr)"/>
+        <path class="edge" id="e-se-rr" d="M715 372 L 715 418" marker-end="url(#arr)"/>
+        <path class="edge" id="e-rr-tr" d="M780 452 L 818 452" marker-end="url(#arr)"/>
+        <path class="edge" id="e-tp-tr" d="M462 350 C 520 410, 800 380, 865 418" marker-end="url(#arr)"/>
+        <path class="edge" id="e-se-tr" d="M780 340 C 880 340, 915 370, 915 418" marker-end="url(#arr)"/>
+        <path class="edge" id="e-tr-gw" d="M885 488 C 885 528, 340 528, 302 528" marker-end="url(#arr)"/>
+        <path class="edge" id="e-tp-lb" d="M330 340 C 310 340, 310 600, 328 600" marker-end="url(#arr)"/>
+        <path class="edge" id="e-lb-gw" d="M330 618 C 250 618, 245 600, 245 566" marker-end="url(#arr)"/>
+
+        <g class="node" id="n-llm" tabindex="0" role="button" aria-label="Any LLM or agent"><rect x="20" y="196" width="140" height="96" rx="8"/><text x="90" y="232" text-anchor="middle">Any LLM,</text><text x="90" y="250" text-anchor="middle">agent or peer</text><text class="sub" x="90" y="272" text-anchor="middle">HTTP · MCP</text></g>
+        <g class="node" id="n-gw" tabindex="0" role="button" aria-label="Gateway"><rect x="190" y="40" width="110" height="524" rx="8"/><text x="245" y="292" text-anchor="middle">Gateway</text><text class="sub" x="245" y="312" text-anchor="middle">append</text><text class="sub" x="245" y="326" text-anchor="middle">query</text></g>
+        <g class="node" id="n-ch" tabindex="0" role="button" aria-label="Chunker"><rect x="330" y="40" width="130" height="70" rx="8"/><text x="395" y="70" text-anchor="middle">Chunker</text><text class="sub" x="395" y="90" text-anchor="middle">≤256 tokens + header</text></g>
+        <g class="node" id="n-em" tabindex="0" role="button" aria-label="Embedder"><rect x="490" y="40" width="130" height="70" rx="8"/><text x="555" y="70" text-anchor="middle">Embedder</text><text class="sub" x="555" y="90" text-anchor="middle">EmbeddingGemma 2</text></g>
+        <g class="node" id="n-sh" tabindex="0" role="button" aria-label="Shrinker"><rect x="650" y="40" width="130" height="70" rx="8"/><text x="715" y="70" text-anchor="middle">Shrinker</text><text class="sub" x="715" y="90" text-anchor="middle" id="sh-sub">768 → 256 numbers</text></g>
+        <g class="node" id="n-tp" tabindex="0" role="button" aria-label="Tape"><rect x="330" y="180" width="130" height="180" rx="8"/><text x="395" y="250" text-anchor="middle">Tape</text><text class="sub" x="395" y="270" text-anchor="middle">SQLite</text><text class="sub" x="395" y="286" text-anchor="middle">exact text</text><text class="sub" x="395" y="302" text-anchor="middle">two clocks</text></g>
+        <g class="node" id="n-kw" tabindex="0" role="button" aria-label="Keyword index"><rect x="490" y="180" width="130" height="70" rx="8"/><text x="555" y="210" text-anchor="middle">Keyword index</text><text class="sub" x="555" y="230" text-anchor="middle">SQLite FTS5 · BM25</text></g>
+        <g class="node" id="n-vx" tabindex="0" role="button" aria-label="Vectors"><rect x="650" y="180" width="130" height="70" rx="8"/><text x="715" y="210" text-anchor="middle">Vectors</text><text class="sub" x="715" y="230" text-anchor="middle">16-bit array</text></g>
+        <g class="node" id="n-se" tabindex="0" role="button" aria-label="Hybrid search"><rect x="490" y="308" width="290" height="64" rx="8"/><text x="635" y="336" text-anchor="middle">Hybrid search + time filter</text><text class="sub" x="635" y="356" text-anchor="middle">exact vector · BM25 · rank fusion · as_of</text></g>
+        <g class="node" id="n-qe" tabindex="0" role="button" aria-label="Question embedder"><rect x="330" y="420" width="130" height="64" rx="8"/><text x="395" y="448" text-anchor="middle">Embed question</text><text class="sub" x="395" y="468" text-anchor="middle" id="qe-sub">same model</text></g>
+        <g class="node" id="n-rr" tabindex="0" role="button" aria-label="Reranker"><rect x="650" y="420" width="130" height="64" rx="8"/><text x="715" y="448" text-anchor="middle">Reranker</text><text class="sub" x="715" y="468" text-anchor="middle">optional · GPU</text></g>
+        <g class="node" id="n-tr" tabindex="0" role="button" aria-label="Trimmer"><rect x="820" y="420" width="140" height="64" rx="8"/><text x="890" y="448" text-anchor="middle">Trim to budget</text><text class="sub" x="890" y="468" text-anchor="middle">best sentences</text></g>
+        <g class="node" id="n-lb" tabindex="0" role="button" aria-label="Offline librarian"><rect x="330" y="582" width="630" height="48" rx="8"/><text x="645" y="603" text-anchor="middle">Offline librarian</text><text class="sub" x="645" y="621" text-anchor="middle">scheduled · reads the tape · appends summaries, links, "replaced by" notes</text></g>
+      </svg>
+    </div>
+    <div class="panel" aria-live="polite">
+      <span class="tag" id="pTag"></span>
+      <h3 id="pTitle"></h3>
+      <ol id="pSteps"></ol>
+      <div id="pComp" hidden>
+        <span class="tag">Component</span>
+        <h3 id="cName"></h3>
+        <dl><dt>Choice</dt><dd id="cChoice"></dd><dt>Why</dt><dd id="cWhy"></dd><dt>Instead</dt><dd id="cAlt"></dd><dt>Cost</dt><dd id="cCost"></dd></dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- components -->
+<section class="section" id="components">
+  <span class="eyebrow">Chosen components · click a card to find it in the diagram</span>
+  <h2>Chosen components</h2>
+  <div class="comps" id="comps"></div>
+</section>
+
+<!-- protocol -->
+<section class="section" id="protocol">
+  <span class="eyebrow">Protocol · two operations</span>
+  <h2>append and query</h2>
+  <p class="lead">One HTTP endpoint per operation, plus the same two as MCP tools so agents can call them directly. Requests and answers are JSON. Like Jev, a query carries named questions and gets answers keyed by those names; each question may carry its own time.</p>
+  <div class="proto">
+    <article>
+      <h3>append</h3>
+      <ul class="rules">
+        <li>Send a whole chat or any part of it. Each event's <span class="mono">id</span> is unique per thread, so resending a chat adds only the new messages.</li>
+        <li><span class="mono">t_event</span> is when it was said; the memory stamps <span class="mono">t_ingest</span> when it arrives. Nothing is ever edited or deleted.</li>
+        <li><span class="mono">kind</span> covers everything else: <span class="mono">message</span>, <span class="mono">document</span>, <span class="mono">retract</span> (hides the events it names), <span class="mono">note</span> (offline summaries and links, citing their sources).</li>
+        <li>The reply comes after the tape write (milliseconds). Embedding follows in a background batch, so new text is searchable by keyword at once and by meaning about a second later.</li>
+      </ul>
+<pre>{
+  "op": "append",
+  "memory": "team-alpha",
+  "source": "agent:planner",
+  "thread": "launch-q4",
+  "events": [
+    { "id": "msg-8812", "role": "user",
+      "t_event": "2026-10-15T09:12:00Z",
+      "text": "Launch moves to 14 November. Bob takes over the checklist." },
+    { "id": "fix-0031", "kind": "retract", "refs": ["msg-7710"],
+      "text": "Ad budget figure was entered by mistake." }
+  ]
+}</pre>
+<pre>{ "ok": true, "added": 2, "skipped": 0,
+  "seq": [1849220, 1849221], "chunks": 1, "ms": 4 }</pre>
+    </article>
+    <article>
+      <h3>query</h3>
+      <ul class="rules">
+        <li>Named questions in plain text. Each takes an optional time: <span class="mono">as_of</span> answers with what the memory knew then; <span class="mono">since</span> / <span class="mono">until</span> limit when things happened.</li>
+        <li><span class="mono">mode</span>: <span class="mono">relevant</span> (best matches, each dated), <span class="mono">latest</span> (among matches that say the same thing, the newest first, older ones attached), <span class="mono">timeline</span> (matches in time order; with <span class="mono">since_seq</span> it streams raw events, which is how another memory syncs).</li>
+        <li>Answers come back keyed by question name: exact text, times, source and a score. With the reranker on, the score is the probability that the item answers the question.</li>
+        <li>A budget caps time and tokens out; the trimmer keeps the sentences that best match.</li>
+      </ul>
+<pre>{
+  "op": "query",
+  "memory": "team-alpha",
+  "filters": { "thread": "launch-q4" },
+  "questions": {
+    "launch_date": { "text": "When is the Q4 launch?", "mode": "latest" },
+    "owner_then":  { "text": "Who owns the launch checklist?",
+                     "as_of": "2026-10-01T00:00:00Z" },
+    "risks":       { "text": "known launch risks", "since": "2026-10-01", "k": 5 }
+  },
+  "budget": { "max_ms": 100, "max_tokens_out": 800 }
+}</pre>
+<pre>{
+  "launch_date": { "items": [ {
+      "text": "Launch moves to 14 November. Bob takes over the checklist.",
+      "t_event": "2026-10-15T09:12:00Z", "source": "agent:planner",
+      "seq": 1849220, "score": 0.83,
+      "older": [ { "seq": 1712004, "t_event": "2026-09-12T10:00:00Z",
+                   "text": "Q4 launch planned for 7 November." } ] } ] },
+  "owner_then": { "items": [ { "text": "Alice owns the launch checklist.",
+      "t_event": "2026-09-20T15:30:00Z", "score": 0.79 } ] },
+  "risks": { "items": [] },
+  "usage": { "ms": 38, "candidates": 200, "tokens_out": 96 }
+}</pre>
+    </article>
+  </div>
+</section>
+
+<!-- time demo -->
+<section class="section" id="time">
+  <span class="eyebrow">Time, explained · example thread</span>
+  <h2>What a query sees at a given time</h2>
+  <p class="lead">Five events in one thread. Move the "as of" date to ask the memory what it knew then, and switch the mode. Nothing on the tape changes; only the view does.</p>
+  <div class="timedemo">
+    <div class="ctl" style="gap:14px">
+      <ul class="tl" id="tl"></ul>
+    </div>
+    <div class="ctl" style="gap:16px">
+      <div class="ctl"><label for="asof">As of <output id="asofOut"></output></label><input type="range" id="asof" min="0" max="5" step="1" value="5"></div>
+      <div class="ctl"><span class="mono small">Mode</span><div class="seg" id="mode" role="group" aria-label="Mode"><button type="button" data-m="latest">latest</button><button type="button" data-m="relevant">relevant</button></div></div>
+      <div class="answers" id="answers" aria-live="polite"></div>
+      <p class="small muted">In v0, "says the same thing" means the matches' vectors are very close (and both mention the same subject). The offline librarian later replaces this guess with explicit "replaced by" notes.</p>
+    </div>
+  </div>
+</section>
+
+<!-- numbers -->
+<section class="section" id="numbers">
+  <span class="eyebrow">Compression and speed</span>
+  <h2>How small, how fast</h2>
+  <p class="lead">Compression comes in rungs. Each one is optional, none is quantization, and the tape always keeps the exact text, so every rung can be redone later.</p>
+  <div class="ladder">
+    <div class="rung"><span class="n">full vector</span><span class="b">1,536 B</span><p>768 numbers × 2 bytes per chunk, as the model outputs them.</p></div>
+    <div class="rung"><span class="n">v0 · cut to 256</span><span class="b">512 B</span><p>Keep the first 256 numbers (the model is trained for this). About one byte per token of text at 160-token chunks.</p></div>
+    <div class="rung"><span class="n">v0 option · cut to 128</span><span class="b">256 B</span><p>Smaller again, at a larger retrieval cost; worth it only if memory size binds.</p></div>
+    <div class="rung later"><span class="n">v1 · learned 64</span><span class="b">128 B</span><p>A small linear map trained on our data to keep the ranking, applied to stored vectors without re-embedding.</p></div>
+    <div class="rung later"><span class="n">sent per answer</span><span class="b">≈ 2–4 KB</span><p>The trimmer returns only matching sentences: the compression that matters to the reading LLM.</p></div>
+  </div>
+  <div class="scroll-x"><table class="nums">
+    <thead><tr><th>Memory size</th><th>1M tokens</th><th>10M tokens</th><th>100M tokens</th></tr></thead>
+    <tbody>
+      <tr><td>Chunks (about 160 tokens each)<span class="pill est">estimate</span></td><td>6.3k</td><td>63k</td><td>625k</td></tr>
+      <tr><td>Tape text (4.2 bytes per token)<span class="pill meas">measured</span></td><td>4.2 MB</td><td>42 MB</td><td>420 MB</td></tr>
+      <tr><td>Vectors at 256 numbers, 16-bit<span class="pill est">estimate</span></td><td>3.2 MB</td><td>32 MB</td><td>320 MB</td></tr>
+      <tr><td>Keyword index (roughly the text size)<span class="pill est">estimate</span></td><td>≈ 4 MB</td><td>≈ 40 MB</td><td>≈ 400 MB</td></tr>
+      <tr><td>Exact vector search, one question, 8 CPU threads<span class="pill meas">measured</span> at 100M, scaled below</td><td>&lt; 1 ms</td><td>≈ 6 ms</td><td>61 ms</td></tr>
+      <tr><td>Exact vector search on one GPU<span class="pill meas">measured</span> at 100M</td><td>&lt; 0.1 ms</td><td>&lt; 0.1 ms</td><td>0.45 ms</td></tr>
+      <tr><td>Embedding one question<span class="pill meas">measured</span></td><td colspan="3" style="text-align:center">59 ms on 8 CPU threads · 30 ms on one GPU</td></tr>
+      <tr><td>Whole query, CPU, no reranker<span class="pill est">sum of the above</span></td><td>≈ 60 ms</td><td>≈ 65 ms</td><td>≈ 120 ms: over budget</td></tr>
+      <tr><td>Bulk ingest, one RTX 3090<span class="pill meas">measured</span> at 1M, scaled</td><td>14 s</td><td>≈ 2.4 min</td><td>≈ 24 min</td></tr>
+      <tr><td>Bulk ingest, 8 CPU threads<span class="pill meas">measured</span> rate, scaled</td><td>≈ 11 min</td><td>≈ 1.9 h</td><td>≈ 18 h</td></tr>
+      <tr><td>Our page writer, for comparison, one RTX 3090<span class="pill meas">measured</span></td><td>0.44 s</td><td>≈ 4 s</td><td>≈ 44 s</td></tr>
+    </tbody></table></div>
+  <div class="callout">Three numbers to remember, measured on Polonez on 17 October with the same 1M-token document for both models. First, EmbeddingGemma 2 ingests 33× slower than our page writer on a GPU (14.3 s against 0.44 s) and 14× slower on 8 CPU threads. Second, at 100M tokens a CPU-only query takes about 120 ms (59 ms to embed the question, 61 ms of exact search), so it misses the 100 ms budget; below about 60M tokens it fits, and above that the fix is a graph index at full precision (still no quantization) or a GPU. Third, at 256 numbers per 160-token chunk the vectors are about the size of the text; our own latent notes are about ten times the text, so off-the-shelf chunk vectors are the more compact index.</div>
+</section>
+
+<!-- plan -->
+<section class="section" id="plan">
+  <span class="eyebrow">Plan · each version is usable on its own</span>
+  <h2>Build order</h2>
+  <div class="plan">
+    <div class="st"><h3>No training</h3><ul>
+      <li>Tape, chunker, EmbeddingGemma cut to 256, exact vector search, keyword search, rank fusion, time filters.</li>
+      <li>HTTP service with append and query; the same two as MCP tools.</li>
+      <li>Exams: our world documents from 4k to 1M tokens with time questions, and LongMemEval (about 1.5M tokens of chat).</li></ul>
+      <span class="done">Done when: a query answers in under 100 ms on CPU at 10M tokens, and far lookups in our world documents pass.</span></div>
+    <div class="st"><h3>Small training</h3><ul>
+      <li>A query adapter: one small linear map on question vectors, trained on question–evidence pairs. Stored vectors never change, so nothing is re-indexed.</li>
+      <li>Optional: a learned 256 → 64 map for 4× smaller storage, trained to keep the ranking.</li>
+      <li>Optional reranker on GPU, giving each answer a probability.</li></ul>
+      <span class="done">Done when: each piece beats v0 on the same exams; otherwise it is dropped.</span></div>
+    <div class="st"><h3>Offline librarian</h3><ul>
+      <li>A scheduled job reads the tape since its last run and appends notes: summaries, links between facts, "replaced by" markers.</li>
+      <li>Starts as a prompted LLM; later our trained models (the E33 reader, the E36 librarian) take over.</li>
+      <li>It uses the same append operation, so the protocol never grows.</li></ul>
+      <span class="done">Done when: "latest" and two-step questions improve with no change to the query path.</span></div>
+  </div>
+  <div class="callout">What this gives up compared with the full design: multi-step lookups happen in the calling LLM, which simply asks again; "latest" is a similarity guess until the librarian writes its markers; and the embedding model ingests 33× slower than our own page writer on a GPU (measured: 14.3 s against 0.44 s for the same 1M-token document). None of these blocks a first working service, and each is a later slot for our research models.</div>
+</section>
+
+<footer>Speeds were measured on Polonez (RTX 3090, Threadripper 3970X) on 17 October 2026 with the benchmark script in the repo; rows marked "scaled" extend those rates linearly. Model facts come from the published model cards (EmbeddingGemma 2, Qwen3-Embedding, Qwen3-Reranker, granite, harrier), the SQLite, sqlite-vec, LanceDB and FAISS docs, Chroma's adapter study and Anthropic's contextual retrieval post; benchmark scores are each publisher's own. Sizes and timings marked as estimates are arithmetic, to be measured on Odra once the service runs. The example thread and JSON values are illustrative.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+
+  var NODES = ["n-llm", "n-gw", "n-ch", "n-em", "n-sh", "n-tp", "n-kw", "n-vx", "n-se", "n-qe", "n-rr", "n-tr", "n-lb"];
+  var EDGES = ["e-llm-gw", "e-gw-llm", "e-gw-ch", "e-gw-tp", "e-ch-em", "e-em-sh", "e-ch-kw", "e-sh-vx", "e-gw-qe", "e-qe-se", "e-kw-se", "e-vx-se", "e-se-rr", "e-rr-tr", "e-se-tr", "e-tp-tr", "e-tr-gw", "e-tp-lb", "e-lb-gw"];
+  /* which nodes / edges exist in each version */
+  var OFF = {
+    0: { n: ["n-rr", "n-lb"], e: ["e-se-rr", "e-rr-tr", "e-tp-lb", "e-lb-gw"] },
+    1: { n: ["n-lb"], e: ["e-tp-lb", "e-lb-gw"] },
+    2: { n: [], e: [] }
+  };
+  var OPS = {
+    append: { title: "append: a chat or document arrives",
+      n: ["n-llm", "n-gw", "n-tp", "n-ch", "n-em", "n-sh", "n-kw", "n-vx"],
+      e: ["e-llm-gw", "e-gw-tp", "e-gw-ch", "e-ch-em", "e-em-sh", "e-sh-vx", "e-ch-kw", "e-gw-llm"],
+      s: ["The caller sends events with ids and event times; repeated ids are skipped, so a whole chat can be resent.",
+          "The gateway writes each event to the tape with a sequence number and the time it arrived, then replies.",
+          "In a background batch, the chunker splits long texts at sentence ends (at most 256 tokens) and adds a one-line header (thread, speaker, date) for embedding only.",
+          "The embedder turns each chunk into 768 numbers; the shrinker keeps the first {D} and stores them as 16-bit floats.",
+          "The chunk's text goes into the keyword index and its vector into the vector array, under the same row number."] },
+    query: { title: "query: named questions with a time",
+      n: ["n-llm", "n-gw", "n-qe", "n-se", "n-kw", "n-vx", "n-rr", "n-tr", "n-tp"],
+      e: ["e-llm-gw", "e-gw-qe", "e-qe-se", "e-kw-se", "e-vx-se", "e-se-rr", "e-rr-tr", "e-se-tr", "e-tp-tr", "e-tr-gw", "e-gw-llm"],
+      s: ["The caller sends named questions, each with an optional as_of, since/until and mode.",
+          "Each question is embedded with the same model, using its query prompt{QA}.",
+          "Time and retraction filters become a mask over rows; exact vector search and keyword search each return their top 100 inside the mask.",
+          "Rank fusion merges the two lists. In latest mode, matches that say the same thing are grouped and the newest leads.",
+          "{RR}The trimmer reads the exact text from the tape and keeps the best-matching sentences within the token budget.",
+          "Answers go back keyed by question name, with times, sources and scores."] },
+    offline: { title: "offline pass: the librarian (later)",
+      n: ["n-tp", "n-lb", "n-gw", "n-ch", "n-em", "n-sh", "n-kw", "n-vx"],
+      e: ["e-tp-lb", "e-lb-gw", "e-gw-ch", "e-ch-em", "e-em-sh", "e-sh-vx", "e-ch-kw"],
+      s: ["On a schedule, the librarian reads tape events since its last checkpoint.",
+          "It writes notes: summaries of threads and time windows, links between related facts, and \"replaced by\" markers when a newer event changes an older one.",
+          "It sends the notes back through the ordinary append, kind note, citing the events they come from.",
+          "Notes are chunked, embedded and indexed like any message, so queries find them with no new code.",
+          "First version: a prompted LLM. Later: our trained models. The protocol does not change."] }
+  };
+  var COMP = [
+    { id: "n-gw", role: "Interface", when: "v0", name: "Gateway", choice: "A small FastAPI service with two endpoints, plus an MCP server exposing the same two tools.",
+      why: "Any LLM or agent can call HTTP JSON; MCP lets Claude and other agents use the memory as a tool with no glue code. One memory = one folder.",
+      alt: "gRPC, if a peer needs streaming at volume.", cost: "A few hundred lines." },
+    { id: "n-tp", role: "Record", when: "v0", name: "Tape", choice: "SQLite in write-ahead mode: one events table (sequence, id, thread, source, role, kind, event time, ingest time, text, refs); triggers block updates and deletes.",
+      why: "One file, transactional, no server, fast time-range scans. The tape is the source of truth: every index can be rebuilt from it.",
+      alt: "Postgres (with pgvector and its full-text search) once several machines write at once.", cost: "About 4.2 bytes per token: 420 MB for 100M tokens." },
+    { id: "n-ch", role: "Write path", when: "v0", name: "Chunker", choice: "One chunk per message; longer texts split at sentence ends into chunks of at most 256 tokens. Embedding text gets a one-line header: thread, speaker, date.",
+      why: "Short messages stay whole. The header puts who and when into the vector, so short replies like \"yes, do it\" become findable. It is a free version of Anthropic's contextual retrieval, where an LLM-written context line cut retrieval failures by 35 % (49 % with keyword search added).",
+      alt: "LLM-written context lines as a later offline-librarian job; late chunking for long documents.", cost: "Negligible." },
+    { id: "n-em", role: "Write and read", when: "v0", name: "Embedder", choice: "EmbeddingGemma 2, text part only (270M parameters; 768 numbers per vector, trained to be cut to 512, 256 or 128; inputs up to 8,192 tokens; 100+ languages), run with sentence-transformers in bfloat16 or 32-bit (the model does not support float16).",
+      why: "The Gemma embedding you named, in its October 2026 version: Apache 2.0 instead of the first version's Gemma terms, 4× longer inputs, much better on code (78.7 vs 68.8 on the code benchmark). Small enough for CPU. Its audio and image encoders could later put other modalities in the same space.",
+      alt: "Qwen3-Embedding-0.6B (Apache 2.0, 32k inputs, about 3 points higher on the multilingual benchmark, twice the size); granite-embedding-311m-r2 (Apache 2.0, 32k, also cuttable); harrier-oss-v1 (MIT, top multilingual score, cut sizes not documented). The first EmbeddingGemma (2k inputs, Gemma terms) as a fallback.",
+      cost: "Measured on one RTX 3090: 1M tokens in 14.3 s (about 24 minutes per 100M tokens), 33× slower than our page writer; on 8 CPU threads 6.4k characters per second (about 18 hours per 100M tokens). It is 11 days old: sentence-transformers supports it, Ollama and Hugging Face's inference server not yet confirmed." },
+    { id: "n-sh", role: "Write path", when: "v0", name: "Shrinker", choice: "Keep the first 256 of 768 numbers, re-normalize, store as 16-bit floats (the precision our own messages used; no integer quantization). v1 option: a learned linear map to 64.",
+      why: "3× smaller with no training: the model is trained so its leading numbers carry the most. On Google's benchmark, 256 numbers lose 0.7 points in English and 1.0 multilingual against the full 768; 128 numbers lose about 3. A learned map can go further on our own data.",
+      alt: "Cut to 128 if memory size binds.", cost: "512 bytes per chunk, about the size of the chunk's text." },
+    { id: "n-vx", role: "Store", when: "v0", name: "Vectors", choice: "A plain 16-bit array on disk (row = chunk), loaded into memory as 32-bit for exact search: a matrix product plus a time mask.",
+      why: "Exact (no recall loss), trivially append-only, filters by time for free. Measured on Polonez: exact search over 625k vectors of 256 numbers takes 61 ms on 8 CPU threads and 0.45 ms on a GPU. With 59 ms to embed the question, CPU-only search fits the 100 ms budget up to about 400k chunks (about 60M tokens); a GPU has room to spare.",
+      alt: "FAISS HNSW at full precision past about 400k chunks on CPU. Not LanceDB for now: its clean-up step deletes old versions after 7 days by default, which fights \"never forget\". Not DuckDB: its keyword index does not update on insert.", cost: "320 MB on disk for 100M tokens." },
+    { id: "n-kw", role: "Store", when: "v0", name: "Keyword index", choice: "SQLite FTS5 (BM25 ranking) over chunk text, in the same file as the tape.",
+      why: "Embeddings blur exact names, numbers, ids and paths: the things Caveman keeps verbatim. Keyword search catches them, and it costs one table.",
+      alt: "Tantivy if FTS5 becomes the slow part.", cost: "Roughly the size of the text." },
+    { id: "n-qe", role: "Read path", when: "v0", name: "Embed question", choice: "The same EmbeddingGemma with its query prompt, cut to the same size. v1 option: a small trained linear adapter on question vectors.",
+      why: "Questions and messages must live in the same space. An adapter on the question side alone learns our domain without touching stored vectors: Chroma reported gains up to 70 % from about 1,500 labelled pairs (smaller on held-out data), and Atlas trained only its query side with no loss. The same trick (a drift adapter) lets us upgrade the embedding model later without re-embedding the tape: 95–99 % of full re-embedding recall.",
+      alt: "None needed.", cost: "Measured: 59 ms on 8 CPU threads, 30 ms on one GPU, for one short question." },
+    { id: "n-se", role: "Read path", when: "v0", name: "Hybrid search + time filter", choice: "Top 100 from vectors and top 100 from keywords inside the time mask, merged by reciprocal rank fusion; latest mode groups near-identical matches and puts the newest first.",
+      why: "Rank fusion needs no tuning and no training. Time is a filter, never a rewrite: as_of hides what arrived later, retracted events are hidden unless asked for.",
+      alt: "Weighted score fusion once we have exam data to tune it.", cost: "A few milliseconds." },
+    { id: "n-rr", role: "Read path", when: "v1", name: "Reranker", choice: "Qwen3-Reranker-0.6B on the top 30, on GPU, switched on per query by budget.",
+      why: "It reads question and candidate together and outputs the probability of \"yes, this answers it\": the confidence a Jev-style answer should carry (Apache 2.0, 32k inputs). Nobody has published how well calibrated that probability is, so we check it on our exams.",
+      alt: "bge-reranker-v2-m3 (Apache 2.0, sigmoid score). The jina rerankers are non-commercial.", cost: "Tens of milliseconds on a GPU (estimate); too slow for the CPU budget." },
+    { id: "n-tr", role: "Read path", when: "v0", name: "Trimmer", choice: "Within each returned chunk, keep the sentences most similar to the question (same embedder) until the token budget is spent; add the date and source.",
+      why: "What a caller pays for is tokens read. Returning sentences instead of whole chunks cuts that several-fold, with no extra model.",
+      alt: "LLMLingua-2 token pruning, if sentence trimming is not enough.", cost: "A few milliseconds." },
+    { id: "n-lb", role: "Offline", when: "v2", name: "Offline librarian", choice: "A scheduled job (cron) that reads the tape since its checkpoint and appends notes: summaries, links, \"replaced by\" markers.",
+      why: "Everything slow and clever moves off the query path. It writes through append, so the protocol stays two operations and every note cites its sources.",
+      alt: "Starts as a prompted LLM; later our trained models.", cost: "Runs when the GPUs are free." }
+  ];
+  var CMAP = {}; COMP.forEach(function (c) { CMAP[c.id] = c; });
+  CMAP["n-llm"] = { name: "Any LLM, agent or peer", choice: "Anything that can send HTTP JSON or call an MCP tool.", why: "The memory never needs the caller's tokenizer or model; it speaks text.", alt: "Another memory syncs by asking for a timeline since a sequence number.", cost: "None." };
+
+  var cur = { op: "query", v: 0 };
+  function stepText(s) {
+    var D = cur.v >= 1 ? "256 (or 64 with the learned map)" : "256";
+    return s.replace("{D}", D)
+      .replace("{QA}", cur.v >= 1 ? ", then the small trained adapter" : "")
+      .replace("{RR}", cur.v >= 1 ? "If the budget allows, the reranker scores the top 30 and its probability becomes the score. " : "");
+  }
+  function render() {
+    var o = OPS[cur.op], off = OFF[cur.v];
+    NODES.forEach(function (id) {
+      var el = $(id), isOff = off.n.indexOf(id) >= 0;
+      el.classList.toggle("off", isOff);
+      el.classList.toggle("on", !isOff && o.n.indexOf(id) >= 0);
+    });
+    EDGES.forEach(function (id) {
+      var el = $(id), isOff = off.e.indexOf(id) >= 0, on = !isOff && o.e.indexOf(id) >= 0;
+      if (id === "e-se-tr") on = on && cur.v === 0;
+      if ((id === "e-se-rr" || id === "e-rr-tr") && cur.v === 0) on = false;
+      el.classList.toggle("off", isOff); el.classList.toggle("on", on);
+      el.setAttribute("marker-end", on ? "url(#arrOn)" : "url(#arr)");
+    });
+    $("sh-sub").textContent = cur.v >= 1 ? "768 → 256 (→ 64)" : "768 → 256 numbers";
+    $("qe-sub").textContent = cur.v >= 1 ? "same model + adapter" : "same model";
+    ["append", "query", "offline"].forEach(function (k) { $("op-" + k).setAttribute("aria-pressed", k === cur.op ? "true" : "false"); });
+    [0, 1, 2].forEach(function (k) { $("v-" + k).setAttribute("aria-pressed", k === cur.v ? "true" : "false"); });
+    $("pTag").textContent = "operation · version v" + cur.v;
+    $("pTitle").textContent = o.title + (cur.op === "offline" && cur.v < 2 ? " (switch to v2 to include it)" : "");
+    $("pSteps").innerHTML = o.s.map(function (s) { return "<li>" + esc(stepText(s)) + "</li>"; }).filter(function (x) { return x !== "<li></li>"; }).join("");
+    try { localStorage.setItem("mt-state", JSON.stringify(cur)); } catch (e) {}
+  }
+  function showComp(id) {
+    var c = CMAP[id]; if (!c) return;
+    NODES.forEach(function (n) { $(n).classList.toggle("focus", n === id); });
+    $("pComp").hidden = false;
+    $("cName").textContent = c.name; $("cChoice").textContent = c.choice; $("cWhy").textContent = c.why; $("cAlt").textContent = c.alt; $("cCost").textContent = c.cost;
+    Array.prototype.forEach.call(document.querySelectorAll(".comp"), function (el) { el.classList.toggle("sel", el.dataset.id === id); });
+  }
+  ["append", "query", "offline"].forEach(function (k) { $("op-" + k).addEventListener("click", function () { cur.op = k; if (k === "offline" && cur.v < 2) cur.v = 2; render(); }); });
+  [0, 1, 2].forEach(function (k) { $("v-" + k).addEventListener("click", function () { cur.v = k; if (cur.op === "offline" && k < 2) cur.op = "query"; render(); }); });
+  NODES.forEach(function (id) {
+    var el = $(id);
+    el.addEventListener("click", function () { showComp(id); });
+    el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showComp(id); } });
+  });
+  /* component cards */
+  $("comps").innerHTML = COMP.map(function (c) {
+    var later = c.when !== "v0";
+    return "<div class='comp' tabindex='0' role='button' data-id='" + c.id + "'><span class='role'><span>" + esc(c.role) + "</span><span class='when" + (later ? " later" : "") + "'>" + c.when + "</span></span><span class='choice'>" + esc(c.name) + "</span><p>" + esc(c.choice) + "</p><p class='alt'>Instead: " + esc(c.alt) + "</p></div>";
+  }).join("");
+  Array.prototype.forEach.call(document.querySelectorAll(".comp"), function (el) {
+    var go = function () { showComp(el.dataset.id); var d = document.getElementById("arch"); if (d && d.scrollIntoView) d.scrollIntoView({ behavior: "smooth", block: "start" }); };
+    el.addEventListener("click", go);
+    el.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+  try { var saved = JSON.parse(localStorage.getItem("mt-state") || "null"); if (saved && OPS[saved.op] && OFF[saved.v]) cur = saved; } catch (e) {}
+  render(); showComp("n-se");
+
+  /* ---------- time demo ---------- */
+  var EV = [
+    { d: "2026-09-12", t: "Q4 launch planned for 7 November.", topic: "date", id: "e1" },
+    { d: "2026-09-20", t: "Alice owns the launch checklist.", topic: "owner", id: "e2" },
+    { d: "2026-10-01", t: "Ad budget for the launch: 40k EUR.", topic: "budget", id: "e3" },
+    { d: "2026-10-15", t: "Launch moves to 14 November. Bob takes over the checklist.", topic: "date owner", id: "e4" },
+    { d: "2026-10-16", t: "Retract: the ad budget figure was entered by mistake.", kind: "retract", refs: ["e3"], id: "e5" }
+  ];
+  var STOPS = ["2026-09-10", "2026-09-15", "2026-09-25", "2026-10-05", "2026-10-15", "2026-10-17"];
+  var QS = [["When is the launch?", "date"], ["Who owns the checklist?", "owner"], ["What is the ad budget?", "budget"]];
+  var mode = "latest";
+  function renderTime() {
+    var asof = STOPS[+$("asof").value];
+    $("asofOut").textContent = asof;
+    var known = EV.filter(function (e) { return e.d <= asof; });
+    var retracted = {}; known.forEach(function (e) { if (e.kind === "retract") e.refs.forEach(function (r) { retracted[r] = true; }); });
+    $("tl").innerHTML = EV.map(function (e) {
+      var cls = []; if (e.d > asof) cls.push("future"); if (retracted[e.id]) cls.push("retracted"); if (e.kind) cls.push("kind-" + e.kind);
+      return "<li class='" + cls.join(" ") + "'><span class='d'>" + e.d + "</span><span class='t'>" + esc(e.t) + "</span></li>";
+    }).join("");
+    $("answers").innerHTML = QS.map(function (q) {
+      var hits = known.filter(function (e) { return !e.kind && !retracted[e.id] && e.topic.split(" ").indexOf(q[1]) >= 0; });
+      hits.sort(function (a, b) { return a.d < b.d ? 1 : -1; });
+      var body;
+      if (!hits.length) body = "<div>Nothing on record" + (retracted.e3 && q[1] === "budget" ? " (the only figure was retracted)" : "") + ".</div>";
+      else if (mode === "latest") body = "<div>" + esc(hits[0].t) + " <span class='muted small'>· " + hits[0].d + "</span></div>" + (hits.length > 1 ? "<div class='older'>older: " + hits.slice(1).map(function (h) { return esc(h.t) + " (" + h.d + ")"; }).join("; ") + "</div>" : "");
+      else body = hits.slice().reverse().map(function (h) { return "<div>" + esc(h.t) + " <span class='muted small'>· " + h.d + "</span></div>"; }).join("");
+      return "<div class='ans'><div class='q'>" + esc(q[0]) + "</div>" + body + "</div>";
+    }).join("");
+    Array.prototype.forEach.call($("mode").children, function (b) { b.setAttribute("aria-pressed", b.dataset.m === mode ? "true" : "false"); });
+  }
+  $("asof").addEventListener("input", renderTime);
+  Array.prototype.forEach.call($("mode").children, function (b) { b.addEventListener("click", function () { mode = b.dataset.m; renderTime(); }); });
+  renderTime();
+})();
+</script>
