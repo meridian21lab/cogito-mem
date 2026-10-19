@@ -71,6 +71,10 @@ def cmd_serve(args: argparse.Namespace) -> int:
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGTERM, stop)
+    if hasattr(signal, "SIGUSR1"):  # `kill -USR1 <pid>` prints every thread's stack to the log
+        import faulthandler
+
+        faulthandler.register(signal.SIGUSR1, all_threads=True)
     if hasattr(signal, "SIGHUP"):
         signal.signal(signal.SIGHUP, stop)
     logging.info("cogito-mem %s serving %s at %s", __version__, root, server.url)

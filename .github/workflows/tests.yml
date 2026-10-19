@@ -62,7 +62,7 @@ jobs:
                 -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF
           cmake --build build --target llama-server -j 4
       - name: Install
-        run: pip install -e '.[test]' mcp anyio
+        run: pip install -e '.[test]' mcp anyio pyyaml
       - name: Tiny model
         run: python scripts/make_tiny_embeddinggemma2.py --llama-cpp llama.cpp --out tiny.gguf
       - name: Test

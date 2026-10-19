@@ -5,6 +5,7 @@ It lets the llama.cpp tests run without downloading the real model: the tokenize
 copied verbatim from llama.cpp's ``models/ggml-vocab-gemma-4.gguf``, so token counts are
 real, while the weights are seeded random values, so the vectors carry no meaning.
 
+    pip install numpy pyyaml   # what llama.cpp's gguf-py needs
     python scripts/make_tiny_embeddinggemma2.py --llama-cpp ~/src/llama.cpp --out tiny.gguf
     COGITO_MEM_TEST_LLAMA_SERVER=~/src/llama.cpp/build/bin/llama-server \
     COGITO_MEM_TEST_MODEL=tiny.gguf pytest -m llama

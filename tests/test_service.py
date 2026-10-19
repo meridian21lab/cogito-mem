@@ -5,10 +5,12 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import signal
 import socket
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -132,12 +134,21 @@ def test_client_starts_the_service_on_demand_and_stops_it(tmp_path, monkeypatch)
 def test_service_stops_when_idle(tmp_path):
     port = free_port()
     env = dict(os.environ, PYTHONPATH=SRC)
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "cogito_mem", "--root", str(tmp_path / "h"), "serve", "--embedder", "hash",
-         "--port", str(port), "--idle-timeout", "0.5"],
-        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )  # fmt: skip
-    assert proc.wait(timeout=20) == 0
+    log = tmp_path / "serve.log"
+    with open(log, "wb") as out:
+        proc = subprocess.Popen(
+            [sys.executable, "-m", "cogito_mem", "--root", str(tmp_path / "h"), "serve", "--embedder", "hash",
+             "--port", str(port), "--idle-timeout", "0.5"],
+            env=env, stdout=out, stderr=subprocess.STDOUT,
+        )  # fmt: skip
+        try:
+            assert proc.wait(timeout=20) == 0
+        except subprocess.TimeoutExpired:
+            if hasattr(signal, "SIGUSR1"):
+                proc.send_signal(signal.SIGUSR1)  # dump every thread's stack into the log
+                time.sleep(1)
+            proc.kill()
+            pytest.fail("serve did not stop when idle:\n" + log.read_text())
 
 
 # --------------------------------------------------------------------------- MCP

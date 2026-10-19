@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import socketserver
 import threading
 import time
 import uuid
@@ -193,6 +194,14 @@ class MemoryServer(ThreadingHTTPServer):
         self.run_file: Path | None = None
         self._sessions: OrderedDict[str, McpServer] = OrderedDict()
         self._sessions_lock = threading.Lock()
+
+    def server_bind(self) -> None:
+        # HTTPServer.server_bind looks up the host's FQDN, which can stall for many seconds
+        # (reverse DNS, e.g. on macOS) before the service answers; the name is never used.
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = str(host)
+        self.server_port = port
 
     @property
     def url(self) -> str:
