@@ -1,0 +1,11 @@
+{
+  "name": "cogito-mem",
+  "displayName": "cogito-mem memory",
+  "version": "0.1.0",
+  "description": "Long-term local memory for Claude Code: every session is captured, and Claude can recall what you worked on days or weeks ago. Runs on your machine; nothing leaves it.",
+  "author": { "name": "meridian21lab", "url": "https://github.com/meridian21lab" },
+  "homepage": "https://github.com/meridian21lab/cogito-mem",
+  "repository": "https://github.com/meridian21lab/cogito-mem",
+  "license": "MIT",
+  "keywords": ["memory", "mcp", "local-first", "embeddings", "llama.cpp", "recall"]
+}

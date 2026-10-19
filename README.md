@@ -1,2 +1,262 @@
 # cogito-mem
-Agent fast and simple memory store
+
+**Long-term memory for your AI assistants, on your own machine.**
+
+[![tests](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml)
+[![docker](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml)
+![license](https://img.shields.io/badge/license-MIT-blue)
+![python](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue)
+
+Claude Code, Codex and Claude Desktop forget everything when a session ends. The idea you had last Tuesday, the
+reason you chose SQLite, the bug you half-fixed: gone, unless somebody wrote it down.
+
+cogito-mem writes it down for you. It captures your sessions as you work and gives your assistant two tools,
+*save* and *recall*, so a week later this works:
+
+> **You:** Do you remember that idea from a week ago? I'd like to revisit it.
+> **Claude:** *(one `memory_query`)* Yes. On Oct 11 you said: "agents could subscribe to a thread and get new
+> items pushed to them instead of polling." You were fixing the date parser at the time.
+
+Everything stays in a folder on your computer. No account, no API key, no cloud.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh
+```
+
+Then restart your chat client. That's the whole setup. ([Other ways to install](docs/install.md).)
+
+> **Early access.** v0.1 is new. It is built and tested (132 tests, including both end-to-end acceptance tests),
+> and we are measuring it before calling it stable. Feedback and issues are very welcome.
+
+## What you get
+
+- **It remembers every session by itself.** Claude Code and Codex conversations are captured after each turn.
+  Past chats from claude.ai and ChatGPT come in from their data exports.
+- **It finds things by meaning and by words.** An open embedding model (Google's EmbeddingGemma 2) runs locally in
+  llama.cpp, next to classic keyword search; the two rankings are fused.
+- **It answers in a few tokens.** A query returns the handful of stored messages that answer it, word for word,
+  within a token budget you set (300 by default), each pointing back to the original message.
+- **It knows when.** Every item records when it was said and when it was stored. Ask about "a week ago", or view
+  the memory as it stood on any past date.
+- **It never forgets and never invents.** The log is append-only: a correction is a new item that withdraws an
+  old one. Nothing is generated at query time; you only ever get back what was stored.
+- **It stays private.** One folder on your disk, a service that listens on `127.0.0.1` only and refuses browser
+  requests, and API keys or passwords in captured chats are replaced with `[redacted]`.
+- **It is shared by all your assistants.** Claude Code, Codex, Claude Desktop, any MCP client, your scripts (HTTP
+  and Python) read and write the same memory.
+- **It needs no setup.** One command. `cogito-mem doctor` explains anything that is missing.
+
+## How it is different
+
+| | cogito-mem | Notes files (`CLAUDE.md`, `AGENTS.md`) | Memory services that extract facts with an LLM |
+|---|---|---|---|
+| What gets stored | every message, automatically | what you or the agent write down | facts an LLM decides to keep |
+| What comes back | the original words, with a pointer to where they came from | the whole file, every session | rewritten facts |
+| Cost of storing | a local embedding, no API calls | none | an LLM call per write |
+| Time | when it was said, when it was stored, "as of" any date | none | varies |
+| Where it lives | a folder on your machine | your repository | usually a hosted service |
+
+They work well together: keep the rules for your project in `CLAUDE.md`, and let cogito-mem remember what
+happened.
+
+## Measured
+
+All numbers below were measured for this release on a 4-core cloud VM (Intel Xeon, 2.8 GHz, CPU only) and are
+reproducible with the commands shown. They are internal checks, not a leaderboard entry.
+
+**Finding the right messages (LoCoMo).** [LoCoMo](https://github.com/snap-research/locomo) holds 10 long
+conversations (up to 35 sessions each) and 1,536 answerable questions whose answers are labelled with the turns
+that hold them. We count a question as answered when every one of those turns is inside the memory's
+reply; the baselines get the same token budget without a memory.
+
+| What the assistant gets | Within 100 tokens | Within 300 tokens | Within 1,000 tokens |
+|---|---|---|---|
+| **cogito-mem** (default: hybrid search) | 32.0 % | **49.4 %** | **67.8 %** |
+| cogito-mem, keyword search only | 32.5 % | 46.7 % | 57.6 % |
+| The most recent N tokens of the conversation (no memory) | 0.1 % | 0.6 % | 4.4 % |
+| N tokens of randomly chosen turns | 0.3 % | 1.0 % | 3.6 % |
+
+A conversation averages about 19,000 tokens. With 300 tokens, 1.5 % of that, cogito-mem hands back every turn a
+question needs for half of the 1,536 questions (single-hop 60 %, temporal 62 %; multi-hop questions, which need
+several turns at once, 11 %); a context window of the same size almost never does. Hybrid search beats
+keyword search alone by 2.7 points at 300 tokens (95 % CI 0.7 to 4.7) and 10.2 points at 1,000 (8.5 to 12.0).
+Embedding each message together with its author and the message it replies to is what makes the vectors useful
+here: embedding each turn alone scores 18 points lower ([the ablation](docs/requirements.md#15-choices-made-while-building-v0-author-to-confirm)).
+
+These runs embed with Qwen3-Embedding-0.6B at 256 numbers: EmbeddingGemma 2 could not be downloaded in our test
+environment, and the EmbeddingGemma file that could lacks its final projection layers. Reproduce with
+`cogito-mem eval locomo --data locomo10.json`.
+
+**Speed** (`cogito-mem bench speed`, 1,000 queries, one at a time, `top_k` 10, budget 300 tokens; each query embedded
+on the CPU by EmbeddingGemma 300M, the closest model we could download):
+
+| Memory size | Median query | p95 query | Of which search + fill |
+|---|---|---|---|
+| 1M tokens (10.7k items) | 98 ms | 140 ms | ~3 ms |
+| 10M tokens (106k items) | 120 ms | 163 ms | ~28 ms |
+
+Appending is fast because embedding happens in the background: 5 ms for a 512-token message, 47 ms for 4k tokens,
+69 ms for 8k tokens; a new item can be found by meaning about 0.4 s later. The design target is a p95 under
+100 ms at 10M tokens on a laptop CPU (the author's M5); on this small VM the query embedding alone takes about
+95 ms, and a GPU (Metal, CUDA) brings it to a few milliseconds.
+
+## Use it
+
+**In a chat.** Your assistant decides when to use the two tools; you can also ask directly:
+
+- *"Remember that we ship the beta to ten design partners first."* → `memory_append`
+- *"What did we decide about the beta?"*, *"What was that idea from last week?"* → `memory_query`
+
+**From a terminal:**
+
+```sh
+cogito-mem query "beta design partners"
+cogito-mem append "Decision: v0 keeps keyword search on by default." --title release
+cogito-mem import claude ~/Downloads/data-2026-10-18.zip     # or: import chatgpt …
+cogito-mem capture claude-code --all                         # bring in every earlier session
+cogito-mem doctor                                            # check the install
+```
+
+**Over HTTP** (`POST /v1/memory`, one JSON shape for everything):
+
+```sh
+curl -s localhost:7327/v1/memory -H 'Content-Type: application/json' \
+  -d '{"op": "append", "items": [{"author": "planner", "thread_id": "merger-x", "text": "Integration costs are 40 % above plan."}]}'
+curl -s localhost:7327/v1/memory -H 'Content-Type: application/json' \
+  -d '{"op": "query", "text": "What did we learn about costs?", "max_tokens": 300}'
+```
+
+Each returned item carries `id`, `kind`, `text`, `score`, `author`, `thread_id`, `valid_at`, `created_at`,
+`expired_at` and a `source` span (`id`, `title`, `start`, `end`) into the original message. The full API, with
+`as_of`, filters, imports and retractions, is in [`docs/requirements.md`](docs/requirements.md#3-api-v0).
+
+**From Python**, with the same dictionaries:
+
+```python
+from cogito_mem import Memory, Client
+
+mem = Memory()                    # in this process, on ~/.cogito-mem
+mem.handle({"op": "append", "items": [{"author": "user", "text": "The mascot is a squirrel called Cogi."}]})
+mem.handle({"op": "query", "text": "what is the mascot called?"})
+
+Client().query("mascot")          # or through the local service, which starts on demand
+```
+
+**From any MCP client**, over stdio (`cogito-mem mcp`) or by URL: `http://127.0.0.1:7327/mcp`.
+
+## Install and deploy
+
+| Way | Command | Notes |
+|---|---|---|
+| One line | `curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh \| sh` | Needs only curl; connects every client it finds. Windows: `install.ps1` (experimental). |
+| Claude Code plugin | `/plugin marketplace add meridian21lab/cogito-mem` then `/plugin install cogito-mem@cogito-mem` | MCP server and capture hooks, from inside Claude Code. |
+| Docker | `docker compose up -d`, then `claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp` | Service, llama.cpp and model in one container; data in a volume. |
+| pip / uv | `uv tool install git+https://github.com/meridian21lab/cogito-mem && cogito-mem install` | For Python developers. |
+
+The [install guide](docs/install.md) covers each way, upgrades, uninstalling and troubleshooting.
+
+## How it works
+
+```
+ Claude Code ─ hooks ──┐                         ┌─ log.sqlite3 per memory: append-only, the source of truth
+ Codex ─ notify ───────┤                         ├─ keyword index (BM25), in memory, rebuilt from the log
+ MCP clients ─ stdio ──┼─ POST /v1/memory ─▶ service ─┼─ vectors: 256 numbers in 16 bits, in memory + a shared cache
+ HTTP, Python, CLI ────┘   /mcp, 127.0.0.1:7327  └─ llama-server: EmbeddingGemma 2 (tokenizer + embeddings)
+```
+
+- **One warm service** holds the memory and the model. The MCP server, the hooks and the CLI are thin clients that
+  start it when needed; it stops after an idle hour.
+- **Append:** long texts are split into pieces of at most 256 tokens at paragraph, then sentence, breaks; the text
+  goes to the log and the keyword index and the call returns. Embedding follows in the background.
+- **Query:** the question is embedded, the memory is masked to what was known `as_of` the moment you ask about and
+  to your filters, exact cosine search and BM25 are fused by reciprocal rank, and items are filled in score order
+  up to `top_k` and the token budget.
+
+## Settings
+
+Everything has a working default. Environment variables, for when you need them:
+
+| Variable | Meaning |
+|---|---|
+| `COGITO_MEM_HOME` | The memory folder (default `~/.cogito-mem`). |
+| `COGITO_MEM_PORT` | The service port (default 7327). |
+| `COGITO_MEM_URL` | Use the service at this URL (e.g. a Docker container). |
+| `COGITO_MEM_MODEL` / `COGITO_MEM_MODEL_URL` | A local GGUF to use, or where to download it from. Other Matryoshka GGUFs (Qwen3-Embedding, nomic-embed-text) get their own prompts automatically. |
+| `COGITO_MEM_LLAMA_SERVER` | A `llama-server` binary, or the URL of a running one. |
+| `COGITO_MEM_GPU_LAYERS` / `COGITO_MEM_THREADS` | Passed to llama.cpp as `-ngl` / `-t` (`0` layers = CPU only). |
+| `COGITO_MEM_ALLOWED_HOSTS` | Extra `Host` names the service accepts (e.g. a Docker network name). |
+| `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL (reorders the top 30; GPU recommended). |
+| `COGITO_MEM_NO_DOWNLOAD` | Never download anything. |
+
+## Privacy and security
+
+- The memory is a folder (`~/.cogito-mem/memory/<name>/log.sqlite3`). Back it up by copying it; erase it by
+  deleting it.
+- The service listens on `127.0.0.1` only. It refuses requests whose `Host` or `Origin` is not local and bodies
+  that are not JSON, so a web page you visit can neither read nor write it. There are no accounts: anything that
+  runs as you on your machine can use it, as with any local tool.
+- Capture skips tool output, thinking and system text, and replaces API keys, tokens, private keys and
+  `password=…` values with `[redacted]` before anything is stored.
+- Nothing leaves your machine. The only network traffic is the one-time download of llama.cpp and the model.
+
+## FAQ
+
+**Does it work without a GPU?** Yes; it is built for a laptop CPU. A GPU (Apple Metal, NVIDIA CUDA) makes the
+embedding faster.
+
+**Which model does it use?** [EmbeddingGemma 2](https://ai.google.dev/gemma/docs/embeddinggemma/model_card_2) (Apache 2.0),
+the `ggml-org/embeddinggemma-2-GGUF` Q8_0 file (310 MB), in [llama.cpp](https://github.com/ggml-org/llama.cpp).
+
+**How much disk does it use?** About 1 GB for llama.cpp and the model, plus roughly the size of your text again
+for the memory itself.
+
+**Can I delete something?** Append a retraction (an item whose `retracts` lists the ids): it disappears from
+queries from that moment on, and stays visible to `as_of` queries about earlier times. To erase for real, delete
+the memory folder.
+
+**Does it work with claude.ai or ChatGPT in the browser?** Not live yet: those apps can only reach remote MCP
+servers. Import their data exports instead (`cogito-mem import …`).
+
+**Windows?** Experimental: the installer and the code paths exist but are not tested in CI yet.
+
+## Roadmap
+
+- **v0 (now):** store and retrieve messages; MCP; capture; one-command setup.
+- **Stage 0:** measure the shipped model on the long LongMemEval and on the target laptop
+  (`cogito-mem eval`, `cogito-mem bench`); decide whether a small trained reranking head is worth it.
+- **v1:** digests: for a long text, keep its main points and its surprising facts, word for word.
+- **v2:** short checked statements written by a small model, for agent-to-agent use.
+- **Later:** images and files from chats; sync between machines; a remote endpoint for web clients.
+
+The full plan, the tests that gate each step and the decision log are in
+[`docs/requirements.md`](docs/requirements.md).
+
+## Development
+
+```sh
+pip install -e '.[test]'
+pytest                                   # the llama.cpp tests are skipped without a model
+COGITO_MEM_TEST_LLAMA_SERVER=$(which llama-server) \
+COGITO_MEM_TEST_MODEL=~/.cogito-mem/models/embeddinggemma-2-Q8_0.gguf pytest
+```
+
+`scripts/make_tiny_embeddinggemma2.py` writes a 50 MB random-weight model of the same architecture with the real
+tokenizer, enough to test the llama.cpp path without downloading the model; CI builds llama.cpp and does that.
+The stage-0 measurements:
+
+```sh
+cogito-mem eval locomo --data locomo10.json --search hybrid --out results/locomo.json
+cogito-mem eval run --data longmemeval_m.json --arm U2 --out results/u2.json      # LongMemEval, arms U1-U3, R
+cogito-mem eval compare results/u1.json results/u2.json --budget 300
+COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --data longmemeval_m.json --tokens 10M --out results/speed.json
+```
+
+| Document | What is in it |
+|---|---|
+| [`docs/install.md`](docs/install.md) | Every way to install, upgrade, remove and troubleshoot. |
+| [`docs/requirements.md`](docs/requirements.md) | The API, the tests, the gates, the stages and the decision log. |
+| [`docs/literature/`](docs/literature/) | How other memory systems work and name things; benchmarks. |
+
+## License
+
+MIT. The EmbeddingGemma 2 model is Apache 2.0; llama.cpp is MIT.

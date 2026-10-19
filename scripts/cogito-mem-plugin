@@ -1,0 +1,21 @@
+#!/bin/sh
+# Runs cogito-mem from the Claude Code plugin checkout (the MCP server and the capture hooks).
+# The memory itself lives in ~/.cogito-mem (or $COGITO_MEM_HOME), so it outlives the plugin.
+ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+# 1. An installed cogito-mem (uv tool, pipx, pip) wins: it is already warm.
+if command -v cogito-mem >/dev/null 2>&1; then
+  exec cogito-mem "$@"
+fi
+# 2. uv runs the plugin's own copy in an environment kept with the plugin's data.
+if command -v uv >/dev/null 2>&1; then
+  UV_PROJECT_ENVIRONMENT="${CLAUDE_PLUGIN_DATA:-$HOME/.cogito-mem}/venv"
+  export UV_PROJECT_ENVIRONMENT
+  exec uv run --quiet --no-dev --project "$ROOT" cogito-mem "$@"
+fi
+# 3. A python3 that already has numpy.
+if command -v python3 >/dev/null 2>&1 && python3 -c "import numpy" >/dev/null 2>&1; then
+  PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m cogito_mem "$@"
+fi
+echo "cogito-mem needs uv (https://docs.astral.sh/uv/) or Python 3.10+ with numpy" >&2
+exit 1

@@ -1,0 +1,73 @@
+name: tests
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[test]' mcp anyio
+      - name: Test
+        env:
+          COGITO_MEM_NO_DOWNLOAD: "1"
+        run: pytest -q -rs
+      - name: Validate the Claude Code plugin
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate . --strict
+      - name: Installer script
+        if: matrix.python == '3.13'
+        env:
+          COGITO_MEM_NO_DOWNLOAD: "1"
+          COGITO_MEM_SOURCE: ${{ github.workspace }}
+        run: |
+          export HOME="$RUNNER_TEMP/home" && mkdir -p "$HOME/.claude"
+          sh install.sh claude-code
+          "$HOME/.cogito-mem/bin/cogito-mem" query "install check" --json
+          "$HOME/.cogito-mem/bin/cogito-mem" stop
+
+  llama:
+    # The llama.cpp path end to end: build llama-server, write a tiny random-weight
+    # EmbeddingGemma 2 GGUF with the real tokenizer, run every test with it.
+    runs-on: ubuntu-latest
+    env:
+      LLAMA_CPP_COMMIT: ff5a23376725e5a889fa0bfb987b7541dc304da0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build llama-server
+        run: |
+          git init llama.cpp && cd llama.cpp
+          git remote add origin https://github.com/ggml-org/llama.cpp
+          git fetch --depth 1 origin "$LLAMA_CPP_COMMIT" && git checkout FETCH_HEAD
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DLLAMA_CURL=OFF -DLLAMA_OPENSSL=OFF \
+                -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF
+          cmake --build build --target llama-server -j 4
+      - name: Install
+        run: pip install -e '.[test]' mcp anyio pyyaml
+      - name: Tiny model
+        run: python scripts/make_tiny_embeddinggemma2.py --llama-cpp llama.cpp --out tiny.gguf
+      - name: Test
+        env:
+          COGITO_MEM_NO_DOWNLOAD: "1"
+          COGITO_MEM_TEST_LLAMA_SERVER: ${{ github.workspace }}/llama.cpp/build/bin/llama-server
+          COGITO_MEM_TEST_MODEL: ${{ github.workspace }}/tiny.gguf
+        run: pytest -q -rs

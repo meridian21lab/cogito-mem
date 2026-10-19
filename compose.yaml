@@ -1,0 +1,16 @@
+# docker compose up -d   ->   the memory at http://127.0.0.1:7327 (API: /v1/memory, MCP: /mcp)
+services:
+  cogito-mem:
+    image: ghcr.io/meridian21lab/cogito-mem:latest
+    build: .
+    container_name: cogito-mem
+    ports:
+      - "127.0.0.1:7327:7327"   # local only: never publish the memory to the network
+    volumes:
+      - cogito-mem:/data        # the log, the vector cache and the downloaded model
+    environment:
+      COGITO_MEM_GPU_LAYERS: "0"
+    restart: unless-stopped
+
+volumes:
+  cogito-mem: {}

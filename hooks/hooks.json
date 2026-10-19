@@ -1,0 +1,19 @@
+{
+  "description": "cogito-mem: capture each turn of the session into the local memory (the work runs in the background)",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin\" capture claude-code", "timeout": 30 }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin\" capture claude-code", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}

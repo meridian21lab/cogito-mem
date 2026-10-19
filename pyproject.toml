@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cogito-mem"
+version = "0.1.0"
+description = "A fast, simple, local memory for agents: append text, query it within a token budget."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Krzysztof Sopyła" }]
+keywords = ["memory", "agents", "mcp", "embeddings", "llama.cpp", "retrieval"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+cogito-mem = "cogito_mem.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/meridian21lab/cogito-mem"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cogito_mem"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "slow: tests that take more than a few seconds",
+    "llama: tests that need a llama-server binary and a GGUF embedding model",
+]
