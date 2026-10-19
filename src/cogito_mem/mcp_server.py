@@ -91,7 +91,7 @@ class McpServer:
     def __init__(
         self,
         handle: Callable[[dict], dict],
-        namespace: str = "default",
+        namespace: str | None = None,  # None: the memory's default name
         thread_id: str | None = None,
         thread_from_env: bool = True,
     ):

@@ -34,6 +34,17 @@ def doctor(root: Path, url: str | None = None, say: Say = print) -> int:
 
     say(f"cogito-mem {__version__} (Python {sys.version.split()[0]} at {sys.executable})")
     check(root.is_dir(), f"memory folder {root}", "run `cogito-mem install`")
+    from .names import LEGACY, InvalidName, default_namespace
+
+    try:
+        name = default_namespace(root)
+    except InvalidName as exc:
+        check(False, f"memory name: {exc}", "set a valid name: `cogito-mem install --name <name>`")
+        name = None
+    else:
+        check(True, f"memory: {name} ({root / 'memory' / name})")
+        if name != LEGACY and (root / "memory" / LEGACY / "log.sqlite3").exists():
+            check(None, f"a memory without a name is also kept in {root / 'memory' / LEGACY}")
     launcher = launcher_path(root)
     check(launcher.exists(), f"launcher {launcher}", "run `cogito-mem install`")
 
@@ -49,7 +60,7 @@ def doctor(root: Path, url: str | None = None, say: Say = print) -> int:
     client = Client(url=url, root=root)
     info = None
     try:
-        client.query("cogito-mem doctor check", max_tokens=1)
+        client.query("cogito-mem doctor check", namespace=name, max_tokens=1)
         info = client.status()
     except Exception as exc:
         check(False, f"service at {client.url}: {exc}", f"see {root / 'run' / 'server.log'}")

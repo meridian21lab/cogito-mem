@@ -205,12 +205,13 @@ def test_recall_command_prints_the_hook_json(tmp_path):
     from cogito_mem.server import MemoryServer
 
     memory = Memory(None, embedder="hash")
-    append(memory, {"author": "user", "thread_id": "s1", "title": "/work/app", "text": "The parser must accept trailing commas."})
+    append(memory, {"author": "user", "thread_id": "s1", "title": "/work/app", "text": "The parser must accept trailing commas."},
+           namespace="work-hollow")  # fmt: skip
     assert memory.flush(10)
     server =MemoryServer(memory, host="127.0.0.1", port=0)
     threading.Thread(target=server.serve, daemon=True).start()
     try:
-        env = {**os.environ, "PYTHONPATH": SRC, "COGITO_MEM_URL": server.url}
+        env = {**os.environ, "PYTHONPATH": SRC, "COGITO_MEM_URL": server.url, "COGITO_MEM_NAMESPACE": "work-hollow"}
         out = subprocess.run([sys.executable, "-m", "cogito_mem", "--root", str(tmp_path / "h"), "recall", "claude-code"],
                              input=json.dumps(prompt_hook("does the parser accept trailing commas?")),
                              capture_output=True, text=True, env=env, timeout=30)  # fmt: skip

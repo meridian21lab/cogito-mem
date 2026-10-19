@@ -92,8 +92,8 @@ def test_http_status_and_run_file(server):
     assert json.loads(run_file.read_text())["url"] == server.url
 
 
-def test_client_talks_to_a_running_server(server):
-    client = Client(url=server.url)
+def test_client_talks_to_a_running_server(server, tmp_path):
+    client = Client(url=server.url, root=tmp_path / "client")  # its own folder holds the name it sends
     client.append([{"author": "user", "text": "client test note"}])
     assert client.query("client test")["items"][0]["text"] == "client test note"
     with pytest.raises(ApiError) as err:
@@ -102,7 +102,7 @@ def test_client_talks_to_a_running_server(server):
 
 
 def test_client_without_autostart_reports_unavailable(tmp_path):
-    client = Client(url=f"http://127.0.0.1:{free_port()}")
+    client = Client(url=f"http://127.0.0.1:{free_port()}", root=tmp_path)
     with pytest.raises(ApiError) as err:
         client.query("x")
     assert err.value.code == "unavailable"
