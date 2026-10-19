@@ -285,6 +285,8 @@ def test_doc_author_puts_the_speaker_into_search(tmp_path):
         ]
         items = query(m, "What did Caroline research?", max_tokens=1000)["items"]
         assert items[0]["text"] == "I researched adoption agencies."  # the stored text is unchanged
-    with Memory(None, embedder="hash") as m:  # off by default
+        assert len(m.namespace("default").bm25.scores("Caroline")[0]) == 1
+    with Memory(None, embedder="hash") as m:  # off by default: the name is not searchable text
         append(m, {"author": "Caroline", "text": "I went hiking."})
-        assert query(m, "Caroline")["items"] == []
+        assert len(m.namespace("default").bm25.scores("Caroline")[0]) == 0
+        assert m.namespace("default").prompts([0], "own", None, False) == ["title: none | text: I went hiking."]

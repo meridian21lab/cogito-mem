@@ -60,6 +60,7 @@ RUN --mount=type=secret,id=extra_ca,required=false \
  && rm -f /tmp/ca.pem
 ENV COGITO_MEM_HOME=/data \
     COGITO_MEM_LLAMA_SERVER=/opt/llama/llama-server \
+    LD_LIBRARY_PATH=/opt/llama \
     COGITO_MEM_ALLOWED_HOSTS=host.docker.internal,cogito-mem \
     PYTHONUNBUFFERED=1
 VOLUME /data
