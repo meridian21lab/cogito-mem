@@ -13,6 +13,7 @@ what the docs must do about it. The user guide and the GitHub Pages site are bui
 | 4 | "How does the API look?" | Two operations, `append` and `query`, on one endpoint (`POST /v1/memory`), with the same JSON from HTTP, Python, the CLI and the two MCP tools. | An API & MCP page: the two calls with a real request and a real (trimmed) reply first; every optional key in a table below; MCP tools and how to connect any client. |
 | 5 | "max_tokens is an interesting concept, what does 300 mean? How to interpret it?" | The size of the basket: at most 300 tokens (about 220 words, half a page) of the best-matching text, best first, up to 10 items. An item that does not fit is skipped; a top item larger than the whole budget is trimmed. On LoCoMo, 1,000 tokens answers as well as the whole conversation. | Explain the budget with Cogi's basket, plus a "how much to ask for" table (300 / 1,000 / 2,500 with the LLM-judge scores). Say why tokens and not a count of results. |
 | 6 | "How can I install it for my Claude Code? Can I use the Claude marketplace?" | Yes: `/plugin marketplace add meridian21lab/cogito-mem`, then `/plugin install cogito-mem@cogito-mem`. Needs `uv`. The first start downloads llama.cpp and the model (310 MB); until then search is by keyword. | Quickstart page = these two lines first, then "check it works" (`/mcp`, a remember/recall test), then what happens on first start. Say up front that `uv` is needed and how to get it. |
+| 7 | "I did this, but cogito-mem wasn't installed" (after running the uv installer) | The `curl` line installs only `uv`, the helper that runs cogito-mem; cogito-mem itself comes from the two `/plugin` commands inside Claude Code. | Never put a helper's install command first without saying it is not the product. Make the quickstart one block that ends in a visible check. |
 
 ## Findings (friction seen on the way)
 
@@ -20,6 +21,9 @@ what the docs must do about it. The user guide and the GitHub Pages site are bui
 |---|---|---|
 | F1 | Opening this repository in Claude Code shows a failing MCP server `cogito-mem` (`Connection closed`). The plugin's `.mcp.json` sits at the repo root, so Claude Code also reads it as the *project's* MCP config, where `${CLAUDE_PLUGIN_ROOT}` is empty and the command points at `/scripts/cogito-mem-plugin`. | Move the server into `.claude-plugin/plugin.json` (`mcpServers`), so only the plugin uses it. |
 | F2 | Claude Code saves its compaction summary as a `user` message (`isCompactSummary: true`); capture would store it as if the user had typed it. | Skip `isCompactSummary` records in `capture/claude_code.py` (later; not fixed during the session). |
+| F3 | The user read the `uv` installer's "everything's installed!" as cogito-mem being installed. | Label step 0 "install the helper `uv`"; or have the plugin's first start install `uv` itself. |
+| F4 | The plugin gives no `cogito-mem` command in the terminal, yet the guide told the user to run `cogito-mem capture claude-code --all`. | Docs: for terminal use, `uv tool install git+https://github.com/meridian21lab/cogito-mem` (or the one-line installer). Product: a `/cogito-mem` slash command, or backfill on first start. |
+| F5 | `uv` lands in `~/.local/bin`; a Claude Code started from an older terminal may not find it on its `PATH`, and then the plugin's server and hooks fail. | Docs: open a new terminal (or `source ~/.zshrc`) before starting Claude Code. Product: the plugin's shim could also look in `~/.local/bin` and `~/.cargo/bin`. |
 
 ## Open questions for the author
 
