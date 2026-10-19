@@ -9,6 +9,7 @@ what the docs must do about it. The user guide and the GitHub Pages site are bui
 |---|---|---|---|
 | 1 | "The best recommended usage is via Claude hooks?" | Half of it. Hooks *collect* (each turn is saved after Claude answers); the MCP tools let Claude *find* (`memory_query`) and *keep* (`memory_append`). The plugin installs both in one step. | Lead with the plugin. Explain the two halves with Cogi: hooks gather the nuts, MCP is how Claude asks Cogi to fetch one. |
 | 2 | (How the user pictures it) "Each message and answer will be remembered. When the session gets really long, I can ask about something that is no longer in the context window, and Claude uses cogito-mem to recall it." | Yes, that is the main use case. Every typed message and every reply is saved after each turn. Claude searches when you refer back to something; saying "check your memory" makes sure it does. | Use these words on the home page: it is the clearest picture of what the tool does. Show the long-session case (this very session compacted from 782k to 13k tokens). |
+| 3 | "Could you explain how the service works?" | Cogi collects every message after each answer, keeps it word for word with its date, and finds it again by words and by meaning. Claude asks, Cogi brings back the best few. All on your computer. | A "How it works" page: the 3 steps (collect, store, find) with Cogi and one picture; details (files, model, search) below the fold. |
 
 ## Findings (friction seen on the way)
 
