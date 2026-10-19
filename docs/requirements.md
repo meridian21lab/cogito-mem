@@ -245,6 +245,20 @@ assistant needs. Every other key takes its default.
 | Claude Desktop | No transcript hook: the assistant saves through `memory_append`, guided by the server's instructions. | yes |
 | claude.ai and ChatGPT on the web | They reach only remote MCP servers, not localhost (§13). In v0, past chats come in from the app's data export with `import: true`. | export only |
 
+Captured Claude Code items carry their project (the session's working directory; a Claude Code worktree counts as
+its repository) as `title`.
+
+**Recall as you go (Claude Code).** With many MCP servers, Claude Code keeps MCP tools behind tool search, and
+Claude rarely calls `memory_query` unprompted. Two more hooks, `cogito-mem recall claude-code`, bring the memory to
+Claude instead:
+- `UserPromptSubmit`: the memory is queried with the prompt; items that score at least 0.6 and are not from the
+  current session come back within 300 tokens, the current project's first, each with its date and author.
+- `SessionStart` (startup and resume): the last three exchanges (each prompt with the final reply to it) of the
+  most recent earlier session in the same project, from its transcript.
+
+Both add nothing on an error or after about a second, so they never hold up a prompt. `COGITO_MEM_RECALL=off`, or
+`cogito-mem install claude-code --no-recall`, turns them off.
+
 **Acceptance tests.** These are pass or fail, not scores.
 1. **Setup.** On a clean machine, one command takes the user from nothing to a first query answered inside
    Claude Code, with no manual edits.

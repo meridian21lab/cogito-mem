@@ -135,21 +135,35 @@ class Client:
 
     # ------------------------------------------------------------------ the service
 
+    def _spawn(self) -> subprocess.Popen:
+        run = self.root / "run"
+        run.mkdir(parents=True, exist_ok=True)
+        cmd = [sys.executable, "-m", "cogito_mem", "serve", "--root", str(self.root), *self.serve_args]
+        kwargs: dict[str, Any] = {}
+        if os.name == "nt":
+            kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | NEW_PROCESS_GROUP
+        else:
+            kwargs["start_new_session"] = True
+        with open(run / "server.log", "ab") as out:
+            return subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, **kwargs)
+
+    def start_in_background(self) -> bool:
+        """Start the service without waiting for it, unless it runs or has a fixed URL. True if started."""
+        if self.explicit_url:
+            return False
+        with _file_lock(self.root / "run" / "start.lock"):
+            if self.status() is not None:
+                return False
+            self._spawn()
+            return True
+
     def start_server(self) -> None:
         """Start ``cogito-mem serve`` in the background, unless another client just did."""
         with _file_lock(self.root / "run" / "start.lock"):
             if self.status() is not None:
                 return
             run = self.root / "run"
-            run.mkdir(parents=True, exist_ok=True)
-            cmd = [sys.executable, "-m", "cogito_mem", "serve", "--root", str(self.root), *self.serve_args]
-            kwargs: dict[str, Any] = {}
-            if os.name == "nt":
-                kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | NEW_PROCESS_GROUP
-            else:
-                kwargs["start_new_session"] = True
-            with open(run / "server.log", "ab") as out:
-                proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, **kwargs)
+            proc = self._spawn()
             deadline = time.monotonic() + START_TIMEOUT
             while time.monotonic() < deadline:
                 if self.status() is not None:
