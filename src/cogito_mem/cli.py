@@ -107,7 +107,12 @@ def cmd_install(args: argparse.Namespace) -> int:
     from .install import install
 
     return install(
-        args.client or None, _root(args), download=not args.no_download, start=not args.no_start, url=args.url
+        args.client or None,
+        _root(args),
+        download=not args.no_download,
+        start=not args.no_start,
+        url=args.url,
+        recall=not args.no_recall,
     )
 
 
@@ -187,6 +192,24 @@ def cmd_capture(args: argparse.Namespace) -> int:
         print(json.dumps(counts))
         return 0
     return 2
+
+
+def cmd_recall(args: argparse.Namespace) -> int:
+    from .client import Client
+    from .recall import TIMEOUT, claude_code_hook
+
+    root = _root(args)
+    out = claude_code_hook(
+        sys.stdin.read,
+        lambda: Client(url=args.url, root=root, autostart=False, timeout=TIMEOUT),
+        namespace=args.namespace,
+        min_score=args.min_score,
+        max_tokens=args.max_tokens,
+        log=root / "run" / "recall.log",
+    )
+    if out:
+        print(out)
+    return 0
 
 
 def cmd_import(args: argparse.Namespace) -> int:
@@ -294,6 +317,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--url", help="use the service at this URL (e.g. the Docker image) instead of a local one")
     sp.add_argument("--no-download", action="store_true", help="do not download llama.cpp or the model")
     sp.add_argument("--no-start", action="store_true", help="do not start the service")
+    sp.add_argument("--no-recall", action="store_true",
+                    help="Claude Code: do not add relevant memory to each prompt (run install again to change)")  # fmt: skip
     sp = add("uninstall", cmd_uninstall, "disconnect the memory from a chat client (the memory is kept)")
     sp.add_argument("client", choices=["claude-code", "codex", "claude-desktop"])
     sp = add("setup", cmd_setup, "download llama.cpp and the embedding model, without touching any client")
@@ -309,6 +334,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--namespace", default="default")
     sp.add_argument("--all", action="store_true", help="backfill every past session as history")
     sp.add_argument("--wait", action="store_true", help="do the work now instead of in the background")
+    sp.add_argument("--url", help=argparse.SUPPRESS)
+
+    sp = add("recall", cmd_recall, "add what the memory knows to a Claude Code prompt or new session (used by the hooks)")
+    sp.add_argument("source", choices=["claude-code"])
+    sp.add_argument("--namespace", default="default")
+    sp.add_argument("--min-score", type=float, help="leave out items that score lower (default: 0.6, or $COGITO_MEM_RECALL_MIN_SCORE)")
+    sp.add_argument("--max-tokens", type=int, default=300)
     sp.add_argument("--url", help=argparse.SUPPRESS)
 
     sp = add("import", cmd_import, "load past chats from a claude.ai or ChatGPT data export")

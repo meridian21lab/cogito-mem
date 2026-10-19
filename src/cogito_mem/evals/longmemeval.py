@@ -317,7 +317,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--out", help="write the full result (with per-question rows) here")
     r.add_argument("--verbose", action="store_true")
     r.set_defaults(func=cmd_run)
-    c = sub.add_parser("compare", help="paired difference of two runs with a 95 % bootstrap interval")
+    c = sub.add_parser("compare", help="paired difference of two runs with a 95 %% bootstrap interval")
     c.add_argument("a")
     c.add_argument("b")
     c.add_argument("--budget", type=int, default=300)
