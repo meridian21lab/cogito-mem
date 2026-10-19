@@ -44,7 +44,9 @@ log = logging.getLogger("cogito_mem")
 
 MODEL_FILE = "embeddinggemma-2-Q8_0.gguf"
 MODEL_URL = f"https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/main/{MODEL_FILE}"
-LLAMA_RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases/latest"
+# Not /releases/latest: since v0.7.0 (Oct 2026) that is a versioned release with no binaries, and the
+# prebuilt bNNNN builds are marked as prereleases. The newest release with a matching asset wins.
+LLAMA_RELEASES_API = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=30"
 
 SLOT_CONTEXT = 2048  # tokens per input; llama.cpp embeds one input in one batch
 PARALLEL = 4
@@ -391,8 +393,13 @@ def install_llama_server(root: Path, api_url: str = LLAMA_RELEASES_API) -> Path:
     """Download llama.cpp's latest prebuilt release for this machine into ``<root>/bin/llama.cpp``."""
     req = urllib.request.Request(api_url, headers={"User-Agent": "cogito-mem", "Accept": "application/vnd.github+json"})
     with urllib.request.urlopen(req, timeout=30) as resp:
-        release = json.loads(resp.read())
-    asset = _release_asset(release.get("assets", []))
+        answer = json.loads(resp.read())
+    releases = answer if isinstance(answer, list) else [answer]  # a release list, or one release
+    release, asset = {}, None
+    for release in releases:
+        asset = _release_asset(release.get("assets", []))
+        if asset is not None:
+            break
     if asset is None:
         raise RuntimeUnavailable(
             f"no prebuilt llama.cpp for {platform.system()} {platform.machine()}; install llama.cpp yourself"

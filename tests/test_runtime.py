@@ -127,6 +127,18 @@ def test_install_llama_server_from_a_release(tmp_path, monkeypatch, archive):
     assert runtime.find_llama_server(root) == binary
 
 
+def test_install_llama_server_skips_releases_without_binaries(tmp_path, monkeypatch):
+    """GitHub lists llama.cpp's versioned releases (no assets) next to the prebuilt bNNNN builds."""
+    monkeypatch.setattr(runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "x86_64")
+    _fake_release(tmp_path, ".tar.gz")
+    build = json.loads((tmp_path / "release.json").read_text())
+    api = tmp_path / "releases.json"
+    api.write_text(json.dumps([{"tag_name": "v0.7.0", "assets": [{"name": "nightly-tag.txt"}]}, build]))
+    binary = runtime.install_llama_server(tmp_path / "home", api_url=api.as_uri())
+    assert binary.name == "llama-server" and "b7000" in str(binary)
+
+
 def test_safe_extract_refuses_path_traversal(tmp_path):
     with pytest.raises(runtime.RuntimeUnavailable):
         runtime._safe_extract(["ok/file", "../../etc/passwd"], tmp_path)
