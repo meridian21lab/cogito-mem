@@ -89,7 +89,7 @@ def test_longmemeval_run_reports_coverage_and_recall(tmp_path, data):
 def test_longmemeval_arms_and_compare(tmp_path, data, capsys):
     u1 = run(tmp_path, data, "U1")
     u3 = run(tmp_path, data, "U3", "--base", "U1")
-    assert u1["meta"]["config"] == {"search": "vector", "doc_context": "own", "candidates": 30}
+    assert u1["meta"]["config"] == {"search": "vector", "doc_context": "own", "doc_author": False, "candidates": 30}
     assert u3["meta"]["config"]["doc_context"] == "previous"
     capsys.readouterr()
     assert longmemeval.main(["compare", str(tmp_path / "U1.json"), str(tmp_path / "U3.json"), "--bootstrap", "200"]) == 0

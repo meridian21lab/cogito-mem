@@ -566,8 +566,11 @@ These fill gaps the sections above leave open. Each can change without touching 
    "that"…) are dropped from the query, not from the index; a query made only of them still matches.
 8. **Score:** reciprocal rank fusion (k = 60) of the vector and keyword lists, divided by its maximum, so an item
    ranked first in every list scores 1. With a reranker, the top 30 take the reranker's score.
-9. **Arm U3** prepends the previous message in the thread (for a later piece, the previous piece), cut to its
-   last 1,000 characters.
+9. **Arm U3** prepends the message this one follows on from, cut to its last 1,000 characters: the previous
+   piece of the same message, or the previous message in the thread **when another author wrote it** (the
+   message being replied to). A run of messages by one author, such as notes saved one after another, are
+   embedded alone: with the previous note prepended, a set of 9 unrelated notes went from 9/9 to 4/9 found
+   by meaning (EmbeddingGemma 300M).
 10. **Capture keeps** the user's typed messages and the assistant's text replies. It leaves out tool calls and
     output, thinking, sub-agent turns, slash-command output and injected system reminders. Obvious secrets (API
     keys, tokens, private keys, `password=…`) are replaced with `[redacted]` before they are stored. Backfills
@@ -588,11 +591,43 @@ These fill gaps the sections above leave open. Each can change without touching 
 15. **Prompt profiles.** EmbeddingGemma's prompts stay the default. Other Matryoshka-trained GGUFs
     (Qwen3-Embedding, nomic-embed-text) get their own prompts, chosen from the file name or `COGITO_MEM_PROMPTS`.
     This exists for experiments and for users who prefer another model; v0 ships EmbeddingGemma 2.
-16. **`doc_author` (off by default, an arm to test).** Writes the author's name before the text for embedding
-    and keyword search. On LoCoMo, where questions name the speaker, it adds 2.8 points to keyword search at
-    N = 300 (46.7 % → 49.5 %).
+16. **The default is now U3 plus the author's name (`doc_context="previous"`, `doc_author=True`),** following
+    §7's rule that the untrained memory is the best arm at N = 300, measured on LoCoMo because LongMemEval and
+    EmbeddingGemma 2 could not be downloaded in the build environment. **LongMemEval must confirm it in stage
+    0.** `doc_author` writes the author's name before the text for embedding and keyword search ("Caroline:
+    …"). Paired results on LoCoMo's first 3 conversations (383 questions; Qwen3-Embedding-0.6B at 256
+    numbers, since the reachable EmbeddingGemma GGUF lacked its projection, see 17):
+
+    | Arm | Coverage@100 | @300 | @1000 | R@10 |
+    |---|---|---|---|---|
+    | keyword (BM25) | 32.4 % | 47.3 % | 60.1 % | 51.2 % |
+    | keyword + author | 36.3 % | 50.6 % | 61.9 % | 53.0 % |
+    | vector, own text (U1) | 7.0 % | 12.8 % | 27.9 % | 13.1 % |
+    | hybrid, own text (U2, the earlier default) | 15.9 % | 32.9 % | 57.4 % | 33.2 % |
+    | hybrid + previous (U3) | 21.1 % | 40.0 % | 59.8 % | 41.5 % |
+    | vector + previous + author | 23.5 % | 39.4 % | 58.8 % | 43.3 % |
+    | **hybrid + previous + author (new default)** | 32.6 % | **50.9 %** | **70.8 %** | 52.5 % |
+    | the last N tokens of the conversation (no memory) | 0.0 % | 0.8 % | 4.2 % | — |
+
+    Paired differences with 95 % bootstrap intervals: new default vs U2 +18.0 points at N = 300 [13.3, 22.7]
+    and +13.3 at N = 1000 [9.7, 17.0]; vs keyword + author +0.3 at 300 [−3.4, 4.2] (no difference) and +8.9 at
+    1000 [5.2, 12.5]. Turn by turn, a LoCoMo answer ("Researching adoption agencies") rarely says who is
+    speaking or what it answers, so embedding it alone loses both; cutting vectors to 256 numbers was not the
+    cause (on 40 questions, R@10 0.57 at 256 numbers against 0.62 at 1,024 with context; 0.10 against 0.07
+    without).
 17. **Model files must carry the final projection.** EmbeddingGemma's GGUF on Docker Hub (`ai/embeddinggemma`)
     has no dense projection layers, so its 768 numbers are pooled hidden states and cutting them to 256 is not
     what the model was trained for (vector-only coverage on LoCoMo fell to about 20 %). The `ggml-org`
     EmbeddingGemma 2 GGUF we ship includes the projection (`output.weight`); stage 0 should still check the
     shipped file's vectors against the reference implementation once.
+18. **BLAS runs on one thread in the service.** The query's one large matrix product is memory-bound, and idle
+    BLAS threads spinning on the cores llama-server needs added about 70 ms to each query on a 4-core VM
+    (embedding 174 ms → 105 ms median with one BLAS thread).
+19. **Speed on a 4-core cloud VM** (Intel Xeon 2.8 GHz, CPU only, EmbeddingGemma 300M Q8_0 for the query,
+    synthetic text): p95 140 ms at 1M tokens and 163 ms at 10M tokens; search and fill take about 3 ms and
+    28 ms of that, the query embedding the rest. This VM is weaker than the gate's laptop (§6), where the gate
+    still has to be measured. Appends: 5 ms (512 tokens), 47 ms (4k), 69 ms (8k, over the 50 ms target: the
+    text is tokenized once through llama-server before returning); searchable by meaning about 0.4 s later.
+20. **Arm R on CPU is far over budget:** Qwen3-Reranker-0.6B in llama.cpp scored 32 candidates in about 16 s on
+    the same VM (about 0.5 s each), so R stays a GPU option, as §7 expects. Its scores also looked
+    uncalibrated (0.015 for a clear match); check the GGUF's rerank template before using R's scores.

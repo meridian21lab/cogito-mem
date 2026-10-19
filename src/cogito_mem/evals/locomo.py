@@ -277,8 +277,9 @@ def build_parser() -> argparse.ArgumentParser:
     c.set_defaults(func=cmd_compare)
     p.add_argument("--data", help="locomo10.json")
     p.add_argument("--search", default="hybrid", choices=["hybrid", "vector", "keyword"])
-    p.add_argument("--doc-context", default="own", choices=["own", "previous"])
-    p.add_argument("--doc-author", action="store_true", help="put the speaker's name before each turn's text")
+    p.add_argument("--doc-context", default="previous", choices=["own", "previous"])
+    p.add_argument("--doc-author", action=argparse.BooleanOptionalAction, default=True,
+                   help="put the speaker's name before each turn's text (default: on)")  # fmt: skip
     p.add_argument("--reranker", help="reranker GGUF path or llama-server URL")
     p.add_argument("--embedder", default="auto", choices=["auto", "hash"])
     p.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))

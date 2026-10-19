@@ -357,21 +357,27 @@ class Namespace:
         msg = self.messages[int(self._row_msg.data[row])]
         return msg.text[int(self._row_start.data[row]) : int(self._row_end.data[row])]
 
-    def _previous_text(self, row: int) -> str:
+    def _previous(self, row: int) -> tuple[str, str]:
+        """(author, text) of what this item follows on from: the previous piece of its message,
+        or the previous message in the thread when someone else wrote it (what this replies to).
+
+        A run of messages by one author, such as notes saved one after another, are separate
+        thoughts, so each is embedded alone.
+        """
         msg = self.messages[int(self._row_msg.data[row])]
         pos = msg.rows.index(row)
         if pos > 0:
-            text = self.row_text(msg.rows[pos - 1])
-        elif msg.prev >= 0:
-            text = self.messages[msg.prev].text
+            author, text = msg.author, self.row_text(msg.rows[pos - 1])
+        elif msg.prev >= 0 and self.messages[msg.prev].author != msg.author:
+            author, text = self.messages[msg.prev].author, self.messages[msg.prev].text
         else:
-            return ""
+            return "", ""
         if len(text) > PREVIOUS_CONTEXT_CHARS:
             text = text[-PREVIOUS_CONTEXT_CHARS:]
             space = text.find(" ")
             if 0 <= space < 100:
                 text = text[space + 1 :]
-        return text
+        return author, text
 
     def prompts(
         self,
@@ -386,12 +392,12 @@ class Namespace:
             for row in rows:
                 msg = self.messages[int(self._row_msg.data[row])]
                 text = self.row_text(row)
-                if doc_context == "previous":
-                    before = self._previous_text(row)
-                    if before:
-                        text = f"{before}\n\n{text}"
                 if doc_author:
                     text = f"{msg.author}: {text}"
+                if doc_context == "previous":
+                    author, before = self._previous(row)
+                    if before:
+                        text = f"{author}: {before}\n\n{text}" if doc_author else f"{before}\n\n{text}"
                 out.append(write(msg.title, text))
             return out
 

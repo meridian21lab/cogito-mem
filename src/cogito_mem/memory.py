@@ -42,16 +42,19 @@ class Config:
 
     - ``search``: ``"hybrid"`` (vectors plus BM25, fused by reciprocal rank; arm U2),
       ``"vector"`` (arm U1) or ``"keyword"``.
-    - ``doc_context``: ``"own"`` embeds each item alone; ``"previous"`` prepends the
-      message before it in the thread (arm U3).
+    - ``doc_context``: ``"previous"`` (default) embeds each item with the message before
+      it in the thread (arm U3); ``"own"`` embeds it alone.
     - ``candidates``: how many fused candidates a reranker reorders (arm R).
     - ``doc_author``: write the author's name before the text for embedding and keyword
-      search ("Caroline: …"), for memories where who said it matters.
+      search ("Caroline: …"), so "what did Caroline say about…" finds her messages.
+
+    The defaults are the best arm measured so far (LoCoMo, docs/requirements.md §15):
+    hybrid search over items embedded with their author and the message before them.
     """
 
     search: str = "hybrid"
-    doc_context: str = "own"
-    doc_author: bool = False
+    doc_context: str = "previous"
+    doc_author: bool = True
     candidates: int = 30
     rrf_k: int = 60
     piece_tokens: int = PIECE_TOKENS

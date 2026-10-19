@@ -61,15 +61,17 @@ def load(path: Path) -> list[dict]:
 
 
 def config_for(args: argparse.Namespace) -> Config:
+    """The arms of requirements §7; ``--doc-author`` adds the author's name to any of them."""
+    author = bool(getattr(args, "doc_author", False))
     if args.arm in ARMS:
-        return Config(**ARMS[args.arm])
+        return Config(**ARMS[args.arm], doc_author=author)
     if args.arm == "U3":
         base = ARMS[args.base or "U2"]
-        return Config(search=base["search"], doc_context="previous")
+        return Config(search=base["search"], doc_context="previous", doc_author=author)
     if args.arm == "R":
         base = ARMS.get(args.base or "U2") or ARMS["U2"]
-        return Config(search=base["search"], doc_context=args.doc_context or base["doc_context"])
-    return Config(search=args.search or "hybrid", doc_context=args.doc_context or "own")
+        return Config(search=base["search"], doc_context=args.doc_context or base["doc_context"], doc_author=author)
+    return Config(search=args.search or "hybrid", doc_context=args.doc_context or "own", doc_author=author)
 
 
 def load_question(mem: Memory, q: dict) -> tuple[list[str], int]:
@@ -207,7 +209,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             "dataset": str(data_path),
             "dataset_sha256": sha256_file(data_path),
             "arm": args.arm,
-            "config": {"search": cfg.search, "doc_context": cfg.doc_context, "candidates": cfg.candidates},
+            "config": {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author,
+                       "candidates": cfg.candidates},
             "reranker": getattr(reranker, "name", None),
         }
     )
@@ -302,6 +305,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--base", choices=["U1", "U2"], help="for U3 and R: the arm they build on (default U2)")
     r.add_argument("--search", choices=["hybrid", "vector", "keyword"], help="for --arm custom")
     r.add_argument("--doc-context", choices=["own", "previous"], help="for --arm custom or R")
+    r.add_argument("--doc-author", action="store_true", help="put each author's name before their text")
     r.add_argument("--reranker", help="reranker GGUF path or llama-server URL (arm R)")
     r.add_argument("--embedder", default="auto", choices=["auto", "hash"], help="hash: pipeline checks only")
     r.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))

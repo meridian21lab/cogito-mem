@@ -286,7 +286,39 @@ def test_doc_author_puts_the_speaker_into_search(tmp_path):
         items = query(m, "What did Caroline research?", max_tokens=1000)["items"]
         assert items[0]["text"] == "I researched adoption agencies."  # the stored text is unchanged
         assert len(m.namespace("default").bm25.scores("Caroline")[0]) == 1
-    with Memory(None, embedder="hash") as m:  # off by default: the name is not searchable text
+    with Memory(None, embedder="hash", config=Config(doc_author=False)) as m:  # off: the name is not searchable
         append(m, {"author": "Caroline", "text": "I went hiking."})
         assert len(m.namespace("default").bm25.scores("Caroline")[0]) == 0
         assert m.namespace("default").prompts([0], "own", None, False) == ["title: none | text: I went hiking."]
+
+
+def test_previous_turn_and_speaker_together():
+    with Memory(None, embedder=None) as m:
+        append(
+            m,
+            {"author": "Mel", "thread_id": "s1", "text": "What are your plans for the summer?"},
+            {"author": "Caroline", "thread_id": "s1", "text": "Researching adoption agencies."},
+            {"author": "Caroline", "thread_id": "s2", "text": "A new thread starts alone."},
+        )
+        ns = m.namespace("default")
+        assert ns.prompts([1, 2], "previous", None, True) == [
+            "title: none | text: Mel: What are your plans for the summer?\n\nCaroline: Researching adoption agencies.",
+            "title: none | text: Caroline: A new thread starts alone.",
+        ]
+
+
+def test_notes_by_one_author_are_embedded_alone():
+    """Context helps a reply, not a run of separate notes (they would blur each other)."""
+    with Memory(None, embedder=None) as m:
+        append(
+            m,
+            {"author": "claude-code", "text": "The wedding is in Porto."},
+            {"author": "claude-code", "text": "The CI race is in temp-dir cleanup."},
+            {"author": "user", "text": "Why did CI fail?"},
+            {"author": "assistant", "text": "A race in cleanup."},
+        )
+        prompts = m.namespace("default").prompts([1, 3], "previous", None, True)
+        assert prompts == [
+            "title: none | text: claude-code: The CI race is in temp-dir cleanup.",
+            "title: none | text: user: Why did CI fail?\n\nassistant: A race in cleanup.",
+        ]
