@@ -242,6 +242,10 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
+    if args.eval_args[:1] == ["locomo-qa"]:
+        from .evals import locomo_qa
+
+        return locomo_qa.main(args.eval_args[1:])
     if args.eval_args[:1] == ["locomo"]:
         from .evals import locomo
 
@@ -342,7 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("stop", cmd_stop, "stop the local service")
     sp.add_argument("--url")
 
-    sp = add("eval", cmd_eval, "quality tests: LongMemEval (`eval run`, `eval compare`) and LoCoMo (`eval locomo`)")
+    sp = add("eval", cmd_eval, "quality tests: LongMemEval (`eval run`, `eval compare`), LoCoMo (`eval locomo`, `eval locomo-qa`)")
     sp.add_argument("eval_args", nargs=argparse.REMAINDER)
     sp = add("bench", cmd_bench, "speed test (requirements §6); see `cogito-mem bench -h`")
     sp.add_argument("bench_args", nargs=argparse.REMAINDER)

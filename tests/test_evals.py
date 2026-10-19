@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pytest
@@ -181,3 +183,77 @@ def test_locomo_run(tmp_path, capsys):
     capsys.readouterr()
     assert locomo.main(["compare", str(out), str(out), "--bootstrap", "100"]) == 0
     assert json.loads(capsys.readouterr().out)["difference_points"] == 0.0
+
+
+class _FakeChat(BaseHTTPRequestHandler):
+    """An OpenAI-compatible endpoint: always answers "Biscuit"; the judge says CORRECT when the gold is Biscuit."""
+
+    calls = 0
+
+    def do_POST(self):  # noqa: N802
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        type(self).calls += 1
+        prompt = body["messages"][-1]["content"]
+        if body.get("response_format"):
+            content = json.dumps({"label": "CORRECT" if "Gold answer: Biscuit" in prompt else "WRONG"})
+        else:
+            content = "Biscuit"
+        data = json.dumps({"choices": [{"message": {"content": content}, "finish_reason": "stop"}],
+                           "usage": {"prompt_tokens": 10, "completion_tokens": 2, "cost": 0.001}}).encode()  # fmt: skip
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.mark.parametrize("protocol", ["mem0-2025", "mem0-2026"])
+@pytest.mark.parametrize("context", ["memory", "full"])
+def test_locomo_qa_run_and_cache(tmp_path, capsys, protocol, context):
+    from cogito_mem.evals import locomo_qa
+
+    srv = HTTPServer(("127.0.0.1", 0), _FakeChat)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    _FakeChat.calls = 0
+    try:
+        data = tmp_path / "locomo.json"
+        data.write_text(json.dumps(mini_locomo()))
+        env = tmp_path / ".env"
+        env.write_text("OPENROUTER_AUTH_TOKEN: test-key\n")
+        out = tmp_path / "qa.json"
+        argv = ["--data", str(data), "--protocol", protocol, "--context", context, "--embedder", "hash",
+                "--cache", str(tmp_path / "c.sqlite3"), "--llm-cache", str(tmp_path / "llm.jsonl"),
+                "--env-file", str(env), "--base-url", f"http://127.0.0.1:{srv.server_address[1]}", "--out", str(out)]  # fmt: skip
+        assert locomo_qa.main(argv) == 0
+        s = json.loads(out.read_text())["summary"]
+        assert s["questions"] == 3 and s["J"] == pytest.approx(100 / 3, abs=0.01)  # the adversarial one is left out
+        assert s["by_category"]["single-hop"]["n"] == 2 and s["llm_cost_usd"] == pytest.approx(0.006)
+        if context == "memory":
+            assert s["evidence_covered"] > 0 and "retrieve_ms" in s
+        assert _FakeChat.calls == 6
+        assert locomo_qa.main(argv) == 0  # a rerun is answered from the cache
+        assert _FakeChat.calls == 6
+        capsys.readouterr()
+        assert locomo_qa.main(["compare", str(out), str(out), "--bootstrap", "100"]) == 0
+        assert json.loads(capsys.readouterr().out)["difference_points"] == 0.0
+    finally:
+        srv.shutdown()
+
+
+def test_locomo_qa_helpers(tmp_path):
+    from cogito_mem.evals import locomo_qa
+
+    assert locomo_qa.when_text("2023-05-08T13:56:00.003Z") == "1:56 pm on 8 May, 2023"
+    bare = locomo_qa.without_captions(mini_locomo()[0])
+    assert "blip_caption" not in bare["conversation"]["session_2"][0] and "blip_caption" in mini_locomo()[0]["conversation"]["session_2"][0]
+    assert [t for _, _, t in locomo_qa.full_lines(bare)][2] == "Biscuit loves the beach."
+    assert locomo_qa.when_text("2023-05-08T00:05:00Z") == "12:05 am on 8 May, 2023"
+    assert locomo_qa.token_f1("Biscuit, the beagle.", "biscuit") == pytest.approx(0.5)
+    assert locomo_qa.judge_label('{"label": "CORRECT"}') == (True, True)
+    assert locomo_qa.judge_label('Reasoning... so: WRONG') == (False, False)
+    assert locomo_qa.extract_answer("mem0-2026", "Step 1 ... ANSWER: Kyoto") == "Kyoto"
+    env = tmp_path / ".env"
+    env.write_text("# keys\nA_KEY: one\nexport B_KEY='two'\nC_KEY=three\n")
+    assert locomo_qa.read_env_file(env) == {"A_KEY": "one", "B_KEY": "two", "C_KEY": "three"}
