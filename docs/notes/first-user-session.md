@@ -22,6 +22,6 @@ what the docs must do about it. The user guide and the GitHub Pages site are bui
 
 ## Open questions for the author
 
-| # | Question | Raised by |
-|---|---|---|
-| O1 | Should the default budget for Claude Code be 1,000 tokens instead of 300? On LoCoMo (LLM judge), 300 is 8.7 points below the whole conversation; 1,000 is level with it. | Q5 |
+| # | Question | Raised by | Decision |
+|---|---|---|---|
+| O1 | Should the default budget for Claude Code be 1,000 tokens instead of 300? On LoCoMo (LLM judge), 300 is 8.7 points below the whole conversation; 1,000 is level with it. | Q5 | **Yes**: 1,000 is now the default everywhere (API, CLI, MCP). |

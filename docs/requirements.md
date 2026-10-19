@@ -137,7 +137,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
   },
   "as_of": null,
   "top_k": 10,
-  "max_tokens": 300
+  "max_tokens": 1000
 }
 ```
 
@@ -148,7 +148,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
 | `filter.*` | no | Exact filters. `null` means no filter. `kind` takes a list of kinds. `valid_after` is inclusive and `valid_before` exclusive; both apply to `valid_at`. |
 | `as_of` | no (default now) | The moment the memory is viewed from. Only items with `created_at` ≤ `as_of` are visible, and only retractions made by then apply. |
 | `top_k` | no (default 10, max 100) | The most items to return. |
-| `max_tokens` | no (default 300) | The reading budget: the most tokens of returned `text`, counted with the EmbeddingGemma 2 tokenizer. |
+| `max_tokens` | no (default 1000; 300 in the first draft, see §15 item 21) | The reading budget: the most tokens of returned `text`, counted with the EmbeddingGemma 2 tokenizer. |
 
 **How items are filled.** Items are taken in score order. An item that would push the total past
 `max_tokens` is skipped. The top item is always returned; if it alone is too long, it is cut to
@@ -646,3 +646,7 @@ These fill gaps the sections above leave open. Each can change without touching 
 20. **Arm R on CPU is far over budget:** Qwen3-Reranker-0.6B in llama.cpp scored 32 candidates in about 16 s on
     the same VM (about 0.5 s each), so R stays a GPU option, as §7 expects. Its scores also looked
     uncalibrated (0.015 for a clear match); check the GGUF's rerank template before using R's scores.
+21. **The default budget is 1,000 tokens, not 300** (author's decision, 19 Oct 2026). On LoCoMo answered by
+    gpt-4o-mini and judged by an LLM, 300 tokens scored 8.7 points below the whole conversation (−12.5 to −4.7),
+    while 1,000 was level with it (−1.8, −5.5 to +1.8), and 1,000 tokens is small next to a chat client's context.
+    The pass marks of §13 still name their own budgets.

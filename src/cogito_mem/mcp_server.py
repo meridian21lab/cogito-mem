@@ -76,7 +76,7 @@ def _tools() -> list[dict]:
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 100000,
-                        "description": "Reading budget for the returned text, in tokens (default 300).",
+                        "description": "Reading budget for the returned text, in tokens (default 1000).",
                     },
                 },
                 "required": ["text"],
