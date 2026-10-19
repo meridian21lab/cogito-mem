@@ -50,6 +50,12 @@ def test_install_claude_code_without_cli(isolated_env, monkeypatch):
     assert len(data["hooks"]["Stop"]) == 2 and len(data["hooks"]["SessionEnd"]) == 1
     ours = data["hooks"]["Stop"][1]["hooks"][0]
     assert ours["command"] == f"{launcher} capture claude-code"
+    assert data["hooks"]["UserPromptSubmit"] == [
+        {"hooks": [{"type": "command", "command": f"{launcher} recall claude-code", "timeout": 5}]}
+    ]
+    assert data["hooks"]["SessionStart"] == [
+        {"matcher": "startup|resume", "hooks": [{"type": "command", "command": f"{launcher} recall claude-code", "timeout": 10}]}
+    ]
     assert (settings.parent / "settings.json.cogito-mem.bak").exists()
 
     uninstall("claude-code", root, say=lambda s: None)
@@ -60,6 +66,28 @@ def test_install_claude_code_without_cli(isolated_env, monkeypatch):
 
 
 @pytest.mark.skipif(shutil.which("claude") is None, reason="the claude CLI is not installed")
+def test_install_claude_code_without_recall(isolated_env, monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_NO_CLAUDE_CLI", "1")
+    home = isolated_env
+    root = home / ".cogito-mem"
+    settings = home / ".claude" / "settings.json"
+    settings.parent.mkdir(parents=True)
+    their_start = {"matcher": "startup", "hooks": [{"type": "command", "command": "echo hello"}]}
+    settings.write_text(json.dumps({"hooks": {"SessionStart": [their_start]}}))
+
+    run_install("claude-code", root)
+    assert len(json.loads(settings.read_text())["hooks"]["SessionStart"]) == 2
+    lines = run_install("claude-code", root, recall=False)  # turns recall off again
+    assert any("recall hooks left out" in line for line in lines)
+    hooks = json.loads(settings.read_text())["hooks"]
+    assert sorted(hooks) == ["SessionEnd", "SessionStart", "Stop"]
+    assert hooks["SessionStart"] == [their_start]
+    assert "capture claude-code" in hooks["Stop"][0]["hooks"][0]["command"]
+
+    uninstall("claude-code", root, say=lambda s: None)
+    assert json.loads(settings.read_text()) == {"hooks": {"SessionStart": [their_start]}}
+
+
 def test_install_claude_code_with_the_claude_cli(isolated_env):
     home = isolated_env
     root = home / ".cogito-mem"
@@ -192,11 +220,17 @@ def test_claude_code_plugin_files_are_consistent():
     from cogito_mem import __version__
 
     assert plugin["version"] == __version__
-    mcp = json.loads((repo / ".mcp.json").read_text())["mcpServers"]["cogito-mem"]
-    assert mcp["args"][0] == "${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin"
+    # The MCP server is declared in plugin.json: a root .mcp.json would also load as a project
+    # config when the repository is opened in Claude Code, where ${CLAUDE_PLUGIN_ROOT} is unset.
+    assert not (repo / ".mcp.json").exists()
+    mcp = plugin["mcpServers"]["cogito-mem"]
+    assert mcp["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"]
     hooks = json.loads((repo / "hooks" / "hooks.json").read_text())["hooks"]
     for event in ("Stop", "SessionEnd"):
         assert "cogito-mem-plugin\" capture claude-code" in hooks[event][0]["hooks"][0]["command"]
+    for event in ("UserPromptSubmit", "SessionStart"):
+        assert "cogito-mem-plugin\" recall claude-code" in hooks[event][0]["hooks"][0]["command"]
+    assert hooks["SessionStart"][0]["matcher"] == "startup|resume"
     shim = repo / "scripts" / "cogito-mem-plugin"
     assert os.access(shim, os.X_OK)
     out = subprocess.run(["sh", str(shim), "--version"], capture_output=True, text=True, timeout=120,

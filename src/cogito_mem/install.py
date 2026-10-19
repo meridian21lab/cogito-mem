@@ -7,7 +7,8 @@ Install, in one command and with nothing to configure:
 3. gets llama.cpp's ``llama-server`` (if it is not on the PATH) and the
    EmbeddingGemma 2 GGUF;
 4. registers the MCP server with the client and turns on automatic capture where
-   the client has hooks (Claude Code hooks, Codex ``notify``);
+   the client has hooks (Claude Code hooks, Codex ``notify``), and for Claude Code
+   automatic recall (hooks that add relevant memory to each prompt, see ``recall``);
 5. starts the local service and checks that it answers a query.
 
 Uninstall removes only what install added; the memory folder is kept.
@@ -101,7 +102,7 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def _is_ours(command: object) -> bool:
-    return isinstance(command, str) and "cogito-mem" in command and "capture" in command
+    return isinstance(command, str) and "cogito-mem" in command and ("capture" in command or "recall" in command)
 
 
 # --------------------------------------------------------------------------- Claude Code
@@ -127,7 +128,13 @@ def _mcp_entry(launcher: Path) -> dict:
     return {"type": "stdio", "command": str(launcher), "args": ["mcp"], "env": {}}
 
 
-def install_claude_code(launcher: Path, say: Say) -> None:
+# Claude Code hooks: (event, matcher, subcommand, timeout in seconds). Capture works in the
+# background; recall answers within about a second or says nothing.
+CAPTURE_HOOKS = [("Stop", None, "capture", 30), ("SessionEnd", None, "capture", 30)]
+RECALL_HOOKS = [("UserPromptSubmit", None, "recall", 5), ("SessionStart", "startup|resume", "recall", 10)]
+
+
+def install_claude_code(launcher: Path, say: Say, recall: bool = True) -> None:
     cli = _claude_cli()
     registered = False
     if cli:
@@ -151,13 +158,23 @@ def install_claude_code(launcher: Path, say: Say) -> None:
     settings_path = claude_dir() / "settings.json"
     settings = _read_json(settings_path)
     hooks = settings.setdefault("hooks", {})
-    command = f"'{launcher}' capture claude-code" if " " in str(launcher) else f"{launcher} capture claude-code"
-    for event in ("Stop", "SessionEnd"):
+    program = f"'{launcher}'" if " " in str(launcher) else str(launcher)
+    for event, matcher, sub, timeout in CAPTURE_HOOKS + RECALL_HOOKS:
         groups = [g for g in hooks.get(event, []) if not _group_is_ours(g)]
-        groups.append({"hooks": [{"type": "command", "command": command, "timeout": 30}]})
-        hooks[event] = groups
+        if sub == "capture" or recall:
+            group = {"matcher": matcher} if matcher else {}
+            group["hooks"] = [{"type": "command", "command": f"{program} {sub} claude-code", "timeout": timeout}]
+            groups.append(group)
+        if groups:
+            hooks[event] = groups
+        else:
+            hooks.pop(event, None)
     _write_json(settings_path, settings)
     say(f"  capture hooks (Stop, SessionEnd) added to {settings_path}")
+    if recall:
+        say("  recall hooks (UserPromptSubmit, SessionStart) added: relevant memory comes with each prompt")
+    else:
+        say("  recall hooks left out (--no-recall); Claude can still call memory_query")
 
 
 def _group_is_ours(group: object) -> bool:
@@ -191,7 +208,7 @@ def uninstall_claude_code(say: Say) -> None:
         if not hooks:
             settings.pop("hooks", None)
         _write_json(settings_path, settings)
-        say(f"  capture hooks removed from {settings_path}")
+        say(f"  capture and recall hooks removed from {settings_path}")
 
 
 # --------------------------------------------------------------------------- Codex
@@ -348,8 +365,12 @@ def install(
     download: bool = True,
     start: bool = True,
     url: str | None = None,
+    recall: bool = True,
 ) -> int:
-    """Connect the memory to ``client`` (a name, a list, or None for every client found)."""
+    """Connect the memory to ``client`` (a name, a list, or None for every client found).
+
+    ``recall=False`` leaves out the Claude Code hooks that add memory to each prompt.
+    """
     if client is None or client == []:
         clients = detect_clients()
         if not clients:
@@ -371,7 +392,11 @@ def install(
         say(f"  using the service at {url} (it brings its own llama.cpp and model)")
     else:
         ensure_runtime(root, say, download)
-    steps = {"claude-code": install_claude_code, "codex": install_codex, "claude-desktop": install_claude_desktop}
+    steps: dict[str, Callable[[Path, Say], None]] = {
+        "claude-code": lambda launcher, say: install_claude_code(launcher, say, recall=recall),
+        "codex": install_codex,
+        "claude-desktop": install_claude_desktop,
+    }
     for name in clients:
         steps[name](launcher, say)
     if start:

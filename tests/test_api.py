@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import threading
 import uuid
 
 import pytest
 from conftest import append, query
 
-from cogito_mem import ApiError, timeutil
+from cogito_mem import ApiError, Config, Memory, timeutil
+from cogito_mem.embedding import HashEmbedder
 
 QUERY_KEYS = {"items", "as_of", "tokens", "took_ms"}
-ITEM_KEYS = {"id", "kind", "text", "score", "author", "thread_id", "valid_at", "created_at", "expired_at", "source"}
+ITEM_KEYS = {"id", "kind", "text", "score", "similarity", "author", "thread_id", "valid_at", "created_at", "expired_at", "source"}
 SOURCE_KEYS = {"id", "title", "start", "end"}
 
 
@@ -45,6 +47,7 @@ def test_query_response_has_every_key_every_time(mem):
         assert set(item) == ITEM_KEYS
         assert set(item["source"]) == SOURCE_KEYS
         assert 0.0 <= item["score"] <= 1.0
+        assert -1.0 <= item["similarity"] <= 1.0
         assert item["expired_at"] is None
     top = resp["items"][0]
     assert top["text"] == "Integration costs are 40 % above plan."
@@ -69,6 +72,45 @@ def test_scores_are_in_order(mem):
     scores = [i["score"] for i in items]
     assert scores == sorted(scores, reverse=True)
     assert len(items) == 20
+
+
+def test_similarity_is_the_cosine_of_the_query_and_the_item():
+    with Memory(None, embedder="hash", config=Config(doc_context="own", doc_author=False)) as m:
+        append(m, {"author": "user", "text": "Picnic on Saturday"}, {"author": "user", "text": "Integration costs above plan"})
+        assert m.flush(10)
+        items = {i["text"]: i for i in query(m, "Picnic on Saturday")["items"]}
+        assert items["Picnic on Saturday"]["similarity"] == 1.0  # the same words embed to the same vector
+        assert abs(items["Integration costs above plan"]["similarity"]) < 0.5  # found by vector rank all the same
+        assert items["Integration costs above plan"]["score"] > 0.4
+
+
+class GatedEmbedder(HashEmbedder):
+    """Embeds queries at once and stored items only while ``open`` is set."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.open = threading.Event()
+
+    def embed(self, prompts):
+        if not prompts[0].startswith("task: search result"):
+            self.open.wait(10)
+        return super().embed(prompts)
+
+
+def test_similarity_is_null_without_a_vector():
+    with Memory(None, embedder=None) as m:  # keyword search only
+        append(m, {"author": "user", "text": "Picnic on Saturday"})
+        assert [i["similarity"] for i in query(m, "picnic")["items"]] == [None]
+    embedder = GatedEmbedder()
+    with Memory(None, embedder=embedder) as m:
+        embedder.open.set()
+        append(m, {"author": "user", "text": "Picnic on Saturday"})
+        assert m.flush(10)
+        embedder.open.clear()
+        append(m, {"author": "user", "text": "Picnic on Sunday"})  # not embedded yet: found by keyword
+        items = {i["text"]: i["similarity"] for i in query(m, "picnic")["items"]}
+        embedder.open.set()
+        assert items["Picnic on Sunday"] is None and items["Picnic on Saturday"] is not None
 
 
 @pytest.mark.parametrize(

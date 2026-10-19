@@ -7,7 +7,9 @@ the chat never waits for the memory.
 Kept: the user's typed messages and the assistant's text replies. Left out: tool
 calls and their output, thinking, sub-agent (sidechain) turns, slash-command
 output and injected system reminders. ``client_ref`` is the transcript line's
-``uuid``; ``thread_id`` is the session id.
+``uuid``; ``thread_id`` is the session id; ``title`` is the project, the line's
+``cwd`` (a Claude Code worktree, ``<repo>/.claude/worktrees/<name>``, counts as
+its repository), so recall can prefer the current project.
 """
 
 from __future__ import annotations
@@ -33,11 +35,25 @@ _SKIP_PREFIXES = (
     "<user-prompt-submit-hook>",
 )
 _REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
+_WORKTREE = re.compile(r"[\\/]\.claude[\\/]worktrees[\\/][^\\/]+.*$", re.S)
 
 
 def projects_dir() -> Path:
     base = os.environ.get("CLAUDE_CONFIG_DIR")
     return (Path(base).expanduser() if base else Path.home() / ".claude") / "projects"
+
+
+def project_of(cwd: object) -> str | None:
+    """The project a working directory belongs to: the directory, or a worktree's repository."""
+    if not isinstance(cwd, str) or not cwd.strip():
+        return None
+    cwd = cwd.rstrip("/\\") or cwd
+    return _WORKTREE.sub("", cwd) or cwd
+
+
+def project_folder(project: str) -> str:
+    """The folder name Claude Code gives a project under ``~/.claude/projects``."""
+    return re.sub(r"[^A-Za-z0-9]", "-", project)
 
 
 def _text_of(content: object) -> str:
@@ -70,6 +86,9 @@ def items_from_lines(lines: Iterable[tuple[int, dict]], session_id: str | None =
             "text": redact(text),
             "client_ref": f"claude-code:{uuid}",
         }
+        project = project_of(rec.get("cwd"))
+        if project:
+            item["title"] = project
         if isinstance(rec.get("timestamp"), str):
             item["valid_at"] = rec["timestamp"]
         items.append(item)

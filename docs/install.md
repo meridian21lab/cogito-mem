@@ -28,7 +28,7 @@ as a uv tool, and then runs `cogito-mem install`, which:
 1. creates `~/.cogito-mem` with the memory `default`;
 2. gets llama.cpp's `llama-server` (the one on your `PATH`, e.g. `brew install llama.cpp`, or the official
    prebuilt release) and the EmbeddingGemma 2 model (310 MB);
-3. connects **every chat client it finds**: Claude Code (MCP server + capture hooks), Codex (MCP server + capture
+3. connects **every chat client it finds**: Claude Code (MCP server + capture and recall hooks), Codex (MCP server + capture
    after each turn), Claude Desktop (MCP server);
 4. starts the local service and checks it answers.
 
@@ -45,7 +45,7 @@ Inside Claude Code:
 
 Or in one step: `/plugin install cogito-mem --marketplace meridian21lab/cogito-mem`.
 
-The plugin registers the MCP server and the capture hooks. It runs cogito-mem through `uv` (the first start takes a
+The plugin registers the MCP server and the capture and recall hooks. It runs cogito-mem through `uv` (the first start takes a
 few seconds while uv builds its environment), or through an installed `cogito-mem`, or a `python3` that has numpy.
 On its first start the service downloads llama.cpp (unless one is on your `PATH`) and the model (310 MB) into
 `~/.cogito-mem`; until they are ready, the memory searches by keyword.

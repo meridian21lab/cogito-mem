@@ -136,6 +136,14 @@ embeds about 21k tokens a second (1M tokens in 47 s). Reproduce with
 - *"Remember that we ship the beta to ten design partners first."* → `memory_append`
 - *"What did we decide about the beta?"*, *"What was that idea from last week?"* → `memory_query`
 
+**Without asking, in Claude Code.** Each prompt is looked up before Claude sees it, and up to 300 tokens of what
+earlier sessions said about it come along: items from the current project first, each with its date and author,
+nothing from the session you are in, and nothing at all when no match is strong enough. A new session also starts
+with how the last session in the same project ended. Recall never holds up a prompt by more than about a second.
+To turn it off, set `COGITO_MEM_RECALL=off` (for example under `"env"` in `~/.claude/settings.json`, which also
+works for the plugin) or run `cogito-mem install claude-code --no-recall`; `COGITO_MEM_RECALL_MIN_SCORE` (default
+0.6) sets how strong a match must be.
+
 **From a terminal:**
 
 ```sh
@@ -155,7 +163,8 @@ curl -s localhost:7327/v1/memory -H 'Content-Type: application/json' \
   -d '{"op": "query", "text": "What did we learn about costs?", "max_tokens": 300}'
 ```
 
-Each returned item carries `id`, `kind`, `text`, `score`, `author`, `thread_id`, `valid_at`, `created_at`,
+Each returned item carries `id`, `kind`, `text`, `score` (a rank within the response), `similarity` (the cosine
+between query and item vectors, `null` without them), `author`, `thread_id`, `valid_at`, `created_at`,
 `expired_at` and a `source` span (`id`, `title`, `start`, `end`) into the original message. The full API, with
 `as_of`, filters, imports and retractions, is in [`docs/requirements.md`](docs/requirements.md#3-api-v0).
 
@@ -178,7 +187,7 @@ Client().query("mascot")          # or through the local service, which starts o
 | Way | Command | Notes |
 |---|---|---|
 | One line | `curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh \| sh` | Needs only curl; connects every client it finds. Windows: `install.ps1` (experimental). |
-| Claude Code plugin | `/plugin marketplace add meridian21lab/cogito-mem` then `/plugin install cogito-mem@cogito-mem` | MCP server and capture hooks, from inside Claude Code. |
+| Claude Code plugin | `/plugin marketplace add meridian21lab/cogito-mem` then `/plugin install cogito-mem@cogito-mem` | MCP server, capture and recall hooks, from inside Claude Code. |
 | Docker | `docker run -d -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem`, then `claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp` | Service, llama.cpp and model in one container (amd64 and arm64); data in a volume. |
 | pip / uv | `uv tool install git+https://github.com/meridian21lab/cogito-mem && cogito-mem install` | For Python developers. |
 
