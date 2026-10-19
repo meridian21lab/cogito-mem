@@ -11,7 +11,8 @@
 # Behind a TLS-inspecting proxy, pass its CA for the build only (it is not kept in the image):
 #   docker build --secret id=extra_ca,src=/path/to/proxy-ca.pem ...
 
-ARG PYTHON_IMAGE=python:3.12-slim-bookworm
+# Debian 13: its GCC 14 compiles llama.cpp's newest ARM variants (armv9.2 with SME); GCC 12 cannot.
+ARG PYTHON_IMAGE=python:3.12-slim-trixie
 
 # ---------------------------------------------------------------- llama.cpp
 FROM ${PYTHON_IMAGE} AS llama
