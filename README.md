@@ -134,7 +134,8 @@ curl -s localhost:7327/v1/memory -H 'Content-Type: application/json' \
   -d '{"op": "query", "text": "What did we learn about costs?", "max_tokens": 300}'
 ```
 
-Each returned item carries `id`, `kind`, `text`, `score`, `author`, `thread_id`, `valid_at`, `created_at`,
+Each returned item carries `id`, `kind`, `text`, `score` (a rank within the response), `similarity` (the cosine
+between query and item vectors, `null` without them), `author`, `thread_id`, `valid_at`, `created_at`,
 `expired_at` and a `source` span (`id`, `title`, `start`, `end`) into the original message. The full API, with
 `as_of`, filters, imports and retractions, is in [`docs/requirements.md`](docs/requirements.md#3-api-v0).
 

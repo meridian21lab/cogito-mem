@@ -41,7 +41,8 @@ from .tokenizer import ApproxTokenizer, count, cut
 # item sharing a single common word with the prompt still ranks in both searches. So an
 # item must also share half of the prompt's content words, at least 2 and at most 4. On a
 # copy of a real memory (470 messages) this dropped every item that 9 unrelated prompts
-# matched, and kept the closest matches for 9 prompts about the work stored in it.
+# matched, and kept the closest matches for 9 prompts about the work stored in it. The
+# items' ``similarity`` (query-item cosine) separated them no better (requirements §15).
 MIN_SCORE = 0.6
 MIN_SHARED_WORDS = 2
 MAX_SHARED_WORDS = 4
