@@ -11,8 +11,17 @@ permissions:
   packages: write
 
 jobs:
+  # Both architectures build natively on every change, so an arm64-only break never reaches main.
   image:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -20,10 +29,11 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          platforms: ${{ matrix.platform }}
           load: true
           tags: cogito-mem:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.platform }}
       - name: Smoke test (keyword search; the model is not downloaded in CI)
         run: |
           docker run -d --name cm -p 127.0.0.1:7327:7327 -e COGITO_MEM_NO_DOWNLOAD=1 cogito-mem:ci

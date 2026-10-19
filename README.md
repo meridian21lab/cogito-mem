@@ -150,7 +150,7 @@ Client().query("mascot")          # or through the local service, which starts o
 |---|---|---|
 | One line | `curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh \| sh` | Needs only curl; connects every client it finds. Windows: `install.ps1` (experimental). |
 | Claude Code plugin | `/plugin marketplace add meridian21lab/cogito-mem` then `/plugin install cogito-mem@cogito-mem` | MCP server and capture hooks, from inside Claude Code. |
-| Docker | `docker compose up -d`, then `claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp` | Service, llama.cpp and model in one container; data in a volume. |
+| Docker | `docker run -d -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem`, then `claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp` | Service, llama.cpp and model in one container (amd64 and arm64); data in a volume. |
 | pip / uv | `uv tool install git+https://github.com/meridian21lab/cogito-mem && cogito-mem install` | For Python developers. |
 
 The [install guide](docs/install.md) covers each way, upgrades, uninstalling and troubleshooting.

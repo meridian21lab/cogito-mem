@@ -60,9 +60,10 @@ docker run -d --name cogito-mem --restart unless-stopped \
   -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem:latest
 ```
 
-or, from a checkout, `docker compose up -d`. The image holds the service and llama.cpp; the model is downloaded
-into the `/data` volume on first start (build with `--build-arg BAKE_MODEL=1` to put it in the image). Then
-connect your clients by URL:
+or, from a checkout, `docker compose up -d`. The image holds the service and llama.cpp, for amd64 and arm64
+(Graviton, Ampere, Apple Silicon); the model is downloaded into the `/data` volume on first start (build with
+`--build-arg BAKE_MODEL=1` to put it in the image). Docker on a Mac runs on the CPU only, so on a Mac way A is
+faster. Then connect your clients by URL:
 
 ```sh
 claude mcp add --transport http --scope user cogito-mem http://127.0.0.1:7327/mcp      # Claude Code
