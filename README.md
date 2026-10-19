@@ -61,8 +61,9 @@ happened.
 
 ## Measured
 
-All numbers below were measured for this release on a 4-core cloud VM (Intel Xeon, 2.8 GHz, CPU only) and are
-reproducible with the commands shown. They are internal checks, not a leaderboard entry.
+All numbers below were measured on 19 Oct 2026 on the author's laptop (MacBook Pro, Apple M5 Max, 18 cores) with
+the model that ships, EmbeddingGemma 2 (Q8_0) in llama.cpp, and are reproducible with the commands shown. They are
+internal checks, not a leaderboard entry.
 
 **Finding the right messages (LoCoMo).** [LoCoMo](https://github.com/snap-research/locomo) holds 10 long
 conversations (up to 35 sessions each) and 1,536 answerable questions whose answers are labelled with the turns
@@ -71,34 +72,62 @@ reply; the baselines get the same token budget without a memory.
 
 | What the assistant gets | Within 100 tokens | Within 300 tokens | Within 1,000 tokens |
 |---|---|---|---|
-| **cogito-mem** (default: hybrid search) | 32.0 % | **49.4 %** | **67.8 %** |
-| cogito-mem, keyword search only | 32.5 % | 46.7 % | 57.6 % |
-| The most recent N tokens of the conversation (no memory) | 0.1 % | 0.6 % | 4.4 % |
-| N tokens of randomly chosen turns | 0.3 % | 1.0 % | 3.6 % |
+| **cogito-mem** (default: hybrid search) | 39.0 % | **56.5 %** | **72.5 %** |
+| cogito-mem, keyword search only | 36.0 % | 49.5 % | 59.8 % |
+| The most recent N tokens of the conversation (no memory) | 0.1 % | 0.6 % | 4.2 % |
+| N tokens of randomly chosen turns | 0.3 % | 1.0 % | 3.5 % |
 
-A conversation averages about 19,000 tokens. With 300 tokens, 1.5 % of that, cogito-mem hands back every turn a
-question needs for half of the 1,536 questions (single-hop 60 %, temporal 62 %; multi-hop questions, which need
-several turns at once, 11 %); a context window of the same size almost never does. Hybrid search beats
-keyword search alone by 2.7 points at 300 tokens (95 % CI 0.7 to 4.7) and 10.2 points at 1,000 (8.5 to 12.0).
+A conversation averages about 19,400 tokens. With 300 tokens, 1.5 % of that, cogito-mem hands back every turn a
+question needs for 56.5 % of the 1,536 questions (single-hop 71 %, temporal 68 %; multi-hop questions, which need
+several turns at once, 10 %); a context window of the same size almost never does. Hybrid search beats
+keyword search alone by 7.0 points at 300 tokens (95 % CI 5.3 to 8.8) and 12.7 points at 1,000 (11.0 to 14.5).
 Embedding each message together with its author and the message it replies to is what makes the vectors useful
-here: embedding each turn alone scores 18 points lower ([the ablation](docs/requirements.md#15-choices-made-while-building-v0-author-to-confirm)).
+here: in an earlier run with a stand-in model (Qwen3-Embedding-0.6B), embedding each turn alone scored 18 points
+lower ([the ablation](docs/requirements.md#15-choices-made-while-building-v0-author-to-confirm)).
 
-These runs embed with Qwen3-Embedding-0.6B at 256 numbers: EmbeddingGemma 2 could not be downloaded in our test
-environment, and the EmbeddingGemma file that could lacks its final projection layers. Reproduce with
-`cogito-mem eval locomo --data locomo10.json`.
+Reproduce with `cogito-mem eval locomo --data locomo10.json` (add `--search keyword` for the second row).
 
-**Speed** (`cogito-mem bench speed`, 1,000 queries, one at a time, `top_k` 10, budget 300 tokens; each query embedded
-on the CPU by EmbeddingGemma 300M, the closest model we could download):
+**Answering from the memory (LoCoMo, judged by an LLM).** This is the protocol of the
+[Mem0 paper](https://arxiv.org/abs/2504.19413), which published memory systems report: gpt-4o-mini answers each
+of the 1,540 questions of categories 1–4 from what the memory returns, and gpt-4o-mini then marks the answer
+correct or wrong against LoCoMo's gold answer. As a check on the harness, the whole conversation is scored the
+same way. One run per row.
 
-| Memory size | Median query | p95 query | Of which search + fill |
+| What gpt-4o-mini reads | All 10 conversations (1,540 questions) | First 5 conversations (762 questions) |
+|---|---|---|
+| cogito-mem, 300 tokens | 65.3 % | 67.8 % |
+| cogito-mem, 1,000 tokens | **74.7 %** | 74.7 % |
+| cogito-mem, 2,500 tokens | 76.9 % | 78.1 % |
+| The whole conversation (no memory) | not run | 76.5 % |
+
+On the same 762 questions, 1,000 tokens from cogito-mem is level with the whole conversation (−1.8 points, 95 % CI
+−5.5 to +1.8); 300 tokens is 8.7 points below it (−12.5 to −4.7). Under the same protocol the Mem0 paper reports
+66.9 for Mem0, 68.4 for Mem0g and 66.0 for Zep (as Mem0 ran it) against 72.9 for the whole conversation, 3.6
+points below our own full-context run, so absolute scores from different harnesses are not directly comparable.
+Reproduce with an [OpenRouter](https://openrouter.ai) key in `.env` (`OPENROUTER_API_KEY=…`); every LLM call is
+cached, and the 1,000-token run cost about $0.53:
+
+```sh
+cogito-mem eval locomo-qa --data locomo10.json --env-file .env --context memory --budget 1000 --out results/locomo-qa/mem1000.json
+cogito-mem eval locomo-qa --data locomo10.json --env-file .env --context full --conversations 0,1,2,3,4 --out results/locomo-qa/full.json
+cogito-mem eval locomo-qa compare results/locomo-qa/full.json results/locomo-qa/mem1000.json
+```
+
+**Speed** (`cogito-mem bench speed`, 1,000 queries, one at a time, `top_k` 10, budget 300 tokens; every query is
+embedded by EmbeddingGemma 2, over a memory of synthetic text with random vectors):
+
+| Memory size | Query embedded on | Median query | p95 query |
 |---|---|---|---|
-| 1M tokens (10.7k items) | 98 ms | 140 ms | ~3 ms |
-| 10M tokens (106k items) | 120 ms | 163 ms | ~28 ms |
+| 1M tokens (10.7k items) | CPU only | 14.5 ms | 22.8 ms |
+| 10M tokens (106k items) | CPU only | 17.8 ms | **26.0 ms** |
+| 10M tokens (106k items) | GPU (Metal) | 13.0 ms | 14.2 ms |
 
-Appending is fast because embedding happens in the background: 5 ms for a 512-token message, 47 ms for 4k tokens,
-69 ms for 8k tokens; a new item can be found by meaning about 0.4 s later. The design target is a p95 under
-100 ms at 10M tokens on a laptop CPU (the author's M5); on this small VM the query embedding alone takes about
-95 ms, and a GPU (Metal, CUDA) brings it to a few milliseconds.
+The design target is a p95 under 100 ms at 10M tokens on the author's laptop with the CPU alone; measured there,
+it is 26 ms. Appending is fast because embedding happens in the background: at 10M tokens on the CPU, a median of
+2.2 ms for a 512-token message, 7.4 ms for 4k tokens and 10.9 ms for 8k tokens (0.8, 4.7 and 9.1 ms with Metal); a
+new item can be found by meaning about 57 ms later on the CPU and 13 ms later with Metal. With Metal, the model
+embeds about 21k tokens a second (1M tokens in 47 s). Reproduce with
+`COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --tokens 10M --random-vectors` (leave out the variable for Metal).
 
 ## Use it
 

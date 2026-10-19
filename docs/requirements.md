@@ -613,6 +613,11 @@ These fill gaps the sections above leave open. Each can change without touching 
     1000, against 32.5 / 46.7 / 57.6 % for keyword search and 0.1 / 0.6 / 4.4 % for the last N tokens
     (+2.7 points over keyword at 300 [0.7, 4.7]; +10.2 at 1000 [8.5, 12.0]).
 
+    With EmbeddingGemma 2 Q8_0, the model that ships (19 Oct 2026, on the author's M5 Max laptop), the new
+    default covers 39.0 / 56.5 / 72.5 % on all 10 conversations, against 36.0 / 49.5 / 59.8 % for keyword search
+    (+7.0 points at 300 [5.3, 8.8]; +12.7 at 1000 [11.0, 14.5]); R@10 57.2 % against 51.6 %. The other arms in
+    the table were not rerun with it.
+
     Paired differences on the 3 conversations, with 95 % bootstrap intervals: new default vs U2 +18.0 points at N = 300 [13.3, 22.7]
     and +13.3 at N = 1000 [9.7, 17.0]; vs keyword + author +0.3 at 300 [−3.4, 4.2] (no difference) and +8.9 at
     1000 [5.2, 12.5]. Turn by turn, a LoCoMo answer ("Researching adoption agencies") rarely says who is
@@ -627,11 +632,17 @@ These fill gaps the sections above leave open. Each can change without touching 
 18. **BLAS runs on one thread in the service.** The query's one large matrix product is memory-bound, and idle
     BLAS threads spinning on the cores llama-server needs added about 70 ms to each query on a 4-core VM
     (embedding 174 ms → 105 ms median with one BLAS thread).
-19. **Speed on a 4-core cloud VM** (Intel Xeon 2.8 GHz, CPU only, EmbeddingGemma 300M Q8_0 for the query,
-    synthetic text): p95 140 ms at 1M tokens and 163 ms at 10M tokens; search and fill take about 3 ms and
-    28 ms of that, the query embedding the rest. This VM is weaker than the gate's laptop (§6), where the gate
-    still has to be measured. Appends: 5 ms (512 tokens), 47 ms (4k), 69 ms (8k, over the 50 ms target: the
-    text is tokenized once through llama-server before returning); searchable by meaning about 0.4 s later.
+19. **Speed on the author's laptop** (MacBook Pro, M5 Max, 18 cores, 19 Oct 2026; EmbeddingGemma 2 Q8_0 embeds
+    every query; the memory is synthetic text with random vectors): p95 22.8 ms at 1M tokens and 26.0 ms at
+    10M tokens with the CPU alone (median 14.5 and 17.8 ms), 14.2 ms at 10M with Metal; 26.1 ms at 10M on the
+    CPU over localhost HTTP. §6's gate (p95 ≤ 100 ms at 10M tokens, CPU only) passes, with synthetic text
+    standing in for LongMemEval's sessions. Appends at 10M tokens on the CPU: 2.2 / 2.7 / 4.4 / 7.4 / 10.9 ms
+    median for 512 / 1k / 2k / 4k / 8k tokens (0.8 / 1.4 / 2.5 / 4.7 / 9.1 ms with Metal), all under the 50 ms
+    target; searchable by meaning about 57 ms later on the CPU and 13 ms with Metal (medians of 10). With Metal
+    the model embeds about 21k tokens a second (1M tokens in 46.9 s). Earlier, on a 4-core cloud VM (Intel Xeon
+    2.8 GHz, CPU only, EmbeddingGemma 300M Q8_0 for the query): p95 140 ms at 1M tokens and 163 ms at 10M, of
+    which search and fill took about 3 ms and 28 ms; appends 5 ms (512 tokens), 47 ms (4k), 69 ms (8k, over the
+    50 ms target there: the text is tokenized once through llama-server before returning).
 20. **Arm R on CPU is far over budget:** Qwen3-Reranker-0.6B in llama.cpp scored 32 candidates in about 16 s on
     the same VM (about 0.5 s each), so R stays a GPU option, as §7 expects. Its scores also looked
     uncalibrated (0.015 for a clear match); check the GGUF's rerank template before using R's scores.
