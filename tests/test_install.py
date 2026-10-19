@@ -223,7 +223,8 @@ def test_claude_code_plugin_files_are_consistent():
     # The MCP server is declared in plugin.json: a root .mcp.json would also load as a project
     # config when the repository is opened in Claude Code, where ${CLAUDE_PLUGIN_ROOT} is unset.
     assert not (repo / ".mcp.json").exists()
-    mcp = plugin["mcpServers"]["cogito-mem"]
+    # shown in /mcp as plugin:cogito-mem:cogi
+    mcp = plugin["mcpServers"]["cogi"]
     assert mcp["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"]
     hooks = json.loads((repo / "hooks" / "hooks.json").read_text())["hooks"]
     for event in ("Stop", "SessionEnd"):

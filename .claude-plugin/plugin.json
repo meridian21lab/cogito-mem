@@ -1,6 +1,6 @@
 {
   "name": "cogito-mem",
-  "displayName": "cogito-mem memory",
+  "displayName": "Cogi 🐿️ cogito-mem memory",
   "version": "0.1.0",
   "description": "Long-term local memory for Claude Code: every session is captured, and relevant earlier work comes back with each prompt, from days or weeks ago. Runs on your machine; nothing leaves it.",
   "author": { "name": "meridian21lab", "url": "https://github.com/meridian21lab" },
@@ -9,7 +9,7 @@
   "license": "MIT",
   "keywords": ["memory", "mcp", "local-first", "embeddings", "llama.cpp", "recall"],
   "mcpServers": {
-    "cogito-mem": {
+    "cogi": {
       "command": "sh",
       "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"]
     }
