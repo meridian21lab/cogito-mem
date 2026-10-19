@@ -42,20 +42,39 @@ def launcher_path(root: Path) -> Path:
     return root / "bin" / ("cogito-mem.cmd" if os.name == "nt" else "cogito-mem")
 
 
-def write_launcher(root: Path) -> Path:
+def write_launcher(root: Path, url: str | None = None) -> Path:
+    """The one command every client calls. With ``url`` it talks to that service (e.g. Docker)."""
     path = launcher_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     if os.name == "nt":
-        path.write_text(f'@echo off\r\nset "COGITO_MEM_HOME={root}"\r\n"{sys.executable}" -m cogito_mem %*\r\n')
+        url_line = f'set "COGITO_MEM_URL={url}"\r\n' if url else ""
+        path.write_text(
+            f'@echo off\r\nset "COGITO_MEM_HOME={root}"\r\n{url_line}"{sys.executable}" -m cogito_mem %*\r\n'
+        )
     else:
+        url_line = f"COGITO_MEM_URL='{url}'\nexport COGITO_MEM_URL\n" if url else ""
         path.write_text(
             "#!/bin/sh\n"
             "# Written by `cogito-mem install`; run it again to update this file.\n"
-            f"COGITO_MEM_HOME='{root}'\nexport COGITO_MEM_HOME\n"
+            f"COGITO_MEM_HOME='{root}'\nexport COGITO_MEM_HOME\n{url_line}"
             f"exec '{sys.executable}' -m cogito_mem \"$@\"\n"
         )
         path.chmod(0o755)
     return path
+
+
+def detect_clients() -> list[str]:
+    """The chat clients installed on this machine."""
+    from .capture.codex import codex_home
+
+    found = []
+    if shutil.which("claude") or claude_dir().exists() or claude_json().exists():
+        found.append("claude-code")
+    if shutil.which("codex") or codex_home().exists():
+        found.append("codex")
+    if claude_desktop_config().parent.exists():
+        found.append("claude-desktop")
+    return found
 
 
 def _backup(path: Path) -> None:
@@ -289,12 +308,15 @@ def uninstall_claude_desktop(say: Say) -> None:
 # --------------------------------------------------------------------------- entry points
 
 
-def ensure_runtime(root: Path, say: Say, download: bool = True) -> bool:
+def ensure_runtime(root: Path, say: Say, download: bool = True, model_only: bool = False) -> bool:
     from . import runtime
 
     ok = True
+    download = download and not os.environ.get("COGITO_MEM_NO_DOWNLOAD")
     binary = runtime.find_llama_server(root)
-    if binary is None and os.environ.get("COGITO_MEM_LLAMA_SERVER", "").startswith("http"):
+    if model_only:
+        pass
+    elif binary is None and os.environ.get("COGITO_MEM_LLAMA_SERVER", "").startswith("http"):
         say(f"  using the llama-server at {os.environ['COGITO_MEM_LLAMA_SERVER']}")
     elif binary is None and download:
         try:
@@ -319,37 +341,63 @@ def ensure_runtime(root: Path, say: Say, download: bool = True) -> bool:
     return ok
 
 
-def install(client: str, root: Path, say: Say = print, download: bool = True, start: bool = True) -> int:
-    if client not in CLIENTS:
-        say(f"unknown client {client!r}; choose one of: {', '.join(CLIENTS)}")
+def install(
+    client: str | list[str] | None,
+    root: Path,
+    say: Say = print,
+    download: bool = True,
+    start: bool = True,
+    url: str | None = None,
+) -> int:
+    """Connect the memory to ``client`` (a name, a list, or None for every client found)."""
+    if client is None or client == []:
+        clients = detect_clients()
+        if not clients:
+            say("No chat client found (Claude Code, Codex, Claude Desktop); setting up the memory only.")
+    else:
+        clients = [client] if isinstance(client, str) else list(client)
+    unknown = [c for c in clients if c not in CLIENTS]
+    if unknown:
+        say(f"unknown client {unknown[0]!r}; choose from: {', '.join(CLIENTS)}")
         return 2
     from .memory import Memory
 
-    say(f"Installing cogito-mem for {client}")
+    say(f"Installing cogito-mem for {', '.join(clients) or 'no client'}")
     with Memory(root, embedder=None) as mem:
         mem.namespace("default")
     say(f"  memory folder: {root} (namespace 'default')")
-    launcher = write_launcher(root)
-    ensure_runtime(root, say, download)
-    {"claude-code": install_claude_code, "codex": install_codex, "claude-desktop": install_claude_desktop}[client](
-        launcher, say
-    )
+    launcher = write_launcher(root, url)
+    if url:
+        say(f"  using the service at {url} (it brings its own llama.cpp and model)")
+    else:
+        ensure_runtime(root, say, download)
+    steps = {"claude-code": install_claude_code, "codex": install_codex, "claude-desktop": install_claude_desktop}
+    for name in clients:
+        steps[name](launcher, say)
     if start:
         from .client import Client
 
         try:
-            client_ = Client(root=root)
-            if client_.stop_server():  # restart, so a new model or llama.cpp is picked up
+            client_ = Client(url=url, root=root)
+            if not url and client_.stop_server():  # restart, so a new model or llama.cpp is picked up
                 say("  stopped the running service to restart it")
             client_.query("cogito-mem install check", max_tokens=1)
             info = client_.status() or {}
             state = (info.get("embedder") or {}).get("state", "unknown")
             say(f"  service running at {client_.url} (embedding model: {state})")
         except Exception as exc:
-            say(f"  the service did not answer ({exc}); see {root / 'run' / 'server.log'}")
+            where = url or root / "run" / "server.log"
+            say(f"  the service did not answer ({exc}); see {where}")
             return 1
-    say("Done. Ask your assistant: \"Do you remember ...?\"")
+    if clients:
+        say('Done. Restart your chat client, then ask: "Do you remember ...?"  (check: cogito-mem doctor)')
     return 0
+
+
+def setup(root: Path, say: Say = print, model_only: bool = False) -> int:
+    """Get llama.cpp and the embedding model, without touching any client."""
+    say(f"Setting up cogito-mem in {root}")
+    return 0 if ensure_runtime(root, say, download=True, model_only=model_only) else 1
 
 
 def uninstall(client: str, root: Path, say: Say = print) -> int:

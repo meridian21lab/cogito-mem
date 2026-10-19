@@ -577,3 +577,22 @@ These fill gaps the sections above leave open. Each can change without touching 
     results with `isError`, and every result carries the §3.2 response as text and as `structuredContent`.
 12. **Limits:** at most 1,000 items per append and 4M characters per text; `max_tokens` at most 100,000.
     Imports may not be dated more than 5 minutes in the future.
+13. **MCP over HTTP.** The service also speaks MCP's Streamable HTTP transport at `/mcp` (JSON responses, a
+    session per `initialize`, `?namespace=` to pick the memory), so a client can connect by URL, e.g. to the
+    Docker image. It checks `Origin` as well as `Host`.
+14. **Distribution.** Four ways in, all ending in the same `~/.cogito-mem`: a one-line installer (`install.sh`,
+    `install.ps1`: uv, then `uv tool install`, then `cogito-mem install` for every client found), a Claude Code
+    plugin and marketplace in this repository, a Docker image (`Dockerfile`, `compose.yaml`; llama.cpp built
+    portable, model downloaded to the volume or baked in), and plain `pip`/`uv`. `cogito-mem doctor` checks an
+    install. The service downloads llama.cpp on first start when none is installed.
+15. **Prompt profiles.** EmbeddingGemma's prompts stay the default. Other Matryoshka-trained GGUFs
+    (Qwen3-Embedding, nomic-embed-text) get their own prompts, chosen from the file name or `COGITO_MEM_PROMPTS`.
+    This exists for experiments and for users who prefer another model; v0 ships EmbeddingGemma 2.
+16. **`doc_author` (off by default, an arm to test).** Writes the author's name before the text for embedding
+    and keyword search. On LoCoMo, where questions name the speaker, it adds 2.8 points to keyword search at
+    N = 300 (46.7 % → 49.5 %).
+17. **Model files must carry the final projection.** EmbeddingGemma's GGUF on Docker Hub (`ai/embeddinggemma`)
+    has no dense projection layers, so its 768 numbers are pooled hidden states and cutting them to 256 is not
+    what the model was trained for (vector-only coverage on LoCoMo fell to about 20 %). The `ggml-org`
+    EmbeddingGemma 2 GGUF we ship includes the projection (`output.weight`); stage 0 should still check the
+    shipped file's vectors against the reference implementation once.

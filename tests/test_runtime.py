@@ -98,6 +98,23 @@ def _fake_release(tmp_path: Path, archive: str) -> str:
     return api.as_uri()
 
 
+def test_service_fetches_llama_cpp_on_first_start(tmp_path, monkeypatch):
+    """Without llama.cpp (e.g. the Claude Code plugin), the runtime downloads the release itself."""
+    monkeypatch.setattr(runtime.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(runtime.platform, "machine", lambda: "x86_64")
+    monkeypatch.delenv("COGITO_MEM_LLAMA_SERVER", raising=False)
+    monkeypatch.delenv("COGITO_MEM_NO_DOWNLOAD", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+    api = _fake_release(tmp_path, ".zip")
+    monkeypatch.setattr(runtime, "LLAMA_RELEASES_API", api)
+    monkeypatch.setattr(runtime.install_llama_server, "__defaults__", (api,))
+    monkeypatch.setenv("COGITO_MEM_MODEL", str(tmp_path / "no-model.gguf"))
+    rt = runtime.LlamaRuntime(tmp_path / "home")
+    with pytest.raises(runtime.RuntimeUnavailable, match="no-model.gguf"):  # got llama.cpp, then stopped at the model
+        rt.start()
+    assert runtime.find_llama_server(tmp_path / "home") is not None
+
+
 @pytest.mark.parametrize("archive", [".zip", ".tar.gz"])
 def test_install_llama_server_from_a_release(tmp_path, monkeypatch, archive):
     monkeypatch.setattr(runtime.platform, "system", lambda: "Linux")
@@ -151,6 +168,7 @@ def test_reranker_reorders_the_top_candidates():
 
 def test_missing_runtime_leaves_keyword_search(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path / "empty-path"))
+    monkeypatch.setenv("COGITO_MEM_NO_DOWNLOAD", "1")
     monkeypatch.delenv("COGITO_MEM_LLAMA_SERVER", raising=False)
     with Memory(tmp_path / "home") as m:
         assert m.wait_until_ready(30) is False

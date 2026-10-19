@@ -102,7 +102,21 @@ def cmd_mcp(args: argparse.Namespace) -> int:
 def cmd_install(args: argparse.Namespace) -> int:
     from .install import install
 
-    return install(args.client, _root(args), download=not args.no_download, start=not args.no_start)
+    return install(
+        args.client or None, _root(args), download=not args.no_download, start=not args.no_start, url=args.url
+    )
+
+
+def cmd_setup(args: argparse.Namespace) -> int:
+    from .install import setup
+
+    return setup(_root(args), model_only=args.model_only)
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from .doctor import doctor
+
+    return doctor(_root(args), url=args.url)
 
 
 def cmd_uninstall(args: argparse.Namespace) -> int:
@@ -224,6 +238,10 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
+    if args.eval_args[:1] == ["locomo"]:
+        from .evals import locomo
+
+        return locomo.main(args.eval_args[1:])
     from .evals import longmemeval
 
     return longmemeval.main(args.eval_args)
@@ -265,15 +283,17 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--embedder", default="auto", choices=["auto", "hash", "none"])
     sp.add_argument("--url", help=argparse.SUPPRESS)
 
-    for name, func, help_ in (
-        ("install", cmd_install, "connect the memory to a chat client in one step"),
-        ("uninstall", cmd_uninstall, "disconnect the memory from a chat client (the memory is kept)"),
-    ):
-        sp = add(name, func, help_)
-        sp.add_argument("client", choices=["claude-code", "codex", "claude-desktop"])
-        if name == "install":
-            sp.add_argument("--no-download", action="store_true", help="do not download llama.cpp or the model")
-            sp.add_argument("--no-start", action="store_true", help="do not start the service")
+    sp = add("install", cmd_install, "connect the memory to chat clients in one step (all found, or the ones named)")
+    sp.add_argument("client", nargs="*", help="claude-code, codex or claude-desktop (default: every one installed)")
+    sp.add_argument("--url", help="use the service at this URL (e.g. the Docker image) instead of a local one")
+    sp.add_argument("--no-download", action="store_true", help="do not download llama.cpp or the model")
+    sp.add_argument("--no-start", action="store_true", help="do not start the service")
+    sp = add("uninstall", cmd_uninstall, "disconnect the memory from a chat client (the memory is kept)")
+    sp.add_argument("client", choices=["claude-code", "codex", "claude-desktop"])
+    sp = add("setup", cmd_setup, "download llama.cpp and the embedding model, without touching any client")
+    sp.add_argument("--model-only", action="store_true")
+    sp = add("doctor", cmd_doctor, "check the install and say how to fix what is missing")
+    sp.add_argument("--url")
 
     sp = add("capture", cmd_capture, "append new chat messages (used by the client hooks)")
     sp.add_argument("source", choices=["claude-code", "codex"])
@@ -316,7 +336,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("stop", cmd_stop, "stop the local service")
     sp.add_argument("--url")
 
-    sp = add("eval", cmd_eval, "quality test on LongMemEval (requirements §5); see `cogito-mem eval -h`")
+    sp = add("eval", cmd_eval, "quality tests: LongMemEval (`eval run`, `eval compare`) and LoCoMo (`eval locomo`)")
     sp.add_argument("eval_args", nargs=argparse.REMAINDER)
     sp = add("bench", cmd_bench, "speed test (requirements §6); see `cogito-mem bench -h`")
     sp.add_argument("bench_args", nargs=argparse.REMAINDER)
@@ -324,5 +344,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # The one large product per query is memory-bound, and idle BLAS threads spin on the cores
+    # llama-server needs for the next query's embedding: keep BLAS to one thread (not OpenMP,
+    # which llama.cpp uses). Takes effect because numpy is imported later, by the command.
+    for var in ("OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+        os.environ.setdefault(var, "1")
     args = build_parser().parse_args(argv)
     return int(args.func(args) or 0)

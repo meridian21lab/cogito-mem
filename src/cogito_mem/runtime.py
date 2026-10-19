@@ -38,7 +38,7 @@ from typing import Sequence
 
 import numpy as np
 
-from .embedding import finish
+from .embedding import finish, profile_for
 
 log = logging.getLogger("cogito_mem")
 
@@ -130,6 +130,7 @@ class LlamaServerEmbedder:
         self.base = base
         self.name = name
         self.tokenizer = LlamaServerTokenizer(base, name)
+        self.profile = profile_for(name)
 
     def _fit(self, prompt: str) -> str:
         ends = self.tokenizer.offsets(prompt)
@@ -454,6 +455,11 @@ class LlamaRuntime:
                 self._name = Path(str(props["model_path"])).name
             return
         binary = find_llama_server(self.root)
+        if binary is None and self.root is not None and not os.environ.get("COGITO_MEM_NO_DOWNLOAD"):
+            try:  # first start without llama.cpp (e.g. the Claude Code plugin): get the prebuilt release
+                binary = install_llama_server(self.root)
+            except Exception as exc:
+                log.warning("could not download llama.cpp: %s", exc)
         if binary is None:
             raise RuntimeUnavailable(
                 "llama-server was not found; run `cogito-mem install`, install llama.cpp "

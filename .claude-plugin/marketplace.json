@@ -1,0 +1,15 @@
+{
+  "name": "cogito-mem",
+  "description": "cogito-mem: a fast, simple, local long-term memory for Claude Code and other agents.",
+  "owner": {
+    "name": "meridian21lab",
+    "url": "https://github.com/meridian21lab"
+  },
+  "plugins": [
+    {
+      "name": "cogito-mem",
+      "source": "./",
+      "description": "Long-term local memory for Claude Code: captures sessions and lets Claude recall earlier work."
+    }
+  ]
+}

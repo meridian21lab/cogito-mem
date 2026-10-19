@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cogito-mem": {
+      "command": "sh",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"]
+    }
+  }
+}

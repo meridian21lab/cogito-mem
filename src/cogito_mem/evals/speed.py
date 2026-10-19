@@ -225,8 +225,9 @@ def cmd_speed(args: argparse.Namespace) -> int:
             syn = Synthetic(args.seed)
             sessions = syn.sessions()
             query_texts = [syn.sentence(random.randint(6, 14)) + "?" for _ in range(2000)]
-        mem = Memory(None, embedder=embedder, config=Config(search=args.search), cache_path=args.cache,
-                     query_cache=0, embed_batch=args.batch)  # fmt: skip
+        # with --random-vectors the model joins after the fill, so it never embeds the filler documents
+        mem = Memory(None, embedder=None if args.random_vectors else embedder, config=Config(search=args.search),
+                     cache_path=args.cache, query_cache=0, embed_batch=args.batch)  # fmt: skip
         t0 = time.perf_counter()
         used, total = fill(mem, sessions, target)
         fill_s = time.perf_counter() - t0
@@ -235,6 +236,7 @@ def cmd_speed(args: argparse.Namespace) -> int:
         t0 = time.perf_counter()
         if args.random_vectors:
             random_vectors(mem, args.seed)
+            mem.set_embedder(embedder)
         else:
             while mem.embed_pending(ns, limit=4096):
                 done = int(ns._has_vec.view().sum())

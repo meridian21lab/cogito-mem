@@ -250,3 +250,85 @@ def test_mcp_with_the_official_python_sdk_client(tmp_path):
                 assert attr(res, "structured_content", "structuredContent") == payload
 
     anyio.run(run)
+
+
+# --------------------------------------------------------------------------- MCP over HTTP
+
+
+def mcp_post(srv, body, session=None, headers=None):
+    conn = http.client.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=10)
+    h = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    if session:
+        h["Mcp-Session-Id"] = session
+    h.update(headers or {})
+    conn.request("POST", "/mcp", body=json.dumps(body), headers=h)
+    resp = conn.getresponse()
+    raw = resp.read()
+    out = resp.status, (json.loads(raw) if raw else None), resp.getheader("Mcp-Session-Id")
+    conn.close()
+    return out
+
+
+def test_mcp_over_http(server):
+    status, init, session = mcp_post(server, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+        "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "claude-code", "version": "2"}}})  # fmt: skip
+    assert status == 200 and session and init["result"]["serverInfo"]["name"] == "cogito-mem"
+    status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "method": "notifications/initialized"}, session)
+    assert status == 202 and body is None
+    status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+        "name": "memory_append", "arguments": {"text": "Saved over HTTP MCP."}}}, session)  # fmt: skip
+    assert status == 200 and body["result"]["isError"] is False
+    status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {
+        "name": "memory_query", "arguments": {"text": "HTTP MCP"}}}, session)  # fmt: skip
+    item = body["result"]["structuredContent"]["items"][0]
+    assert item["text"] == "Saved over HTTP MCP." and item["author"] == "claude-code" and item["thread_id"] == "default"
+    # an unknown session must initialize again; a browser origin is refused
+    status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "id": 4, "method": "tools/list"}, "nope")
+    assert status == 404
+    status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "id": 5, "method": "tools/list"}, session,
+                               {"Origin": "https://evil.example"})  # fmt: skip
+    assert status == 403
+    status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "id": 6, "method": "tools/list"}, session,
+                               {"Origin": "http://localhost:3000"})  # fmt: skip
+    assert status == 200 and len(body["result"]["tools"]) == 2
+    conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
+    conn.request("GET", "/mcp")
+    assert conn.getresponse().status == 405
+
+
+def test_mcp_over_http_with_the_official_sdk(server):
+    mcp = pytest.importorskip("mcp")
+    streamable = pytest.importorskip("mcp.client.streamable_http")
+    client_factory = getattr(streamable, "streamable_http_client", None) or getattr(streamable, "streamablehttp_client")
+    import anyio
+
+    async def run():
+        async with client_factory(server.url + "/mcp?namespace=sdk") as streams:
+            read, write = streams[0], streams[1]
+            async with mcp.ClientSession(read, write) as session:
+                await session.initialize()
+                tools = await session.list_tools()
+                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_query"]
+                await session.call_tool("memory_append", {"text": "The SDK reached the memory over HTTP."})
+                res = await session.call_tool("memory_query", {"text": "SDK over HTTP"})
+                payload = json.loads(res.content[0].text)
+                assert payload["items"][0]["text"] == "The SDK reached the memory over HTTP."
+
+    anyio.run(run)
+    # the namespace from the URL was used
+    assert server.memory.namespace("sdk").stats()["messages"] == 1
+
+
+def test_allowed_hosts_can_be_extended(tmp_path, monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_ALLOWED_HOSTS", "cogito-mem, host.docker.internal")
+    mem = Memory(None, embedder=None)
+    srv = MemoryServer(mem, port=0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        status, _ = post(srv, {"op": "query", "text": "x"}, headers={"Content-Type": "application/json", "Host": "cogito-mem:7327"})
+        assert status == 200
+        status, _ = post(srv, {"op": "query", "text": "x"}, headers={"Content-Type": "application/json", "Host": "other:7327"})
+        assert status == 403
+    finally:
+        srv.shutdown()
+        mem.close()

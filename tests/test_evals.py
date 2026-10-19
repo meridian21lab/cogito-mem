@@ -136,3 +136,48 @@ def test_speed_bench_with_random_vectors_and_lme_data(tmp_path, data):
     result = json.loads(out.read_text())
     assert result["meta"]["sessions_used"]  # the sessions used are recorded
     assert result["results"]["memory"]["random_vectors"] is True
+
+
+def mini_locomo() -> list[dict]:
+    conv = {
+        "speaker_a": "Ana", "speaker_b": "Ben",
+        "session_1_date_time": "1:56 pm on 8 May, 2023",
+        "session_1": [
+            {"speaker": "Ana", "dia_id": "D1:1", "text": "I adopted a beagle called Biscuit last week!"},
+            {"speaker": "Ben", "dia_id": "D1:2", "text": "That's lovely. I started pottery classes."},
+        ],
+        "session_2_date_time": "10:00 am on 20 May, 2023",
+        "session_2": [
+            {"speaker": "Ana", "dia_id": "D2:1", "text": "Biscuit loves the beach.", "blip_caption": "a photo of a dog on sand"},
+            {"speaker": "Ben", "dia_id": "D2:2", "text": "My pottery teacher is from Kyoto."},
+        ] + [{"speaker": "Ana", "dia_id": f"D2:{i}", "text": f"Filler chat number {i} about the weather."} for i in range(3, 40)],
+    }  # fmt: skip
+    qa = [
+        {"question": "What is the name of Ana's dog?", "evidence": ["D1:1"], "category": 4, "answer": "Biscuit"},
+        {"question": "Where is Ben's pottery teacher from?", "evidence": ["D2:2"], "category": 4, "answer": "Kyoto"},
+        {"question": "Where does Ana's dog like to go?", "evidence": ["D1:1; D2:1"], "category": 1, "answer": "beach"},
+        {"question": "What is Ben's favourite colour?", "category": 5, "adversarial_answer": "blue"},
+    ]
+    return [{"sample_id": "mini-1", "conversation": conv, "qa": qa}]
+
+
+def test_locomo_run(tmp_path, capsys):
+    from cogito_mem.evals import locomo
+
+    data = tmp_path / "locomo.json"
+    data.write_text(json.dumps(mini_locomo()))
+    out = tmp_path / "locomo-out.json"
+    argv = ["--data", str(data), "--search", "hybrid", "--embedder", "hash", "--cache", str(tmp_path / "c.sqlite3"),
+            "--out", str(out)]  # fmt: skip
+    assert locomo.main(argv) == 0
+    result = json.loads(out.read_text())
+    s = result["summary"]
+    assert s["questions"] == 3  # the adversarial question is left out
+    assert s["coverage"]["1000"] == 1.0
+    assert s["baseline_recent"]["100"] == 0.0  # the answers are not in the last 100 tokens
+    assert set(s["by_category@300"]) == {"single-hop", "multi-hop"}
+    assert locomo.evidence_ids(["D1:1; D2:1", "D:11:26", "D"]) == ["D1:1", "D2:1", "D11:26"]
+    assert locomo.parse_when("1:56 pm on 8 May, 2023") == longmemeval.timeutil.parse("2023-05-08T13:56:00Z")
+    capsys.readouterr()
+    assert locomo.main(["compare", str(out), str(out), "--bootstrap", "100"]) == 0
+    assert json.loads(capsys.readouterr().out)["difference_points"] == 0.0

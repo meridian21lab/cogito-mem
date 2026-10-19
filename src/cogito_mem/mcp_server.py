@@ -93,13 +93,14 @@ class McpServer:
         handle: Callable[[dict], dict],
         namespace: str = "default",
         thread_id: str | None = None,
+        thread_from_env: bool = True,
     ):
         self.handle = handle
         self.namespace = namespace
-        # the session, when the client gives one (Claude Code passes its session id to MCP servers)
-        self.thread_id = (
-            thread_id or os.environ.get("COGITO_MEM_THREAD_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
-        )
+        # the session, when the client gives one (Claude Code passes its session id to the
+        # stdio servers it starts; an HTTP session has no such environment)
+        env_thread = (os.environ.get("COGITO_MEM_THREAD_ID") or os.environ.get("CLAUDE_CODE_SESSION_ID")) if thread_from_env else None
+        self.thread_id = thread_id or env_thread or None
         self.client_name = "assistant"
         self.protocol_version = PROTOCOL_VERSIONS[0]
 

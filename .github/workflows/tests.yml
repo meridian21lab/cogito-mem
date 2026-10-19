@@ -26,6 +26,21 @@ jobs:
         env:
           COGITO_MEM_NO_DOWNLOAD: "1"
         run: pytest -q -rs
+      - name: Validate the Claude Code plugin
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate . --strict
+      - name: Installer script
+        if: matrix.python == '3.13'
+        env:
+          COGITO_MEM_NO_DOWNLOAD: "1"
+          COGITO_MEM_SOURCE: ${{ github.workspace }}
+        run: |
+          export HOME="$RUNNER_TEMP/home" && mkdir -p "$HOME/.claude"
+          sh install.sh claude-code
+          "$HOME/.cogito-mem/bin/cogito-mem" query "install check" --json
+          "$HOME/.cogito-mem/bin/cogito-mem" stop
 
   llama:
     # The llama.cpp path end to end: build llama-server, write a tiny random-weight

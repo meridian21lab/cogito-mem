@@ -45,10 +45,13 @@ class Config:
     - ``doc_context``: ``"own"`` embeds each item alone; ``"previous"`` prepends the
       message before it in the thread (arm U3).
     - ``candidates``: how many fused candidates a reranker reorders (arm R).
+    - ``doc_author``: write the author's name before the text for embedding and keyword
+      search ("Caroline: …"), for memories where who said it matters.
     """
 
     search: str = "hybrid"
     doc_context: str = "own"
+    doc_author: bool = False
     candidates: int = 30
     rrf_k: int = 60
     piece_tokens: int = PIECE_TOKENS
@@ -129,6 +132,10 @@ class Memory:
             self._embedder_state = f"unavailable: {exc}"
             log.warning("embedding model unavailable, searching by keyword only: %s", exc)
 
+    def set_embedder(self, embedder: Embedder) -> None:
+        """Use ``embedder`` from now on (e.g. after loading data without one)."""
+        self._set_embedder(embedder)
+
     def _set_embedder(self, embedder: Embedder) -> None:
         self._embedder = embedder
         self._tokenizer = embedder.tokenizer
@@ -160,7 +167,7 @@ class Memory:
             ns = self._namespaces.get(name)
             if ns is None:
                 folder = self.root / "memory" / name if self.root is not None else None
-                ns = self._namespaces[name] = Namespace(name, folder)
+                ns = self._namespaces[name] = Namespace(name, folder, index_author=self.config.doc_author)
                 if ns.pending:
                     self._ensure_worker()
                     self._wake.set()
@@ -246,7 +253,8 @@ class Memory:
         return cands
 
     def _embed_query(self, text: str, context: str | None) -> np.ndarray:
-        prompt = query_prompt(text, context)
+        profile = getattr(self._embedder, "profile", None)
+        prompt = profile.query(text, context) if profile is not None else query_prompt(text, context)
         with self._query_lock:
             vec = self._query_cache.get(prompt)
             if vec is not None:
@@ -300,7 +308,7 @@ class Memory:
         if not rows:
             return 0
         try:
-            prompts = ns.prompts(rows, self.config.doc_context)
+            prompts = ns.prompts(rows, self.config.doc_context, getattr(embedder, "profile", None), self.config.doc_author)
             keys = [cache_key(embedder.name, p) for p in prompts]
             found = self.cache.get_many(keys)
             hit_rows = [r for r, k in zip(rows, keys) if k in found]
@@ -344,7 +352,11 @@ class Memory:
                 "state": self._embedder_state,
                 "tokenizer": self._tokenizer.name,
             },
-            "config": {"search": self.config.search, "doc_context": self.config.doc_context},
+            "config": {
+                "search": self.config.search,
+                "doc_context": self.config.doc_context,
+                "doc_author": self.config.doc_author,
+            },
             "reranker": getattr(self.reranker, "name", None),
             "namespaces": {name: self.namespace(name).stats() for name in self.namespaces()},
         }

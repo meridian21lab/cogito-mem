@@ -131,3 +131,82 @@ def test_launcher_runs_cogito_mem(isolated_env):
                          env={**os.environ, "PYTHONPATH": SRC})  # fmt: skip
     assert out.returncode == 0 and out.stdout.startswith("cogito-mem ")
     assert sys.executable in launcher.read_text()
+
+
+def test_install_without_a_client_finds_the_installed_ones(isolated_env, monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_NO_CLAUDE_CLI", "1")
+    monkeypatch.setenv("PATH", str(isolated_env / "no-bin"))  # no claude or codex binaries
+    home = isolated_env
+    (home / ".codex").mkdir()
+    (home / ".claude").mkdir()
+    lines: list[str] = []
+    assert install(None, home / ".cogito-mem", say=lines.append, download=False, start=False) == 0
+    assert lines[0] == "Installing cogito-mem for claude-code, codex, claude-desktop"
+    assert "cogito-mem" in json.loads((home / ".claude.json").read_text())["mcpServers"]
+    assert "[mcp_servers.cogito-mem]" in (home / ".codex" / "config.toml").read_text()
+    assert "cogito-mem" in json.loads((home / "claude_desktop_config.json").read_text())["mcpServers"]
+
+
+def test_install_with_url_points_the_launcher_at_that_service(isolated_env):
+    root = isolated_env / ".cogito-mem"
+    lines: list[str] = []
+    assert install("claude-desktop", root, say=lines.append, start=False, url="http://127.0.0.1:7999") == 0
+    text = (root / "bin" / "cogito-mem").read_text()
+    assert "COGITO_MEM_URL='http://127.0.0.1:7999'" in text
+    assert any("using the service at http://127.0.0.1:7999" in line for line in lines)
+    assert not (root / "models").exists()  # nothing downloaded: the service has its own model
+
+
+def test_setup_downloads_the_model(isolated_env, monkeypatch, tmp_path):
+    from cogito_mem.install import setup
+
+    src = tmp_path / "m.gguf"
+    src.write_bytes(b"GGUF")
+    monkeypatch.setenv("COGITO_MEM_MODEL_URL", src.as_uri())
+    monkeypatch.delenv("COGITO_MEM_NO_DOWNLOAD", raising=False)
+    monkeypatch.delenv("COGITO_MEM_MODEL", raising=False)
+    root = isolated_env / ".cogito-mem"
+    lines: list[str] = []
+    assert setup(root, say=lines.append, model_only=True) == 0
+    assert (root / "models" / "embeddinggemma-2-Q8_0.gguf").read_bytes() == b"GGUF"
+
+
+def test_doctor_reports_problems_and_fixes(isolated_env, monkeypatch):
+    from cogito_mem.doctor import doctor
+
+    monkeypatch.setenv("COGITO_MEM_URL", "http://127.0.0.1:9")  # nothing listens there
+    lines: list[str] = []
+    assert doctor(isolated_env / ".cogito-mem", say=lines.append) == 1
+    text = "\n".join(lines)
+    assert "[FAIL] memory folder" in text and "fix: run `cogito-mem install`" in text
+    assert "[FAIL] service at http://127.0.0.1:9" in text
+    assert "problem(s) found" in lines[-1]
+
+
+def test_claude_code_plugin_files_are_consistent():
+    repo = Path(__file__).resolve().parents[1]
+    plugin = json.loads((repo / ".claude-plugin" / "plugin.json").read_text())
+    market = json.loads((repo / ".claude-plugin" / "marketplace.json").read_text())
+    assert plugin["name"] == "cogito-mem" == market["plugins"][0]["name"]
+    assert market["plugins"][0]["source"] == "./"
+    from cogito_mem import __version__
+
+    assert plugin["version"] == __version__
+    mcp = json.loads((repo / ".mcp.json").read_text())["mcpServers"]["cogito-mem"]
+    assert mcp["args"][0] == "${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin"
+    hooks = json.loads((repo / "hooks" / "hooks.json").read_text())["hooks"]
+    for event in ("Stop", "SessionEnd"):
+        assert "cogito-mem-plugin\" capture claude-code" in hooks[event][0]["hooks"][0]["command"]
+    shim = repo / "scripts" / "cogito-mem-plugin"
+    assert os.access(shim, os.X_OK)
+    out = subprocess.run(["sh", str(shim), "--version"], capture_output=True, text=True, timeout=120,
+                         env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(repo), "PYTHONPATH": SRC})  # fmt: skip
+    assert out.returncode == 0 and out.stdout.startswith("cogito-mem ")
+
+
+def test_installer_scripts_exist():
+    repo = Path(__file__).resolve().parents[1]
+    assert os.access(repo / "install.sh", os.X_OK)
+    text = (repo / "install.sh").read_text()
+    assert "uv tool install" in text and 'cogito-mem install "$@"' in text
+    assert "cogito-mem install @args" in (repo / "install.ps1").read_text()

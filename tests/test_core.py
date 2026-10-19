@@ -257,3 +257,34 @@ def test_previous_message_context_changes_document_vectors(tmp_path):
         assert prompts[0] == "title: none | text: What should we name the squirrel?"
         assert prompts[1] == "title: none | text: What should we name the squirrel?\n\nCogi."
         assert ns.prompts([1], "own") == ["title: none | text: Cogi."]
+
+
+def test_prompt_profiles_follow_the_model(monkeypatch):
+    from cogito_mem.embedding import PROFILES, profile_for
+
+    monkeypatch.delenv("COGITO_MEM_PROMPTS", raising=False)
+    assert profile_for("embeddinggemma-2-Q8_0.gguf").doc(None, "x") == "title: none | text: x"
+    qwen = profile_for("qwen3-embedding-0.6B-Q8_0.gguf")
+    assert qwen.query("q?").startswith("Instruct: ") and qwen.query("q?").endswith("\nQuery:q?")
+    assert qwen.doc("Report", "x") == "Report\nx" and qwen.doc(None, "x") == "x"
+    assert profile_for("nomic-embed-text-v1.5.f16.gguf").query("q") == "search_query: q"
+    monkeypatch.setenv("COGITO_MEM_PROMPTS", "qwen3-embedding")
+    assert profile_for("anything.gguf") is PROFILES["qwen3-embedding"]
+    monkeypatch.setenv("COGITO_MEM_PROMPTS", "nope")
+    with pytest.raises(ValueError):
+        profile_for("x")
+
+
+def test_doc_author_puts_the_speaker_into_search(tmp_path):
+    from cogito_mem import Config
+
+    with Memory(None, embedder="hash", config=Config(doc_author=True)) as m:
+        append(m, {"author": "Caroline", "text": "I researched adoption agencies."}, {"author": "Mel", "text": "I went camping."})
+        assert m.namespace("default").prompts([0], "own", None, True) == [
+            "title: none | text: Caroline: I researched adoption agencies."
+        ]
+        items = query(m, "What did Caroline research?", max_tokens=1000)["items"]
+        assert items[0]["text"] == "I researched adoption agencies."  # the stored text is unchanged
+    with Memory(None, embedder="hash") as m:  # off by default
+        append(m, {"author": "Caroline", "text": "I went hiking."})
+        assert query(m, "Caroline")["items"] == []

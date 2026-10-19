@@ -22,7 +22,7 @@ import numpy as np
 
 from . import timeutil
 from .api import FilterIn, ItemIn
-from .embedding import DIM, doc_prompt
+from .embedding import DIM, PromptProfile, doc_prompt
 from .errors import ApiError
 from .ids import Uuid7Generator
 from .keyword import BM25Index
@@ -106,9 +106,10 @@ class Candidate:
 
 
 class Namespace:
-    def __init__(self, name: str, folder: Path | None):
+    def __init__(self, name: str, folder: Path | None, index_author: bool = False):
         self.name = name
         self.folder = folder
+        self.index_author = index_author
         if folder is not None:
             folder.mkdir(parents=True, exist_ok=True)
             target = str(folder / "log.sqlite3")
@@ -204,7 +205,8 @@ class Namespace:
             self._row_author.append(author_code)
             self._row_retracted.append(NEVER)
             self._has_vec.append(False)
-            self.bm25.add(row, f"{title}\n{text[start:end]}" if title else text[start:end])
+            searchable = f"{title}\n{text[start:end]}" if title else text[start:end]
+            self.bm25.add(row, f"{author}: {searchable}" if self.index_author else searchable)
             self.pending.add(row)
             self.last_id = piece_id
         for target in json.loads(retracts):
@@ -371,7 +373,14 @@ class Namespace:
                 text = text[space + 1 :]
         return text
 
-    def prompts(self, rows: Sequence[int], doc_context: str = "own") -> list[str]:
+    def prompts(
+        self,
+        rows: Sequence[int],
+        doc_context: str = "own",
+        profile: PromptProfile | None = None,
+        doc_author: bool = False,
+    ) -> list[str]:
+        write = profile.doc if profile is not None else doc_prompt
         with self.lock:
             out = []
             for row in rows:
@@ -381,7 +390,9 @@ class Namespace:
                     before = self._previous_text(row)
                     if before:
                         text = f"{before}\n\n{text}"
-                out.append(doc_prompt(msg.title, text))
+                if doc_author:
+                    text = f"{msg.author}: {text}"
+                out.append(write(msg.title, text))
             return out
 
     # ------------------------------------------------------------------ query
