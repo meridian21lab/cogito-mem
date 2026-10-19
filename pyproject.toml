@@ -26,7 +26,8 @@ test = ["pytest>=7"]
 cogito-mem = "cogito_mem.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/meridian21lab/cogito-mem"
+Homepage = "https://meridian21lab.github.io/cogito-mem/"
+Source = "https://github.com/meridian21lab/cogito-mem"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cogito_mem"]

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cogi · memory for Claude Code</title>
+  <meta name="description" content="Cogi the squirrel saves every message you and Claude exchange, on your computer, and brings back what Claude forgot.">
+  <meta property="og:title" content="Cogi · memory for Claude Code">
+  <meta property="og:description" content="Cogi the squirrel saves every message you and Claude exchange, on your computer, and brings back what Claude forgot.">
+  <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
+  <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/cogi.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="assets/cogi.svg" alt="">cogito-mem</a>
+      <nav class="nav" aria-label="Main">
+        <a href="index.html" aria-current="page">Home</a>
+        <a href="start.html">Install</a>
+        <a href="how.html">How it works</a>
+        <a href="results.html">Results</a>
+        <a href="api.html">API &amp; MCP</a>
+        <a href="safety.html">Safety</a>
+        <a href="https://github.com/meridian21lab/cogito-mem">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wide">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Memory for Claude Code</p>
+        <h1>Claude forgets.<br>Cogi doesn't.</h1>
+        <p class="lead">Cogi the squirrel keeps every message you and Claude say, like nuts in its hollow.
+          When something drops out of Claude's memory, Cogi brings it back.</p>
+        <div class="actions">
+          <a class="btn primary" href="start.html">Install in 2 minutes</a>
+          <a class="btn" href="results.html">See how well it works</a>
+        </div>
+        <p class="small muted">Free · runs on your computer · nothing leaves it</p>
+      </div>
+      <img src="assets/cogi.svg" alt="Cogi the squirrel holding an acorn">
+    </section>
+
+    <h2 class="center">How it works</h2>
+    <div class="cards">
+      <div class="card"><span class="num">1</span><h3>Collect</h3>
+        <p>After every answer, Cogi picks up the new messages. You do nothing.</p></div>
+      <div class="card"><span class="num">2</span><h3>Keep</h3>
+        <p>Each message is stored word for word, with its date, in your hollow: a folder on your computer.</p></div>
+      <div class="card"><span class="num">3</span><h3>Find</h3>
+        <p>When Claude needs something from earlier, Cogi hands back the few messages that matter.</p></div>
+    </div>
+    <p class="center"><a href="how.html">How Cogi does it →</a></p>
+
+    <section class="band">
+      <p class="eyebrow">Tested, not promised</p>
+      <h2>As good as rereading the whole conversation</h2>
+      <p>On the LoCoMo benchmark, answers from the 1,000 tokens Cogi hands back score <strong>74.7%</strong>.
+        Handing over the whole conversation, twenty times more text, scores 76.5%.</p>
+      <div class="cards">
+        <div class="card"><div class="big">74.7%</div><p>answers right, scored the way Mem0 and Zep were</p></div>
+        <div class="card"><div class="big">26 ms</div><p>to search 10 million tokens, on a laptop CPU</p></div>
+        <div class="card"><div class="big">$0</div><p>per message: no account, no API key, no AI calls to save</p></div>
+      </div>
+      <p><a href="results.html">All the results, and how we measured →</a></p>
+    </section>
+
+    <h2>Why Cogi</h2>
+    <div class="cards">
+      <div class="card"><h3>Private</h3><p>Your hollow is a folder on your computer. No cloud, no account.</p></div>
+      <div class="card"><h3>Exact</h3><p>You get the original words and when they were said. Cogi never makes things up.</p></div>
+      <div class="card"><h3>Automatic</h3><p>It saves after each answer and hands Claude what's relevant with each prompt.</p></div>
+    </div>
+
+    <h2>Get started</h2>
+    <p>In a terminal, with <a href="https://docs.astral.sh/uv/">uv</a> installed:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin marketplace add meridian21lab/cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin install cogito-mem@cogito-mem --scope user</code></pre></div>
+    <p><a href="start.html">The full guide, with what you should see at each step →</a></p>
+
+    <h2>Where Cogi works</h2>
+    <div class="table">
+      <table>
+        <tr><th>App</th><th>Works?</th><th>What you get</th></tr>
+        <tr><td>Claude Code, in a terminal or an IDE</td><td class="yes">Yes</td><td>Everything: saves and brings things back on its own</td></tr>
+        <tr><td>Claude Code in the desktop app</td><td class="yes">Yes</td><td>The same plugin (we are still testing it there)</td></tr>
+        <tr><td>Codex</td><td class="yes">Yes</td><td>Saves every turn; searches when asked (<a href="start.html#other-ways">one-line installer</a>)</td></tr>
+        <tr><td>Claude Desktop chat</td><td class="part">Partly</td><td>Save and search tools, but no automatic saving</td></tr>
+        <tr><td>Cloud sessions, claude.ai</td><td class="no">Not yet</td><td>On the roadmap</td></tr>
+      </table>
+    </div>
+  </main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><img src="assets/cogi.svg" alt="">cogito-mem · free and open source (MIT)</span>
+      <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
+      <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
+      <a href="safety.html">What you install</a>
+    </div>
+  </footer>
+</body>
+</html>

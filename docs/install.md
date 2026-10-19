@@ -1,5 +1,8 @@
 # Installing cogito-mem
 
+> The friendliest version of this guide, with what you should see at each step, is on the docs site:
+> [meridian21lab.github.io/cogito-mem/start.html](https://meridian21lab.github.io/cogito-mem/start.html).
+
 cogito-mem runs on your own machine: macOS or Linux (Windows is experimental), about 1 GB of disk, no GPU
 needed. Pick **one** of the four ways below; they all give the same memory in `~/.cogito-mem`.
 
@@ -37,14 +40,16 @@ To connect only some clients: `curl … | sh -s -- claude-code codex`. Then **re
 
 ## B. Claude Code plugin
 
-Inside Claude Code:
+In a terminal:
 
-```
-/plugin marketplace add meridian21lab/cogito-mem
-/plugin install cogito-mem@cogito-mem
+```sh
+claude plugin marketplace add meridian21lab/cogito-mem
+claude plugin install cogito-mem@cogito-mem --scope user
 ```
 
-Or in one step: `/plugin install cogito-mem --marketplace meridian21lab/cogito-mem`.
+Or inside Claude Code, one command at a time (pasted together they run as one): `/plugin marketplace add
+meridian21lab/cogito-mem`, then `/plugin install cogito-mem@cogito-mem`, choose *Install for you (user scope)*, and
+run `/reload-plugins`.
 
 When you enable it, the plugin asks you to **name your memory**; leave it empty for `<username>-hollow`.
 The plugin registers the MCP server and the capture and recall hooks. It runs cogito-mem through `uv` (the first start takes a

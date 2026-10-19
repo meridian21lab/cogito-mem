@@ -2,6 +2,8 @@
 
 **Long-term memory for your AI assistants, on your own machine.**
 
+🐿️ **Docs: [meridian21lab.github.io/cogito-mem](https://meridian21lab.github.io/cogito-mem/)**: install in two minutes, how it works, results, API and MCP.
+
 [![tests](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml)
 [![docker](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
@@ -19,11 +21,19 @@ cogito-mem writes it down for you. It captures your sessions as you work and giv
 
 Everything stays in a folder on your computer. No account, no API key, no cloud.
 
+In Claude Code, with [uv](https://docs.astral.sh/uv/) installed, two commands in a terminal:
+
+```sh
+claude plugin marketplace add meridian21lab/cogito-mem
+claude plugin install cogito-mem@cogito-mem --scope user
+```
+
+That's the whole setup ([the install guide](https://meridian21lab.github.io/cogito-mem/start.html) shows what you should
+see at each step). For Codex and Claude Desktop as well, one line connects every client it finds:
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh
 ```
-
-Then restart your chat client. That's the whole setup. ([Other ways to install](docs/install.md).)
 
 > **Early access.** v0.1 is new. It is built and tested (132 tests, including both end-to-end acceptance tests),
 > and we are measuring it before calling it stable. Feedback and issues are very welcome.
@@ -187,7 +197,7 @@ Client().query("mascot")          # or through the local service, which starts o
 | Way | Command | Notes |
 |---|---|---|
 | One line | `curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh \| sh` | Needs only curl; connects every client it finds. Windows: `install.ps1` (experimental). |
-| Claude Code plugin | `/plugin marketplace add meridian21lab/cogito-mem` then `/plugin install cogito-mem@cogito-mem` | MCP server, capture and recall hooks, from inside Claude Code; asks for your memory's name. |
+| Claude Code plugin | `claude plugin marketplace add meridian21lab/cogito-mem` then `claude plugin install cogito-mem@cogito-mem --scope user` (or `/plugin …` inside Claude Code) | MCP server, capture and recall hooks; `--config memory_name=…` names your memory. |
 | Docker | `docker run -d -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem`, then `claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp` | Service, llama.cpp and model in one container (amd64 and arm64); data in a volume. |
 | pip / uv | `uv tool install git+https://github.com/meridian21lab/cogito-mem && cogito-mem install` | For Python developers. |
 

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API & MCP · Cogi</title>
+  <meta name="description" content="Two operations on one endpoint, two MCP tools: append and query, with real requests and replies.">
+  <meta property="og:title" content="API & MCP · Cogi">
+  <meta property="og:description" content="Two operations on one endpoint, two MCP tools: append and query, with real requests and replies.">
+  <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
+  <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/api.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/cogi.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="assets/cogi.svg" alt="">cogito-mem</a>
+      <nav class="nav" aria-label="Main">
+        <a href="index.html">Home</a>
+        <a href="start.html">Install</a>
+        <a href="how.html">How it works</a>
+        <a href="results.html">Results</a>
+        <a href="api.html" aria-current="page">API &amp; MCP</a>
+        <a href="safety.html">Safety</a>
+        <a href="https://github.com/meridian21lab/cogito-mem">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <p class="eyebrow">API &amp; MCP</p>
+    <h1>Two things to do: store and find</h1>
+    <p class="lead">One endpoint, <code>POST /v1/memory</code>, takes two operations. The same JSON works over HTTP, in
+      Python, from the terminal and through the two MCP tools.</p>
+    <ul class="toc">
+      <li><a href="#store">Store</a></li>
+      <li><a href="#find">Find</a></li>
+      <li><a href="#options">Options</a></li>
+      <li><a href="#mcp">MCP</a></li>
+      <li><a href="#python">Python</a></li>
+      <li><a href="#terminal">Terminal</a></li>
+    </ul>
+
+    <h2 id="store">Store a nut: <code>append</code></h2>
+<div class="cmd"><span class="label">Terminal</span><pre><code>curl -s localhost:7327/v1/memory -H 'Content-Type: application/json' -d '{
+  "op": "append",
+  "items": [{"author": "user", "text": "Let'\''s call the staging server acorn."}]
+}'</code></pre></div>
+    <pre class="out">{"items": [{"id": "01a155df-1bad-…", "created_at": "2026-10-19T20:34:07.405Z", "status": "added", "pieces": 1}],
+ "took_ms": 4.8}</pre>
+
+    <h2 id="find">Find it again: <code>query</code></h2>
+<div class="cmd"><span class="label">Terminal</span><pre><code>curl -s localhost:7327/v1/memory -H 'Content-Type: application/json' -d '{
+  "op": "query", "text": "what did we call the staging server?"
+}'</code></pre></div>
+    <pre class="out">{
+  "items": [{
+    "text": "Let's call the staging server acorn.",
+    "author": "user",
+    "valid_at": "2026-10-19T20:34:07.405Z",
+    "score": 1.0, "similarity": 0.53,
+    "source": {"id": "01a155df-1bad-…", "start": 0, "end": 36},
+    …
+  }],
+  "tokens": 9, "took_ms": 1.2
+}</pre>
+    <p>You get the original words, when they were said (<code>valid_at</code>) and where they came from
+      (<code>source</code>). Nothing is rewritten.</p>
+
+    <h2 id="options">Options</h2>
+    <p>Everything is optional except the text.</p>
+    <h3>When storing (each item)</h3>
+    <div class="table">
+      <table>
+        <tr><td><code>author</code></td><td>who said it, e.g. <code>user</code>, <code>assistant</code>, an agent's name</td></tr>
+        <tr><td><code>thread_id</code></td><td>the conversation it belongs to</td></tr>
+        <tr><td><code>title</code></td><td>a short label, e.g. the project</td></tr>
+        <tr><td><code>valid_at</code></td><td>when it was said, for importing old chats</td></tr>
+        <tr><td><code>client_ref</code></td><td>your id for it; the same one twice is stored once</td></tr>
+        <tr><td><code>retracts</code></td><td>ids of earlier items this one takes back</td></tr>
+      </table>
+    </div>
+    <h3>When finding</h3>
+    <div class="table">
+      <table>
+        <tr><td><code>max_tokens</code></td><td>the basket: how much text comes back (default 1,000)</td></tr>
+        <tr><td><code>top_k</code></td><td>at most this many items (default 10)</td></tr>
+        <tr><td><code>filter</code></td><td><code>author</code>, <code>thread_id</code>, <code>valid_after</code>, <code>valid_before</code></td></tr>
+        <tr><td><code>as_of</code></td><td>search the memory as it was at that moment</td></tr>
+        <tr><td><code>namespace</code></td><td>which hollow (default: yours)</td></tr>
+      </table>
+    </div>
+    <p class="small muted">Times are RFC 3339, e.g. <code>2026-10-11T09:00:00Z</code>. The full reference, with errors and
+      every rule, is in <a href="https://github.com/meridian21lab/cogito-mem/blob/main/docs/requirements.md#3-api-v0">the specification</a>.</p>
+
+    <h2 id="mcp">MCP: the two tools Claude uses</h2>
+    <div class="table">
+      <table>
+        <tr><th>Tool</th><th>What it does</th><th>Takes</th></tr>
+        <tr><td><code>memory_append</code></td><td>Save to memory</td><td><code>text</code>, <code>title</code></td></tr>
+        <tr><td><code>memory_query</code></td><td>Search memory</td><td><code>text</code>, <code>valid_after</code>, <code>valid_before</code>, <code>max_tokens</code></td></tr>
+      </table>
+    </div>
+    <p>Connect any MCP client, by command (stdio) or by URL (Streamable HTTP):</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp</code></pre></div>
+<div class="cmd"><span class="label">JSON</span><pre><code>{
+  "mcpServers": {
+    "cogito-mem": { "command": "cogito-mem", "args": ["mcp"] }
+  }
+}</code></pre></div>
+<div class="cmd"><span class="label">~/.codex/config.toml</span><pre><code>[mcp_servers.cogito-mem]
+command = "cogito-mem"
+args = ["mcp"]</code></pre></div>
+    <div class="tip"><img src="assets/cogi.svg" alt=""><p>In Claude Code you don't need any of this: the
+      <a href="start.html">plugin</a> connects the tools for you.</p></div>
+
+    <h2 id="python">Python</h2>
+<div class="cmd"><span class="label">Python</span><pre><code>from cogito_mem import Client
+
+cogi = Client()   # the local service; it starts when needed
+cogi.append([{"author": "user", "text": "The beta goes to ten design partners first."}])
+cogi.query("who gets the beta first?")</code></pre></div>
+    <p class="small muted">Or <code>Memory()</code> to run the memory inside your own process, with the same
+      <code>handle({...})</code> requests.</p>
+
+    <h2 id="terminal">Terminal</h2>
+<div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem query "staging server"</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem append "Decision: ship the beta to ten design partners first."</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem doctor</code></pre></div>
+    <p class="small muted"><code>doctor</code> checks every part of the install and says how to fix what is missing.
+      The terminal command comes with <code>uv tool install git+https://github.com/meridian21lab/cogito-mem</code>.</p>
+
+    <div class="next"><a href="results.html">← Results</a><a href="safety.html">Safety →</a></div>
+  </main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><img src="assets/cogi.svg" alt="">cogito-mem · free and open source (MIT)</span>
+      <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
+      <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
+      <a href="safety.html">What you install</a>
+    </div>
+  </footer>
+</body>
+</html>
