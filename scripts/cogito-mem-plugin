@@ -3,6 +3,13 @@
 # The memory itself lives in ~/.cogito-mem (or $COGITO_MEM_HOME), so it outlives the plugin.
 ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 
+# The memory's name, asked when the plugin is enabled. Hooks get it as CLAUDE_PLUGIN_OPTION_MEMORY_NAME
+# (the MCP server through its env block); empty means the saved name, or <username>-hollow.
+if [ -n "${CLAUDE_PLUGIN_OPTION_MEMORY_NAME:-}" ]; then
+  COGITO_MEM_NAMESPACE="$CLAUDE_PLUGIN_OPTION_MEMORY_NAME"
+  export COGITO_MEM_NAMESPACE
+fi
+
 # 1. An installed cogito-mem (uv tool, pipx, pip) wins: it is already warm.
 if command -v cogito-mem >/dev/null 2>&1; then
   exec cogito-mem "$@"
