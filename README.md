@@ -35,7 +35,7 @@ Then restart your chat client. That's the whole setup. ([Other ways to install](
 - **It finds things by meaning and by words.** An open embedding model (Google's EmbeddingGemma 2) runs locally in
   llama.cpp, next to classic keyword search; the two rankings are fused.
 - **It answers in a few tokens.** A query returns the handful of stored messages that answer it, word for word,
-  within a token budget you set (300 by default), each pointing back to the original message.
+  within a token budget you set (1,000 by default), each pointing back to the original message.
 - **It knows when.** Every item records when it was said and when it was stored. Ask about "a week ago", or view
   the memory as it stood on any past date.
 - **It never forgets and never invents.** The log is append-only: a correction is a new item that withdraws an
