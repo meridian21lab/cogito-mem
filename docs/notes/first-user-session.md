@@ -3,6 +3,26 @@
 The author installs and learns cogito-mem as a newcomer would. Every question goes here, with the answer and
 what the docs must do about it. The user guide and the GitHub Pages site are built from this list.
 
+## The essence (what the 19 questions boil down to)
+
+A newcomer asks six things, in this order, and the docs answer them in this order:
+
+1. **What is it?** (Q2, Q3) *"Every message is remembered; when something falls out of the context window, Claude
+   gets it back."* One sentence and one picture: collect, keep, find.
+2. **Is it worth it, compared with the others?** (Q19) Proof, not adjectives: the LoCoMo numbers next to Mem0 and
+   Zep, and an honest "pick something else if".
+3. **How do I install it?** (Q1, Q6, Q7, Q8, Q9) One command per copy block, each followed by what you should see;
+   say which choice to make in each dialog; never let a helper's install look like the real one.
+4. **Did it work?** (Q10, Q11, Q12, Q13) `/mcp` shows `plugin:cogito-mem:cogi ✔ 2 tools`; the status shows the
+   model `ready` and the message count; the "acorn" test proves recall. The status is enough.
+5. **Is it safe? What did I just install?** (Q14, Q15, Q17, Q18) A page listing every file, every download and
+   every network connection, linked from the plugin's *Open homepage*; where Cogi works and where it doesn't.
+6. **How does it work underneath, and how do I build on it?** (Q4, Q5, Q16) The basket (`max_tokens`), the hollow
+   (the memory's name), and the API and MCP tools with real requests and replies.
+
+Values the site keeps: simple words a child could follow; few words; one idea per section; Cogi the squirrel and
+its nuts as the one running picture (messages are nuts, the memory is the hollow, the budget is the basket).
+
 ## Questions
 
 | # | Question, in the user's words | Short answer | What the docs must do |
