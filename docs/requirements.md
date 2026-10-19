@@ -609,7 +609,11 @@ These fill gaps the sections above leave open. Each can change without touching 
     | **hybrid + previous + author (new default)** | 32.6 % | **50.9 %** | **70.8 %** | 52.5 % |
     | the last N tokens of the conversation (no memory) | 0.0 % | 0.8 % | 4.2 % | — |
 
-    Paired differences with 95 % bootstrap intervals: new default vs U2 +18.0 points at N = 300 [13.3, 22.7]
+    On all 10 conversations (1,536 questions) the new default covers 32.0 / 49.4 / 67.8 % at N = 100 / 300 /
+    1000, against 32.5 / 46.7 / 57.6 % for keyword search and 0.1 / 0.6 / 4.4 % for the last N tokens
+    (+2.7 points over keyword at 300 [0.7, 4.7]; +10.2 at 1000 [8.5, 12.0]).
+
+    Paired differences on the 3 conversations, with 95 % bootstrap intervals: new default vs U2 +18.0 points at N = 300 [13.3, 22.7]
     and +13.3 at N = 1000 [9.7, 17.0]; vs keyword + author +0.3 at 300 [−3.4, 4.2] (no difference) and +8.9 at
     1000 [5.2, 12.5]. Turn by turn, a LoCoMo answer ("Researching adoption agencies") rarely says who is
     speaking or what it answers, so embedding it alone loses both; cutting vectors to 256 numbers was not the
