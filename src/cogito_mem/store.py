@@ -103,6 +103,7 @@ class Message:
 class Candidate:
     row: int
     score: float
+    similarity: float | None = None  # cosine of the query and item vectors; None without both
 
 
 class Namespace:
@@ -446,7 +447,9 @@ class Namespace:
     ) -> list[Candidate]:
         """Rank visible items by reciprocal rank fusion of the vector and keyword lists.
 
-        Scores are normalised so that an item ranked first in every list scores 1.
+        Scores are normalised so that an item ranked first in every list scores 1. Each
+        candidate with a vector also carries its cosine similarity to ``qvec``, whichever
+        list found it.
         """
         with self.lock:
             self._refresh_locked()
@@ -479,7 +482,14 @@ class Namespace:
                 first_rank[row] = min(first_rank.get(row, rank), rank)
         best = len(ranked) / (rrf_k + 1)
         order = sorted(fused, key=lambda r: (-fused[r], first_rank[r], -r))[:pool]
-        return [Candidate(r, fused[r] / best) for r in order]
+        sims: dict[int, float] = {}
+        if qvec is not None and order:
+            rows = np.asarray(order, dtype=np.int64)
+            with self.lock:
+                rows = rows[self._has_vec.data[rows]]
+                # Vectors are normalised, so the dot product is the cosine (float16 rounding aside).
+                sims = dict(zip(rows.tolist(), np.clip(self._vectors[rows] @ qvec, -1.0, 1.0).tolist()))
+        return [Candidate(r, fused[r] / best, sims.get(r)) for r in order]
 
     def fill(
         self,
@@ -516,6 +526,7 @@ class Namespace:
                         "kind": KIND_NAMES[int(self._row_kind.data[row])],
                         "text": text,
                         "score": round(float(cand.score), 4),
+                        "similarity": None if cand.similarity is None else round(cand.similarity, 4),
                         "author": msg.author,
                         "thread_id": msg.thread_id,
                         "valid_at": timeutil.format(msg.valid),

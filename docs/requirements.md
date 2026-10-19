@@ -161,6 +161,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
       "kind": "piece",
       "text": "Integration costs are 40 % above plan.",
       "score": 0.91,
+      "similarity": 0.83,
       "author": "planning-agent",
       "thread_id": "merger-x",
       "valid_at": "2026-10-14T16:00:00Z",
@@ -180,6 +181,10 @@ background, so new text can be found by keyword at once and by meaning a moment 
   `"digest"` is reserved for v1 and `"statement"` for v2.
 - **`score`:** between 0 and 1, higher is better. In v0 it is a rank score that can only be compared within
   one response. If stage 1 ships a head, it becomes the estimated probability that the item holds the answer.
+- **`similarity`:** the cosine similarity between the query's vector and the item's stored vector (§4), between
+  −1 and 1. It does not depend on the other items, so it can be compared across queries, but with EmbeddingGemma 2
+  unrelated text often reaches 0.6 to 0.77 (§15). It is `null` when the item has no vector yet (it was just
+  added) or the query was not embedded (keyword search, or no embedding model).
 - **`source`:** the original message the item came from. `start` and `end` are character positions in that
   message (W3C `TextPositionSelector`: code points, with `end` exclusive), so any agent can check the text.
 - **`expired_at`:** the time the item was retracted. It is set only when `include_retracted` is true.
@@ -251,8 +256,9 @@ its repository) as `title`.
 **Recall as you go (Claude Code).** With many MCP servers, Claude Code keeps MCP tools behind tool search, and
 Claude rarely calls `memory_query` unprompted. Two more hooks, `cogito-mem recall claude-code`, bring the memory to
 Claude instead:
-- `UserPromptSubmit`: the memory is queried with the prompt; items that score at least 0.6 and are not from the
-  current session come back within 300 tokens, the current project's first, each with its date and author.
+- `UserPromptSubmit`: the memory is queried with the prompt; items that score at least 0.6, share half of the
+  prompt's content words (at least 2, at most 4) and are not from the current session come back within 300
+  tokens, the current project's first, each with its date and author.
 - `SessionStart` (startup and resume): the last three exchanges (each prompt with the final reply to it) of the
   most recent earlier session in the same project, from its transcript.
 
@@ -649,3 +655,12 @@ These fill gaps the sections above leave open. Each can change without touching 
 20. **Arm R on CPU is far over budget:** Qwen3-Reranker-0.6B in llama.cpp scored 32 candidates in about 16 s on
     the same VM (about 0.5 s each), so R stays a GPU option, as §7 expects. Its scores also looked
     uncalibrated (0.015 for a clear match); check the GGUF's rerank template before using R's scores.
+21. **Recall filters by shared words, not by `similarity`.** On a copy of a real memory (470 messages,
+    1,191 items, EmbeddingGemma 2 Q8_0), 18 prompts were run, 9 about the work stored in it and 9 unrelated, and
+    each returned item was labelled on topic or not. The closest item scored a similarity of 0.78 to 0.88 for
+    the related prompts and 0.65 to 0.77 for the unrelated ones, so a threshold has almost no margin. Item by
+    item, score ≥ 0.6 with the word rule kept 43 of 57 on-topic items, 4 off-topic ones and nothing for the
+    unrelated prompts. Score ≥ 0.6 with similarity ≥ 0.77, the lowest threshold that keeps nothing for the
+    unrelated prompts, kept 42, 9 and nothing. Similarity relative to the prompt's other items (z-score, gap to
+    the mean) overlapped too. Allowing either the word rule or similarity ≥ 0.85 kept one more on-topic item and
+    no noise, too little to set a threshold on.

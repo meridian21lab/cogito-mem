@@ -250,8 +250,8 @@ class Memory:
             scores = self.reranker.score(req.text, [ns.row_text(c.row) for c in head])
             order = sorted(range(len(head)), key=lambda i: -scores[i])
             floor = min(scores) if scores else 0.0
-            cands = [Candidate(head[i].row, float(scores[i])) for i in order] + [
-                Candidate(c.row, c.score * floor) for c in cands[len(head) :]
+            cands = [Candidate(head[i].row, float(scores[i]), head[i].similarity) for i in order] + [
+                Candidate(c.row, c.score * floor, c.similarity) for c in cands[len(head) :]
             ]
         return cands
 
