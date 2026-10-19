@@ -187,7 +187,7 @@ Client().query("mascot")          # or through the local service, which starts o
 | Way | Command | Notes |
 |---|---|---|
 | One line | `curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh \| sh` | Needs only curl; connects every client it finds. Windows: `install.ps1` (experimental). |
-| Claude Code plugin | `/plugin marketplace add meridian21lab/cogito-mem` then `/plugin install cogito-mem@cogito-mem` | MCP server, capture and recall hooks, from inside Claude Code. |
+| Claude Code plugin | `/plugin marketplace add meridian21lab/cogito-mem` then `/plugin install cogito-mem@cogito-mem` | MCP server, capture and recall hooks, from inside Claude Code; asks for your memory's name. |
 | Docker | `docker run -d -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem`, then `claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp` | Service, llama.cpp and model in one container (amd64 and arm64); data in a volume. |
 | pip / uv | `uv tool install git+https://github.com/meridian21lab/cogito-mem && cogito-mem install` | For Python developers. |
 
@@ -217,6 +217,7 @@ Everything has a working default. Environment variables, for when you need them:
 | Variable | Meaning |
 |---|---|
 | `COGITO_MEM_HOME` | The memory folder (default `~/.cogito-mem`). |
+| `COGITO_MEM_NAMESPACE` | The memory's name (default `<username>-hollow`, e.g. `ksirg-hollow`: Cogi's hollow, where it keeps its nuts). Saved in `~/.cogito-mem/config.json`, so every client uses it; `--namespace` picks another memory for one command. |
 | `COGITO_MEM_PORT` | The service port (default 7327). |
 | `COGITO_MEM_URL` | Use the service at this URL (e.g. a Docker container). |
 | `COGITO_MEM_MODEL` / `COGITO_MEM_MODEL_URL` | A local GGUF to use, or where to download it from. Other Matryoshka GGUFs (Qwen3-Embedding, nomic-embed-text) get their own prompts automatically. |

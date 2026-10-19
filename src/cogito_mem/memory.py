@@ -18,7 +18,7 @@ from typing import Any, Protocol, Sequence
 import numpy as np
 
 from . import __version__, timeutil
-from .api import AppendIn, QueryIn, parse_append, parse_query
+from .api import DEFAULT_NAMESPACE, AppendIn, QueryIn, parse_append, parse_query
 from .embedding import EmbeddingCache, Embedder, HashEmbedder, cache_key, query_prompt
 from .errors import ApiError, invalid
 from .split import PIECE_TOKENS
@@ -181,6 +181,17 @@ class Memory:
         for name in self.namespaces():
             self.namespace(name)
 
+    def default_namespace(self) -> str:
+        """Where a request without ``namespace`` goes: the name the clients saved, else ``default``."""
+        from .names import InvalidName, saved_namespace
+
+        if self.root is None:
+            return DEFAULT_NAMESPACE
+        try:
+            return saved_namespace(self.root) or DEFAULT_NAMESPACE
+        except InvalidName as exc:
+            raise invalid(str(exc)) from None
+
     def namespaces(self) -> list[str]:
         names = set(self._namespaces)
         if self.root is not None:
@@ -195,16 +206,18 @@ class Memory:
         if not isinstance(body, dict):
             raise invalid("the request must be a JSON object")
         op = body.get("op")
+        if body.get("namespace") is None and op in ("append", "query"):
+            body = {**body, "namespace": self.default_namespace()}
         if op == "append":
             return self._append(parse_append(body))
         if op == "query":
             return self._query(parse_query(body))
         raise invalid('op must be "append" or "query"')
 
-    def append(self, items: list[dict], namespace: str = "default", import_: bool = False) -> dict:
+    def append(self, items: list[dict], namespace: str | None = None, import_: bool = False) -> dict:
         return self.handle({"op": "append", "namespace": namespace, "import": import_, "items": items})
 
-    def query(self, text: str, namespace: str = "default", **kwargs: Any) -> dict:
+    def query(self, text: str, namespace: str | None = None, **kwargs: Any) -> dict:
         return self.handle({"op": "query", "namespace": namespace, "text": text, **kwargs})
 
     def _append(self, req: AppendIn) -> dict:

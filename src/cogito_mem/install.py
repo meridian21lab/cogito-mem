@@ -2,7 +2,8 @@
 
 Install, in one command and with nothing to configure:
 
-1. creates the memory folder (``~/.cogito-mem``) with the namespace ``default``;
+1. creates the memory folder (``~/.cogito-mem``) with one memory, named ``<username>-hollow``
+   unless ``--name`` says otherwise (see ``names``);
 2. writes a launcher, ``~/.cogito-mem/bin/cogito-mem``, that every client calls;
 3. gets llama.cpp's ``llama-server`` (if it is not on the PATH) and the
    EmbeddingGemma 2 GGUF;
@@ -366,10 +367,12 @@ def install(
     start: bool = True,
     url: str | None = None,
     recall: bool = True,
+    name: str | None = None,
 ) -> int:
     """Connect the memory to ``client`` (a name, a list, or None for every client found).
 
     ``recall=False`` leaves out the Claude Code hooks that add memory to each prompt.
+    ``name`` names the memory; without it, the saved name or ``<username>-hollow``.
     """
     if client is None or client == []:
         clients = detect_clients()
@@ -382,11 +385,18 @@ def install(
         say(f"unknown client {unknown[0]!r}; choose from: {', '.join(CLIENTS)}")
         return 2
     from .memory import Memory
+    from .names import InvalidName, default_namespace, set_namespace
 
+    try:
+        namespace = set_namespace(root, name) if name else default_namespace(root)
+    except InvalidName as exc:
+        say(str(exc))
+        return 2
     say(f"Installing cogito-mem for {', '.join(clients) or 'no client'}")
     with Memory(root, embedder=None) as mem:
-        mem.namespace("default")
-    say(f"  memory folder: {root} (namespace 'default')")
+        mem.namespace(namespace)
+    say(f"  memory: {namespace} ({root / 'memory' / namespace})")
+    say("  to name it otherwise: cogito-mem install --name <name> (or set COGITO_MEM_NAMESPACE)")
     launcher = write_launcher(root, url)
     if url:
         say(f"  using the service at {url} (it brings its own llama.cpp and model)")

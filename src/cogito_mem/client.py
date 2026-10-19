@@ -120,11 +120,18 @@ class Client:
                 raise ApiError("internal", f"HTTP {status}: {err}") from None
         return resp
 
-    def append(self, items: list[dict], namespace: str = "default", import_: bool = False) -> dict:
+    def append(self, items: list[dict], namespace: str | None = None, import_: bool = False) -> dict:
+        namespace = namespace or self.namespace()
         return self.handle({"op": "append", "namespace": namespace, "import": import_, "items": items})
 
-    def query(self, text: str, namespace: str = "default", **kwargs: Any) -> dict:
-        return self.handle({"op": "query", "namespace": namespace, "text": text, **kwargs})
+    def query(self, text: str, namespace: str | None = None, **kwargs: Any) -> dict:
+        return self.handle({"op": "query", "namespace": namespace or self.namespace(), "text": text, **kwargs})
+
+    def namespace(self) -> str:
+        """The memory's name (``names.default_namespace``), sent with every request."""
+        from .names import default_namespace
+
+        return default_namespace(self.root)
 
     def status(self) -> dict | None:
         try:

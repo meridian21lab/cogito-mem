@@ -94,7 +94,7 @@ ago? I'd like to revisit it"*, and the assistant finds it with one memory query.
 
 | Key | Required | Meaning |
 |---|---|---|
-| `namespace` | no (default `"default"`) | One memory. Every namespace is its own folder on disk. |
+| `namespace` | no (default: the memory's saved name, else `"default"`; §15 item 23) | One memory. Every namespace is its own folder on disk. |
 | `import` | no (default `false`) | Loading history that was recorded elsewhere. When true, each item's `created_at` is set to its `valid_at`, so `as_of` treats it as if the memory had been running at the time. `valid_at` is then required and must not decrease. |
 | `items[].thread_id` | no (default `"default"`) | The conversation, session or thread. A query can filter on it exactly. |
 | `items[].author` | yes | Who wrote the item: `"user"`, `"assistant"` or an agent's name. |
@@ -221,7 +221,8 @@ This one command:
 - registers the MCP server with the client (local, over stdio);
 - turns on automatic capture where the client has hooks;
 - downloads the EmbeddingGemma 2 GGUF on first run;
-- creates the memory folder `~/.cogito-mem/` with the namespace `default`.
+- creates the memory folder `~/.cogito-mem/` with one namespace, named `<username>-hollow` unless the user
+  chooses another name (§15 item 23).
 
 `cogito-mem uninstall <client>` undoes it. The package runner (uvx, pipx or similar) is chosen when we build.
 
@@ -679,3 +680,31 @@ These fill gaps the sections above leave open. Each can change without touching 
     unrelated prompts, kept 42, 9 and nothing. Similarity relative to the prompt's other items (z-score, gap to
     the mean) overlapped too. Allowing either the word rule or similarity ≥ 0.85 kept one more on-topic item and
     no noise, too little to set a threshold on.
+23. **The memory is named `<username>-hollow`** (author's decision, 19 Oct 2026), e.g. `ksirg-hollow`: the hollow
+    is where Cogi, the squirrel, keeps its nuts. `default` told users nothing about what or whose the memory was.
+    The name comes from `COGITO_MEM_NAMESPACE` when it is set and not empty, else from `~/.cogito-mem/config.json`
+    (`{"namespace": …}`), else from the username (`getpass.getuser()`, lowercased, characters outside
+    `[a-z0-9._-]` replaced by `-`, cut to fit 64; `my-hollow` if nothing is left). The name in use is saved to
+    `config.json`, so the CLI, the MCP server and the hooks agree even when only one of them has the variable;
+    `--namespace` picks another memory for one command without saving it. A name that breaks the rule (letters,
+    digits, `.`, `_`, `-`, up to 64) is an error that says so: on the command line, in the capture hook's output and
+    in every MCP tool result; recall then adds nothing and notes why in `run/recall.log`. The Claude Code plugin
+    asks for the name when it is enabled (`userConfig.memory_name`, given to the MCP server as
+    `COGITO_MEM_NAMESPACE` and to the hooks as `CLAUDE_PLUGIN_OPTION_MEMORY_NAME`, which the plugin's script
+    passes on); left empty, Claude Code substitutes an empty string and the saved name or `<username>-hollow`
+    applies. `cogito-mem install --name` sets it outside the plugin.
+
+    **Nothing is lost on the way.** The first time a name is saved, a memory from before names (`memory/default`)
+    is renamed to it, under a file lock (`run/namespace.lock`), after stopping a local service that holds the folder
+    open (the next request starts it again), and with one INFO line. When both folders exist, both are kept and a
+    warning is logged; nothing is renamed when the name is `default`. The service does the same at start, but only
+    for a name it was given (the variable, e.g. `docker run -e`, or `config.json`), never one derived from its own
+    user, which in a container is not the person's. Nothing else is keyed by the name: capture cursors are keyed by
+    session or file, and the embedding cache by model and prompt, so a renamed memory keeps both.
+
+    **Requests without `namespace` go to the saved name, or to `default` when none is saved.** The clients always
+    send the name, so this only matters to HTTP and Python callers and to MCP over HTTP without `?namespace=`.
+    The service reads `config.json` in its own memory folder, which the local clients write, so the README's
+    `curl` examples reach the same memory as the assistant. It does not fall back to `<username>-hollow`:
+    a service in Docker runs as another user, and would invent a name nobody chose. A Docker service with no name
+    given keeps `default`.
