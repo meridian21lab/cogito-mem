@@ -40,7 +40,7 @@ def claude_code_transcript(session: str = "sess-1", day: str = "2026-10-11") -> 
              "Summary: the user plans the storage layer (SQLite) and a mascot."}},
         {**base, "type": "user", "uuid": f"{session}-u6", "timestamp": t(9, 5),
          "message": {"role": "user", "content": [
-             {"type": "text", "text": "Idea: call the mascot Cogi. My key is sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAA0123"},
+             {"type": "text", "text": "Idea: call the mascot Cogi. My key is sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxx"},
              {"type": "text", "text": "<system-reminder>injected</system-reminder>"}]}},
     ]  # fmt: skip
 
@@ -80,7 +80,7 @@ def claude_code_tool_work(session: str = "sess-t", day: str = "2026-10-12") -> l
               "The file /work/app/src/parser.py has been updated."),
         *call(5, "Read", {"file_path": "/home/me/notes/parser.md"}, "notes"),
         *call(6, "Bash", {"command": test.split("&& ")[1]}, "3 passed in 0.12s"),
-        *call(7, "Bash", {"command": "OPENROUTER_API_KEY=abcd1234efgh5678 ./deploy.sh staging"}, "deployed"),
+        *call(7, "Bash", {"command": "OPENROUTER_API_KEY=xxxxxxxxxxxxxxxx ./deploy.sh staging"}, "deployed"),
         *call(8, "Bash", {"command": "rm -rf build"},
               "The user doesn't want to proceed with this tool use. The tool use was rejected.", error=True),
         say(9, "assistant", "Fixed: the parser accepts trailing commas now."),

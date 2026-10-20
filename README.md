@@ -33,7 +33,7 @@ claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem
 
 That's it. To get updates, turn on auto-update once: `/plugin` → *Marketplaces* → *cogito-mem* → *Enable
 auto-update*. The first start downloads the model (310 MB, about a minute).
-[Step-by-step guide](https://meridian21lab.github.io/cogito-mem/start.html) · [Codex, Claude Desktop, Docker](docs/install.md)
+[Step-by-step guide](https://meridian21lab.github.io/cogito-mem/start.html) · [Codex, Claude Desktop, Docker](https://github.com/meridian21lab/cogito-mem/blob/main/docs/install.md)
 
 ## Try it
 
@@ -58,14 +58,14 @@ Keep your project's rules in `CLAUDE.md`, and let Cogi remember what happened.
 | | |
 |---|---|
 | [How it works](https://meridian21lab.github.io/cogito-mem/how.html) | Collect, keep, find: what Cogi stores and how it finds it |
-| [Results](https://meridian21lab.github.io/cogito-mem/results.html) · [Benchmarks](docs/benchmarks.md) | The numbers, and how to reproduce them |
-| [API & MCP](https://meridian21lab.github.io/cogito-mem/api.html) · [Reference](docs/reference.md) | HTTP, Python, terminal, settings, FAQ, roadmap |
+| [Results](https://meridian21lab.github.io/cogito-mem/results.html) · [Benchmarks](https://github.com/meridian21lab/cogito-mem/blob/main/docs/benchmarks.md) | The numbers, and how to reproduce them |
+| [API & MCP](https://meridian21lab.github.io/cogito-mem/api.html) · [Reference](https://github.com/meridian21lab/cogito-mem/blob/main/docs/reference.md) | HTTP, Python, terminal, settings, FAQ, roadmap |
 | [What you install](https://meridian21lab.github.io/cogito-mem/safety.html) · [Privacy](https://meridian21lab.github.io/cogito-mem/privacy.html) | Every file, download and connection |
-| [Development](docs/development.md) | Running the tests and the evaluations |
+| [Development](https://github.com/meridian21lab/cogito-mem/blob/main/docs/development.md) | Running the tests and the evaluations |
 
 > **Early access.** v0.2 is new, built and tested (about 200 tests), and still being measured. Feedback and
 > [issues](https://github.com/meridian21lab/cogito-mem/issues) are very welcome.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/meridian21lab/cogito-mem/blob/main/LICENSE)
