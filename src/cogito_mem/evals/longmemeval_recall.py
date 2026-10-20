@@ -2,6 +2,7 @@
 
     cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --out results/lme-recall/hybrid.json
     cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --search keyword --out results/lme-recall/keyword.json
+    cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --as-of none --out results/lme-recall/hybrid-no-cutoff.json
     cogito-mem eval longmemeval-recall compare results/lme-recall/keyword.json results/lme-recall/hybrid.json
 
 LongMemEval (Wu et al., ICLR 2025; github.com/xiaowu0162/LongMemEval) gives each of its
@@ -12,9 +13,16 @@ turns (``has_answer``). That makes retrieval scorable with no judging model.
 Each question gets a fresh memory, loaded as ``eval run`` loads it
 (``longmemeval.load_question``: one item per turn of either role, ``thread_id`` = session
 id, ``author`` = role, ``valid_at`` = session date + turn index in ms, ``import: true``).
-The question is asked through the normal query path with ``as_of`` = the question date,
-``top_k`` = 100 and no token budget. The returned items, in order, rank the turns; the
-sessions of those turns, in the order they first appear, rank the sessions.
+The question is asked through the normal query path with ``top_k`` = 100 and no token
+budget. The returned items, in order, rank the turns; the sessions of those turns, in the
+order they first appear, rank the sessions.
+
+``--as-of`` sets what the memory can see. ``question`` (the default) asks as of the
+question date, so a session dated after the question stays hidden, as it would in use.
+``none`` sends no ``as_of``, so every session in the history can be found: LongMemEval's own
+retrieval protocol, and the one behind deja-vu's and MemPalace's numbers. The two differ
+because some questions (44 of 500 in the _s file) have an evidence session dated after the
+question, all later the same day.
 
 - **Session level**, against ``answer_session_ids``. ``recall_any@k`` (R@k): an evidence
   session is among the first k sessions. This is the "R@5" that deja-vu, MemPalace, iai and
@@ -90,7 +98,7 @@ def score(ranked: list[str], relevant: set[str], ks=KS) -> dict:
     return out
 
 
-def evaluate(mem: Memory, q: dict) -> dict:
+def evaluate(mem: Memory, q: dict, as_of: str = "question") -> dict:
     t0 = time.perf_counter()
     present = {str(s) for s in q["haystack_session_ids"]}
     named = [str(s) for s in q.get("answer_session_ids") or []]
@@ -101,9 +109,9 @@ def evaluate(mem: Memory, q: dict) -> dict:
     mem.embed_pending(ns, limit=10**9)
     mem.flush()
     load_s = time.perf_counter() - t0
-    as_of = timeutil.format(parse_date(q["question_date"]) + 59_999)
-    body = {"op": "query", "namespace": "q", "text": q["question"], "as_of": as_of, "top_k": MAX_TOP_K,
-            "max_tokens": NO_BUDGET}  # fmt: skip
+    body = {"op": "query", "namespace": "q", "text": q["question"], "top_k": MAX_TOP_K, "max_tokens": NO_BUDGET}
+    if as_of == "question":
+        body["as_of"] = timeutil.format(parse_date(q["question_date"]) + 59_999)
     t1 = time.perf_counter()
     resp = mem.handle(body)
     query_ms = (time.perf_counter() - t1) * 1000
@@ -177,7 +185,8 @@ def table(summary: dict, meta: dict) -> str:
     keys = [f"recall_any@{k}" for k in KS] + ["recall_all@5", "recall_all@10", f"ndcg@{NDCG_K}", "mrr"]
     heads = [f"R@{k}" for k in KS] + ["all@5", "all@10", f"NDCG@{NDCG_K}", "MRR"]
     config = meta.get("config", {})
-    title = (f"LongMemEval retrieval: search {config.get('search')}, model {meta.get('model') or 'none'}, "
+    seen = "no date cutoff" if meta.get("as_of") == "none" else "as of the question date"
+    title = (f"LongMemEval retrieval: search {config.get('search')}, model {meta.get('model') or 'none'}, {seen}, "
              f"{summary['questions']} questions, {meta.get('wall_s', 0):.0f} s")  # fmt: skip
     lines = [title]
     labelled = [("all questions", summary["all"]), ("answerable (no _abs)", summary["answerable"])]
@@ -237,8 +246,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     meta = record(embedder.name if embedder is not None else None)
     config = {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author}
     meta.update({"dataset": str(data_path), "dataset_sha256": sha256_file(data_path), "config": config,
-                 "top_k": MAX_TOP_K, "as_of": "the question date"})  # fmt: skip
-    settings = {"dataset_sha256": meta["dataset_sha256"], "model": meta["model"], **config}
+                 "top_k": MAX_TOP_K, "as_of": args.as_of})  # fmt: skip
+    settings = {"dataset_sha256": meta["dataset_sha256"], "model": meta["model"], **config, "as_of": args.as_of}
     log_path = Path(args.questions_out) if args.questions_out else None
     done: dict[str, dict] = {}
     if log_path is not None:
@@ -262,7 +271,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                     resumed += 1
                 else:
                     with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache, embed_batch=args.batch) as mem:
-                        row = evaluate(mem, q)
+                        row = evaluate(mem, q, args.as_of)
                     if log is not None:
                         log.write(json.dumps(row) + "\n")
                         log.flush()
@@ -341,6 +350,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--doc-context", default="previous", choices=["own", "previous"])
     p.add_argument("--doc-author", action=argparse.BooleanOptionalAction, default=True,
                    help="put the role before each turn's text, as the memory does by default (default: on)")  # fmt: skip
+    p.add_argument("--as-of", default="question", choices=["question", "none"],
+                   help="question: search as of the question date (default); none: no date cutoff, "
+                   "LongMemEval's own retrieval protocol")  # fmt: skip
     p.add_argument("--embedder", default="auto", choices=["auto", "hash"], help="hash: pipeline checks only")
     p.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))
     p.add_argument("--root", help="where llama.cpp and the model live (default ~/.cogito-mem)")

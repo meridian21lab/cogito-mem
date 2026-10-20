@@ -133,8 +133,24 @@ def test_run_hybrid(tmp_path, data, capsys):
     meta = result["meta"]
     assert meta["model"] == "hash-v1" and meta["config"]["search"] == "hybrid" and meta["wall_s"] >= 0
     assert meta["dataset_sha256"] and meta["top_k"] == 100 and meta["resumed_questions"] == 0
+    assert meta["as_of"] == "question"
     table = capsys.readouterr().out
     assert "answerable (no _abs)" in table and "  multi-session" in table and "R@5" in table
+
+
+def test_as_of_none_searches_the_whole_history(tmp_path, data, capsys):
+    log = tmp_path / "questions.jsonl"
+    result = run(tmp_path, data, "hybrid", "--as-of", "none", "--questions-out", str(log))
+    q4 = next(r for r in result["per_question"] if r["question_id"] == "q4")
+    # the session dated after the question is found now, and it shares more words with the question
+    assert q4["sessions_ranked"] == 12 and q4["ranked_sessions"][0] == "later_q4" and q4["session"]["rank"] == 2
+    assert result["meta"]["as_of"] == "none"
+    assert json.loads(log.read_text().splitlines()[0])["settings"]["as_of"] == "none"
+    assert "no date cutoff" in capsys.readouterr().out
+    argv = ["--data", str(data), "--search", "hybrid", "--embedder", "hash", "--cache", str(tmp_path / "cache.sqlite3"),
+            "--questions-out", str(log)]  # fmt: skip
+    assert longmemeval_recall.main(argv) == 2  # the default, as of the question date, is not mixed in
+    assert "other settings" in capsys.readouterr().err
 
 
 def test_resume_keyword_and_compare(tmp_path, data, capsys):
