@@ -30,7 +30,7 @@ from typing import Iterable
 
 from . import Cursor, Sink, enabled, jsonl, read_new_lines, redact, send, without_private
 
-ACTIONS = "actions"  # the author of what a turn did
+ACTIONS = "actions"  # the author of what a turn did (store.SIDE_AUTHOR)
 ACTION_CHARS = 800  # about one piece (``split.PIECE_TOKENS``), so a busy turn cannot fill a reply
 COMMAND_CHARS = 80
 
@@ -47,6 +47,7 @@ _SKIP_PREFIXES = (
     "[Request interrupted by user",
     "<user-prompt-submit-hook>",
     "This session is being continued from a previous conversation",  # a compaction summary
+    "<task-notification>",  # a background task finishing, reported to Claude, not typed
 )
 _REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
 _WORKTREE = re.compile(r"[\\/]\.claude[\\/]worktrees[\\/][^\\/]+.*$", re.S)

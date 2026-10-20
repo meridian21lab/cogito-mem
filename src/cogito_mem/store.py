@@ -61,6 +61,9 @@ KIND_NAMES = {KIND_MESSAGE: "message", KIND_PIECE: "piece"}
 
 NEVER = np.iinfo(np.int64).max
 PREVIOUS_CONTEXT_CHARS = 1000
+# The author of the notes capture writes about what a turn did (commands, files). Such a note follows on from
+# the turn's prompt, but the reply after it still follows on from the prompt, as it did before notes existed.
+SIDE_AUTHOR = "actions"
 
 
 class _Column:
@@ -181,7 +184,8 @@ class Namespace:
         idx = len(self.messages)
         msg = Message(id_, created, valid, thread_id, author, title, text, client_ref, bool(imported))
         msg.prev = self.last_in_thread.get(thread_id, -1)
-        self.last_in_thread[thread_id] = idx
+        if author != SIDE_AUTHOR:  # what a turn did never becomes what the reply follows on from
+            self.last_in_thread[thread_id] = idx
         self.messages.append(msg)
         self.msg_by_id[id_] = idx
         if client_ref is not None:
