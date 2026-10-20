@@ -207,9 +207,6 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
-# PyPI configuration file
-.pypirc
-
 # Marimo
 marimo/_static/
 marimo/_lsp/

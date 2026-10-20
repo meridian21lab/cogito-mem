@@ -22,18 +22,18 @@ from cogito_mem.capture import claude_code, codex, exports
 
 
 def test_redact_common_secrets():
+    # samples that can't be real keys (EXAMPLE, xxxx): the plugin directory refuses a file that holds a real-looking one
     text = (
-        "keys: sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAA0123 ghp_abcdefghijklmnopqrstuvwxyz0123456789 "
-        "AKIAABCDEFGHIJKLMNOP password=hunter2hunter2 api_key: 'abcd1234efgh' "
-        "-----BEGIN RSA PRIVATE KEY-----\nMIIEow\n-----END RSA PRIVATE KEY----- keep this"
+        "keys: sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxx ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx "
+        "AKIAIOSFODNN7EXAMPLE password=EXAMPLE-password api_key: 'YOUR_API_KEY' "
+        "-----BEGIN RSA PRIVATE KEY-----\nEXAMPLE\n-----END RSA PRIVATE KEY----- keep this"
     )
-    out = redact(text)
-    for secret in ("sk-ant-api03", "ghp_", "AKIAABCD", "hunter2", "abcd1234efgh", "MIIEow"):
-        assert secret not in out
-    assert "password=[redacted]" in out and "keep this" in out
+    assert redact(text) == (
+        "keys: [redacted] [redacted] [redacted] password=[redacted] api_key: '[redacted]' [redacted] keep this"
+    )
     command = redact(
-        "MY_SERVICE_API_KEY=abcd1234efgh5678 curl -H 'Authorization: Bearer abcdefghijklmnop12345' "
-        "https://bob:s3cretpass@example.com/x http://localhost:7327/v1"
+        "MY_SERVICE_API_KEY=xxxxxxxxxxxxxxxx curl -H 'Authorization: Bearer xxxxxxxxxxxxxxxxxxxx' "
+        "https://bob:EXAMPLE@example.com/x http://localhost:7327/v1"
     )
     assert command == (
         "MY_SERVICE_API_KEY=[redacted] curl -H 'Authorization: Bearer [redacted]' "
