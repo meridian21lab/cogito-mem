@@ -156,6 +156,25 @@ new item can be found by meaning about 57 ms later on the CPU and 13 ms later wi
 embeds about 21k tokens a second (1M tokens in 47 s). Reproduce with
 `COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --tokens 10M --random-vectors` (leave out the variable for Metal).
 
+**Finding the right session (LongMemEval-S).** To be measured. [LongMemEval](https://github.com/xiaowu0162/LongMemEval)
+gives each of its 500 questions a history of about 50 chat sessions (about 115k tokens) and labels the sessions, and
+the turns in them, that hold the answer. The number other local memory tools publish for it is session-level recall
+at 5, with no LLM involved: the share of questions for which a session holding the answer is among the first five
+sessions found. `eval longmemeval-recall` loads each question's sessions into a fresh memory (one item per turn,
+dated by its session), asks the question as of the question's date, and reports that recall at 1, 3, 5 and 10, the
+stricter variant (every answer session in the top k), NDCG@10 and turn-level recall, overall and per question type.
+It counts all 500 questions, as deja-vu and MemPalace do, and separately the 470 that are not abstention questions,
+as LongMemEval's own retrieval evaluation does. Download `longmemeval_s_cleaned.json` from
+[the dataset page](https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned), then:
+
+```sh
+cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --out results/lme-recall/hybrid.json --questions-out results/lme-recall/hybrid.jsonl
+cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --search keyword --out results/lme-recall/keyword.json
+cogito-mem eval longmemeval-recall compare results/lme-recall/keyword.json results/lme-recall/hybrid.json
+```
+
+Rerunning with the same `--questions-out` file resumes an interrupted run, and embeddings are cached.
+
 ## Use it
 
 **In a chat.** Your assistant decides when to use the two tools; you can also ask directly:
@@ -312,6 +331,7 @@ The stage-0 measurements:
 
 ```sh
 cogito-mem eval locomo --data locomo10.json --search hybrid --out results/locomo.json
+cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --out results/lme-recall.json   # session R@k, no LLM
 cogito-mem eval run --data longmemeval_m.json --arm U2 --out results/u2.json      # LongMemEval, arms U1-U3, R
 cogito-mem eval compare results/u1.json results/u2.json --budget 300
 COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --data longmemeval_m.json --tokens 10M --out results/speed.json

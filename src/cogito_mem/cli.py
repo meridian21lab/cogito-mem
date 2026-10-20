@@ -319,6 +319,10 @@ def cmd_eval(args: argparse.Namespace) -> int:
         from .evals import locomo
 
         return locomo.main(args.eval_args[1:])
+    if args.eval_args[:1] == ["longmemeval-recall"]:
+        from .evals import longmemeval_recall
+
+        return longmemeval_recall.main(args.eval_args[1:])
     from .evals import longmemeval
 
     return longmemeval.main(args.eval_args)
@@ -427,7 +431,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("stop", cmd_stop, "stop the local service")
     sp.add_argument("--url")
 
-    sp = add("eval", cmd_eval, "quality tests: LongMemEval (`eval run`, `eval compare`), LoCoMo (`eval locomo`, `eval locomo-qa`)")
+    sp = add("eval", cmd_eval, "quality tests: LongMemEval (`eval run`, `eval compare`, `eval longmemeval-recall`), "
+             "LoCoMo (`eval locomo`, `eval locomo-qa`)")
     sp.add_argument("eval_args", nargs=argparse.REMAINDER)
     sp = add("bench", cmd_bench, "speed test (requirements §6); see `cogito-mem bench -h`")
     sp.add_argument("bench_args", nargs=argparse.REMAINDER)
