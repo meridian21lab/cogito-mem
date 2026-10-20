@@ -4,7 +4,8 @@ Cogi, the squirrel, keeps its nuts in a hollow. Every client (the CLI, the MCP s
 the hooks, ``install``) asks ``default_namespace()`` and sends the answer with each
 request. The name comes from, in order:
 
-1. ``$COGITO_MEM_NAMESPACE``, when it is set and not empty;
+1. ``$COGITO_MEM_NAMESPACE``, or the Claude Code plugin's option (``$CLAUDE_PLUGIN_OPTION_MEMORY_NAME``), when set
+   and not empty;
 2. ``config.json`` in the memory folder (``{"namespace": "ksirg-hollow"}``);
 3. ``<username>-hollow``.
 
@@ -27,6 +28,7 @@ from .api import NAMESPACE_RE
 log = logging.getLogger("cogito_mem.names")
 
 ENV = "COGITO_MEM_NAMESPACE"
+PLUGIN_OPTION = "CLAUDE_PLUGIN_OPTION_MEMORY_NAME"  # the Claude Code plugin's "Name your memory" option
 CONFIG = "config.json"
 LEGACY = "default"  # the one name every client used before names
 RULE = "1-64 letters, digits, '.', '_' or '-', starting with a letter or digit"
@@ -54,10 +56,11 @@ def hollow(user: str | None = None) -> str:
 
 
 def _env_name() -> str | None:
-    value = os.environ.get(ENV, "").strip()
-    if not value or value.startswith("${"):  # empty, or a placeholder a client did not fill in
-        return None
-    return check(value, f"${ENV}")
+    for var in (ENV, PLUGIN_OPTION):
+        value = os.environ.get(var, "").strip()
+        if value and not value.startswith("${"):  # empty, or a placeholder a client did not fill in
+            return check(value, f"${var}")
+    return None
 
 
 def saved_namespace(root: Path) -> str | None:

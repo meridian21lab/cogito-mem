@@ -1,13 +1,31 @@
 {
   "name": "cogito-mem",
-  "displayName": "Cogi 🐿️ cogito-mem memory",
-  "version": "0.1.0",
-  "description": "Long-term local memory for Claude Code: every session is captured, and relevant earlier work comes back with each prompt, from days or weeks ago. Runs on your machine; nothing leaves it.",
-  "author": { "name": "meridian21lab", "url": "https://github.com/meridian21lab" },
+  "displayName": "cogito-mem (Cogi)",
+  "version": "0.2.0",
+  "description": "Local long-term memory for Claude Code. Cogi saves every message you and Claude exchange, word for word, and brings back what matters with each prompt. No API key, no cloud: nothing leaves your machine.",
+  "author": {
+    "name": "meridian21lab",
+    "url": "https://github.com/meridian21lab"
+  },
   "homepage": "https://meridian21lab.github.io/cogito-mem/",
   "repository": "https://github.com/meridian21lab/cogito-mem",
+  "documentationUrl": "https://meridian21lab.github.io/cogito-mem/",
+  "supportUrl": "https://github.com/meridian21lab/cogito-mem/issues",
+  "privacyPolicyUrl": "https://meridian21lab.github.io/cogito-mem/privacy.html",
   "license": "MIT",
-  "keywords": ["memory", "mcp", "local-first", "embeddings", "llama.cpp", "recall"],
+  "icon": "./site/assets/cogi-icon.png",
+  "keywords": [
+    "memory",
+    "long-term-memory",
+    "local-first",
+    "privacy",
+    "recall",
+    "context",
+    "session",
+    "mcp",
+    "embeddings",
+    "llama.cpp"
+  ],
   "userConfig": {
     "memory_name": {
       "type": "string",
@@ -18,9 +36,20 @@
   },
   "mcpServers": {
     "cogi": {
-      "command": "sh",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"],
-      "env": { "COGITO_MEM_NAMESPACE": "${user_config.memory_name}" }
+      "command": "uv",
+      "args": [
+        "run",
+        "--frozen",
+        "--quiet",
+        "--no-dev",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "cogito-mem",
+        "mcp"
+      ],
+      "env": {
+        "CLAUDE_PLUGIN_OPTION_MEMORY_NAME": "${user_config.memory_name}"
+      }
     }
   }
 }

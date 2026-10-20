@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy · Cogi</title>
+  <meta name="description" content="cogito-mem's privacy policy: it runs on your computer and collects nothing.">
+  <meta property="og:title" content="Privacy · Cogi">
+  <meta property="og:description" content="cogito-mem's privacy policy: it runs on your computer and collects nothing.">
+  <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
+  <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/privacy.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/cogi.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="assets/cogi.svg" alt="">cogito-mem</a>
+      <nav class="nav" aria-label="Main">
+        <a href="index.html">Home</a>
+        <a href="start.html">Install</a>
+        <a href="how.html">How it works</a>
+        <a href="results.html">Results</a>
+        <a href="api.html">API &amp; MCP</a>
+        <a href="safety.html">Safety</a>
+        <a href="https://github.com/meridian21lab/cogito-mem">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <p class="eyebrow">Privacy</p>
+    <h1>Privacy policy</h1>
+    <p class="lead">Short version: cogito-mem runs on your computer, and we never see anything you do with it.</p>
+
+    <h2>What we collect</h2>
+    <p><strong>Nothing.</strong> cogito-mem has no account, no analytics, no telemetry and no server of ours. The
+      people who make it receive no data from it, ever.</p>
+
+    <h2>What cogito-mem stores on your computer</h2>
+    <p>Your messages and Claude's replies, word for word, with their dates, in <code>~/.cogito-mem/</code>. Secrets
+      such as API keys, tokens and passwords are replaced with <code>[redacted]</code> before anything is stored.
+      <a href="safety.html">What you install</a> lists every file.</p>
+
+    <h2>What goes over the network</h2>
+    <p>Only the one-time downloads that set it up: Cogi's code and its Python dependency, llama.cpp from its official
+      releases, and the EmbeddingGemma 2 model from Hugging Face. Those sites see a normal download request, as with
+      any install. After that, cogito-mem makes no network connections. Its service answers only on
+      <code>127.0.0.1</code>, your own computer.</p>
+
+    <h2>Your control</h2>
+    <ul>
+      <li>Read your memory: it is a SQLite file in <code>~/.cogito-mem/memory/</code>.</li>
+      <li>Keep something out: wrap it in <code>&lt;private&gt;…&lt;/private&gt;</code>, or pause saving with
+        <code>COGITO_MEM_CAPTURE=off</code>.</li>
+      <li>Erase everything: <code>rm -rf ~/.cogito-mem</code>.</li>
+    </ul>
+
+    <h2>This website</h2>
+    <p>This site is hosted on GitHub Pages and uses no cookies, analytics or external fonts. GitHub may keep standard
+      server logs; see <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.</p>
+
+    <h2>Contact</h2>
+    <p>Questions: <a href="https://github.com/meridian21lab/cogito-mem/issues">open an issue</a>. This policy was
+      last updated on 20 October 2026; changes are tracked in the repository.</p>
+  </main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><img src="assets/cogi.svg" alt="">cogito-mem · free and open source (MIT)</span>
+      <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
+      <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
+      <a href="safety.html">What you install</a>
+      <a href="privacy.html">Privacy</a>
+    </div>
+  </footer>
+</body>
+</html>
