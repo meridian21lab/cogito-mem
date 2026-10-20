@@ -4,6 +4,7 @@ Both exports hold a ``conversations.json`` (inside the .zip they are sent as).
 Messages are appended with ``import: true``, so they keep the time they were said,
 and with the message id as ``client_ref``, so importing the same export twice adds
 nothing. ``thread_id`` is the conversation id and ``title`` the conversation name.
+What is marked ``<private>…</private>`` is left out.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import timeutil
-from . import Sink, redact, send
+from . import Sink, redact, send, without_private
 
 
 def load_conversations(path: Path) -> Any:
@@ -55,6 +56,7 @@ def claude_items(conversations: list[dict]) -> list[dict]:
                 text = "\n\n".join(
                     b.get("text", "") for b in msg["content"] if isinstance(b, dict) and b.get("type") == "text"
                 )
+            text = without_private(text)
             when = _iso(msg.get("created_at")) or conv_time
             if not text.strip() or not when or not msg.get("uuid"):
                 continue
@@ -107,7 +109,9 @@ def chatgpt_items(conversations: list[dict]) -> list[dict]:
             content = msg.get("content") or {}
             if content.get("content_type") not in ("text", "multimodal_text"):
                 continue
-            text = "\n\n".join(p for p in content.get("parts") or [] if isinstance(p, str) and p.strip())
+            text = without_private(
+                "\n\n".join(p for p in content.get("parts") or [] if isinstance(p, str) and p.strip())
+            )
             when = _iso(msg.get("create_time")) or conv_time
             if not text.strip() or not when or not msg.get("id"):
                 continue

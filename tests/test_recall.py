@@ -126,6 +126,21 @@ def test_prompt_recall_cuts_a_first_item_that_is_over_the_budget():
     assert text.endswith(" …") and text.count("word") == 25
 
 
+def test_prompt_recall_puts_messages_before_what_sessions_did():
+    client = FakeClient([
+        item("Ran `pytest tests/test_parser.py` (failed). Edited src/parser.py.", 0.95, author="actions"),
+        item("The parser test must accept trailing commas.", 0.7),
+        item("Edited " + ", ".join(f"tests/test_parser_{i}.py" for i in range(200)) + ".", 0.9, author="actions"),
+        item("The parser test for dates is slow.", 0.65, title="/work/site"),
+    ])  # fmt: skip
+    out = json.loads(run_hook(prompt_hook("why does the parser test fail?"), client))
+    lines = out["hookSpecificOutput"]["additionalContext"].splitlines()[1:]
+    assert "must accept trailing commas" in lines[0]
+    assert ", actions, this project] Ran `pytest tests/test_parser.py` (failed)" in lines[1]
+    assert "for dates is slow" in lines[2]  # the current project first, then messages before actions in each
+    assert len(lines) == 3  # the long list of edits does not fit in the room the messages left
+
+
 def test_prompt_recall_needs_enough_of_the_prompts_words():
     prompt = prompt_hook("fix the CSS of the login button on the settings page")  # 6 content words: 3 needed
     client = FakeClient([

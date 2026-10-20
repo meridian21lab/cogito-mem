@@ -189,6 +189,10 @@ def _detach(argv: list[str], root: Path) -> None:
 
 
 def cmd_capture(args: argparse.Namespace) -> int:
+    from .capture import enabled
+
+    if not args.all and not enabled():  # COGITO_MEM_CAPTURE=off pauses the hooks; a backfill you ask for still runs
+        return 0
     root = _root(args)
     _namespace(args)
     state = root / "run" / "capture"

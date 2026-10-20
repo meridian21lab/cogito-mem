@@ -48,7 +48,9 @@ curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/insta
 ## What you get
 
 - **It remembers every session by itself.** Claude Code and Codex conversations are captured after each turn.
-  Past chats from claude.ai and ChatGPT come in from their data exports.
+  From Claude Code it also keeps what each turn did, in one short note: the commands run (and which failed) and
+  the files read, edited or written, never their output. Past chats from claude.ai and ChatGPT come in from their
+  data exports.
 - **It finds things by meaning and by words.** An open embedding model (Google's EmbeddingGemma 2) runs locally in
   llama.cpp, next to classic keyword search; the two rankings are fused.
 - **It answers in a few tokens.** A query returns the handful of stored messages that answer it, word for word,
@@ -271,6 +273,8 @@ Everything has a working default. Environment variables, for when you need them:
 | `COGITO_MEM_GPU_LAYERS` / `COGITO_MEM_THREADS` | Passed to llama.cpp as `-ngl` / `-t` (`0` layers = CPU only). |
 | `COGITO_MEM_ALLOWED_HOSTS` | Extra `Host` names the service accepts (e.g. a Docker network name). |
 | `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL (reorders the top 30; GPU recommended). |
+| `COGITO_MEM_CAPTURE` | `off` pauses capture: the hooks store nothing (`capture … --all` still runs when you ask). |
+| `COGITO_MEM_CAPTURE_ACTIONS` | `off` stops the note of each Claude Code turn's commands and files (default on). |
 | `COGITO_MEM_NO_DOWNLOAD` | Never download anything. |
 
 ## Privacy and security
@@ -280,8 +284,12 @@ Everything has a working default. Environment variables, for when you need them:
 - The service listens on `127.0.0.1` only. It refuses requests whose `Host` or `Origin` is not local and bodies
   that are not JSON, so a web page you visit can neither read nor write it. There are no accounts: anything that
   runs as you on your machine can use it, as with any local tool.
-- Capture skips tool output, thinking and system text, and replaces API keys, tokens, private keys and
-  `password=…` values with `[redacted]` before anything is stored.
+- Capture skips tool output, file contents, thinking, system text and the summary Claude Code writes when it
+  compacts a session; of a command it keeps only the command line. API keys, tokens, private keys and
+  `password=…` values become `[redacted]` before anything is stored.
+- Text inside `<private>…</private>` is not stored; the rest of the message is. `COGITO_MEM_CAPTURE=off` (for
+  example under `"env"` in `~/.claude/settings.json`) pauses capture; `COGITO_MEM_CAPTURE_ACTIONS=off` keeps
+  messages only.
 - Nothing leaves your machine. The only network traffic is the one-time download of llama.cpp and the model.
 
 ## FAQ

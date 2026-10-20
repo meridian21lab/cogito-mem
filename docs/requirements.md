@@ -592,10 +592,15 @@ These fill gaps the sections above leave open. Each can change without touching 
    message being replied to). A run of messages by one author, such as notes saved one after another, are
    embedded alone: with the previous note prepended, a set of 9 unrelated notes went from 9/9 to 4/9 found
    by meaning (EmbeddingGemma 300M).
-10. **Capture keeps** the user's typed messages and the assistant's text replies. It leaves out tool calls and
-    output, thinking, sub-agent turns, slash-command output and injected system reminders. Obvious secrets (API
-    keys, tokens, private keys, `password=…`) are replaced with `[redacted]` before they are stored. Backfills
-    (`capture … --all`, exports) use `import`.
+10. **Capture keeps** the user's typed messages and the assistant's text replies, and from Claude Code one item
+    by author `actions` per turn (the tool calls between two prompts): the command lines it ran, marked when they
+    failed or did not run, and the files it read, edited or wrote, at most 800 characters
+    (`COGITO_MEM_CAPTURE_ACTIONS=off` leaves it out). Its `client_ref` is the line of the turn's first tool call,
+    so capturing again from any point adds no second copy. It leaves out tool output, file contents, thinking,
+    sub-agent turns, slash-command output, injected system reminders, compaction summaries and text inside
+    `<private>…</private>`. Obvious secrets (API keys, tokens, private keys, `password=…`) are replaced with
+    `[redacted]` before they are stored. Backfills (`capture … --all`, exports) use `import`.
+    `COGITO_MEM_CAPTURE=off` pauses the hooks. Recall shows `actions` items after the messages, in the room left.
 11. **MCP details:** `author` is the client's name from `initialize`; `thread_id` is the Claude Code session
     (Claude Code passes `CLAUDE_CODE_SESSION_ID` to MCP servers), else `default`. Tool errors come back as tool
     results with `isError`, and every result carries the §3.2 response as text and as `structuredContent`.

@@ -67,7 +67,7 @@
     <div class="table">
       <table>
         <tr><th>In <code>~/.cogito-mem/</code></th><th>What</th></tr>
-        <tr><td><code>memory/yourname-hollow/</code></td><td>your messages, in one SQLite file</td></tr>
+        <tr><td><code>memory/yourname-hollow/</code></td><td>your messages, and a short note of what each turn did, in one SQLite file</td></tr>
         <tr><td><code>cache/</code></td><td>the numbers that make messages findable by meaning</td></tr>
         <tr><td><code>models/</code>, <code>bin/</code></td><td>the model and llama.cpp</td></tr>
         <tr><td><code>run/</code></td><td>logs, and the service's address while it runs</td></tr>
@@ -75,7 +75,10 @@
       </table>
     </div>
     <p>Before anything is stored, API keys, tokens, private keys and passwords in your chats are replaced with
-      <code>[redacted]</code>. Tool output and file contents are not stored at all.</p>
+      <code>[redacted]</code>. Of Claude's work, only the command lines and file names are kept: tool output and
+      file contents are not stored at all.</p>
+    <p>Put anything you want kept out inside <code>&lt;private&gt;…&lt;/private&gt;</code>. To pause capture, set
+      <code>COGITO_MEM_CAPTURE=off</code>; to keep messages only, <code>COGITO_MEM_CAPTURE_ACTIONS=off</code>.</p>
 
     <h2>Check it yourself</h2>
     <p>See that Cogi listens only on your own computer:</p>
