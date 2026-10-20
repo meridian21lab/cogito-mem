@@ -225,21 +225,29 @@ def test_claude_code_plugin_files_are_consistent():
     # The MCP server is declared in plugin.json: a root .mcp.json would also load as a project
     # config when the repository is opened in Claude Code, where ${CLAUDE_PLUGIN_ROOT} is unset.
     assert not (repo / ".mcp.json").exists()
-    # shown in /mcp as plugin:cogito-mem:cogi
+    # shown in /mcp as plugin:cogito-mem:cogi. Anthropic's directory review wants each server started by running
+    # a program with plain arguments (no shell) and `uv run` pinned with --frozen; the hooks run the same command.
+    run = ["uv", "run", "--frozen", "--quiet", "--no-dev", "--project", "${CLAUDE_PLUGIN_ROOT}", "cogito-mem"]
     mcp = plugin["mcpServers"]["cogi"]
-    assert mcp["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"]
+    assert [mcp["command"], *mcp["args"]] == [*run, "mcp"]
+    assert mcp["env"] == {"CLAUDE_PLUGIN_OPTION_MEMORY_NAME": "${user_config.memory_name}"}
     hooks = json.loads((repo / "hooks" / "hooks.json").read_text())["hooks"]
+    hook_run = " ".join(run).replace("${CLAUDE_PLUGIN_ROOT}", '"${CLAUDE_PLUGIN_ROOT}"')
     for event in ("Stop", "SessionEnd"):
-        assert "cogito-mem-plugin\" capture claude-code" in hooks[event][0]["hooks"][0]["command"]
+        assert hooks[event][0]["hooks"][0]["command"] == f"{hook_run} capture claude-code"
     for event in ("UserPromptSubmit", "SessionStart"):
-        assert "cogito-mem-plugin\" recall claude-code" in hooks[event][0]["hooks"][0]["command"]
+        assert hooks[event][0]["hooks"][0]["command"] == f"{hook_run} recall claude-code"
     assert hooks["SessionStart"][0]["matcher"] == "startup|resume"
-    shim = repo / "scripts" / "cogito-mem-plugin"
-    assert os.access(shim, os.X_OK)
-    out = subprocess.run(["sh", str(shim), "--version"], capture_output=True, text=True, timeout=120,
-                         env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(repo), "PYTHONPATH": SRC})  # fmt: skip
-    assert out.returncode == 0 and out.stdout.startswith("cogito-mem ")
-
+    # the directory reads these listing fields; displayName must have no invisible characters
+    assert plugin["displayName"].isprintable() and all(ord(c) < 0x2000 for c in plugin["displayName"])
+    assert (repo / plugin["icon"]).is_file()
+    for key in ("documentationUrl", "supportUrl", "privacyPolicyUrl", "homepage"):
+        assert plugin[key].startswith("https://")
+    assert market["plugins"][0]["category"] == "productivity"
+    # the MCP Registry entry ships with the same version, and the README carries its ownership line
+    server = json.loads((repo / "server.json").read_text())
+    assert server["version"] == server["packages"][0]["version"] == __version__
+    assert f"<!-- mcp-name: {server['name']} -->" in (repo / "README.md").read_text()
 
 def test_installer_scripts_exist():
     repo = Path(__file__).resolve().parents[1]

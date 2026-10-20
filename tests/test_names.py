@@ -208,27 +208,22 @@ def test_the_plugin_asks_for_the_name():
     option = plugin["userConfig"]["memory_name"]
     assert option["type"] == "string" and not option.get("required") and "default" not in option
     assert option["title"] == "Name your memory" and "-hollow" in option["description"]
-    assert plugin["mcpServers"]["cogi"]["env"] == {"COGITO_MEM_NAMESPACE": "${user_config.memory_name}"}
-    # Claude Code refuses ${user_config.*} in shell-form hook commands; the shim reads the env var instead
+    assert plugin["mcpServers"]["cogi"]["env"] == {"CLAUDE_PLUGIN_OPTION_MEMORY_NAME": "${user_config.memory_name}"}
+    # Claude Code refuses ${user_config.*} in shell-form hook commands; hooks get CLAUDE_PLUGIN_OPTION_MEMORY_NAME
     assert "user_config" not in (REPO / "hooks" / "hooks.json").read_text()
 
 
 @pytest.mark.parametrize(
     "option, preset, seen",
-    [("work-hollow", None, "work-hollow"), ("", None, "unset"), (None, "keep", "keep"), ("", "keep", "keep")],
+    [("work-hollow", None, "work-hollow"), ("", None, None), (None, "keep", "keep"), ("", "keep", "keep"),
+     ("work-hollow", "keep", "keep"), ("${user_config.memory_name}", None, None)],
 )
-def test_the_plugin_shim_passes_the_name_on(tmp_path, option, preset, seen):
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    fake = bin_dir / "cogito-mem"
-    fake.write_text('#!/bin/sh\necho "${COGITO_MEM_NAMESPACE-unset}"\n')
-    fake.chmod(0o755)
-    env = {k: v for k, v in os.environ.items() if k not in ("COGITO_MEM_NAMESPACE", "CLAUDE_PLUGIN_OPTION_MEMORY_NAME")}
-    env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
-    if option is not None:
-        env["CLAUDE_PLUGIN_OPTION_MEMORY_NAME"] = option
-    if preset is not None:
-        env["COGITO_MEM_NAMESPACE"] = preset
-    out = subprocess.run(["sh", str(REPO / "scripts" / "cogito-mem-plugin"), "mcp"], capture_output=True, text=True,
-                         env=env, timeout=30)  # fmt: skip
-    assert out.returncode == 0 and out.stdout.strip() == seen
+def test_the_plugin_option_names_the_memory(monkeypatch, option, preset, seen):
+    # the plugin's "Name your memory" option reaches the hooks and the MCP server as CLAUDE_PLUGIN_OPTION_MEMORY_NAME;
+    # an explicit COGITO_MEM_NAMESPACE still wins, and empty means "the saved name or <username>-hollow"
+    for var, value in (("CLAUDE_PLUGIN_OPTION_MEMORY_NAME", option), ("COGITO_MEM_NAMESPACE", preset)):
+        if value is None:
+            monkeypatch.delenv(var, raising=False)
+        else:
+            monkeypatch.setenv(var, value)
+    assert names._env_name() == seen

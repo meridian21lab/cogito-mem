@@ -9,7 +9,9 @@
     {
       "name": "cogito-mem",
       "source": "./",
-      "description": "Long-term local memory for Claude Code: captures sessions and lets Claude recall earlier work."
+      "description": "Local long-term memory for Claude Code. Cogi saves every message you and Claude exchange, word for word, and brings back what matters with each prompt. No API key, no cloud: nothing leaves your machine.",
+      "category": "productivity",
+      "homepage": "https://meridian21lab.github.io/cogito-mem/"
     }
   ]
 }

@@ -9,7 +9,7 @@ needed. Pick **one** of the four ways below; they all give the same memory in `~
 | Way | Best for | Needs |
 |---|---|---|
 | [A. One line](#a-one-line-recommended) | Most people | `curl` |
-| [B. Claude Code plugin](#b-claude-code-plugin) | Claude Code only, from inside Claude Code | `uv` (or Python 3.10+ with numpy) |
+| [B. Claude Code plugin](#b-claude-code-plugin) | Claude Code only | `uv` |
 | [C. Docker](#c-docker) | Servers, or keeping everything in a container | Docker |
 | [D. By hand](#d-by-hand) | Python developers | Python 3.10+ |
 
@@ -52,8 +52,10 @@ meridian21lab/cogito-mem`, then `/plugin install cogito-mem@cogito-mem`, choose 
 run `/reload-plugins`.
 
 When you enable it, the plugin asks you to **name your memory**; leave it empty for `<username>-hollow`.
-The plugin registers the MCP server and the capture and recall hooks. It runs cogito-mem through `uv` (the first start takes a
-few seconds while uv builds its environment), or through an installed `cogito-mem`, or a `python3` that has numpy.
+The plugin registers the MCP server and the capture and recall hooks. Each of them runs
+`uv run --frozen … cogito-mem` from the plugin folder, with the exact versions in `uv.lock` (the first start takes a
+few seconds while uv builds the environment). Turn on updates in `/plugin` → *Marketplaces* → *cogito-mem* →
+*Enable auto-update*.
 On its first start the service downloads llama.cpp (unless one is on your `PATH`) and the model (310 MB) into
 `~/.cogito-mem`; until they are ready, the memory searches by keyword.
 
@@ -140,6 +142,7 @@ names (`memory/default`) is renamed to your memory's name by itself, once.
 | Port 7327 is taken | `export COGITO_MEM_PORT=7400` before `cogito-mem install` |
 | Search finds only exact words | The model isn't loaded: run `cogito-mem doctor`; logs are in `~/.cogito-mem/run/` |
 | Run on CPU only | `COGITO_MEM_GPU_LAYERS=0` |
+| Keep something out of the memory | Put it inside `<private>…</private>`; to pause capture, set `COGITO_MEM_CAPTURE=off` (for Claude Code under `"env"` in `~/.claude/settings.json`) |
 | Behind a TLS-inspecting proxy | Set `SSL_CERT_FILE` to your CA bundle; for Docker builds pass `--secret id=extra_ca,src=ca.pem` |
 
 Everything else has a working default; the full list of settings is in the [README](../README.md#settings).

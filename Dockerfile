@@ -39,7 +39,8 @@ RUN --mount=type=secret,id=extra_ca,required=false \
 # ---------------------------------------------------------------- runtime
 FROM ${PYTHON_IMAGE}
 ARG BAKE_MODEL=0
-LABEL org.opencontainers.image.title="cogito-mem" \
+LABEL io.modelcontextprotocol.server.name="io.github.meridian21lab/cogito-mem" \
+      org.opencontainers.image.title="cogito-mem" \
       org.opencontainers.image.description="A fast, simple, local memory for agents (append/query, MCP)" \
       org.opencontainers.image.source="https://github.com/meridian21lab/cogito-mem" \
       org.opencontainers.image.licenses="MIT"

@@ -6,12 +6,14 @@ memory learns of a message when it is captured); backfilling old files uses
 ``import`` so ``as_of`` sees them as if the memory had been running then.
 
 Obvious secrets (API keys, tokens, private keys) are replaced with ``[redacted]``
-before anything is stored, because the memory never forgets.
+before anything is stored, because the memory never forgets. Text inside
+``<private>…</private>`` is left out. ``COGITO_MEM_CAPTURE=off`` pauses capture.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Iterable, Protocol
@@ -29,11 +31,15 @@ _SECRETS = [
     re.compile(r"\bAIza[0-9A-Za-z_\-]{35}"),
     re.compile(r"\bhf_[A-Za-z0-9]{30,}"),
     re.compile(r"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"),
+    re.compile(r"(?i)(?<=\bbearer )[A-Za-z0-9._~+/=\-]{16,}"),
 ]
+# ``password=…``, also inside a longer name (``OPENROUTER_API_KEY=…``), and the password in a URL.
 _ASSIGNED = re.compile(
-    r"(?i)\b((?:api[_-]?key|secret(?:[_-]?key)?|access[_-]?token|auth[_-]?token|password|passwd|client[_-]?secret)"
-    r"[\"']?\s*[:=]\s*[\"']?)([^\s\"']{8,})"
+    r"(?i)(?<![A-Za-z0-9])((?:api[_-]?key|secret(?:[_-]?key)?|access[_-]?token|auth[_-]?token|password|passwd"
+    r"|client[_-]?secret)[\"']?\s*[:=]\s*[\"']?)([^\s\"']{8,})"
 )
+_URL_PASSWORD = re.compile(r"(://[^/\s:@]+:)[^/\s@]+(?=@)")
+_PRIVATE = re.compile(r"<private>.*?(?:</private>|\Z)", re.S | re.I)
 
 REDACTED = "[redacted]"
 
@@ -41,7 +47,18 @@ REDACTED = "[redacted]"
 def redact(text: str) -> str:
     for pattern in _SECRETS:
         text = pattern.sub(REDACTED, text)
+    text = _URL_PASSWORD.sub(lambda m: m.group(1) + REDACTED, text)
     return _ASSIGNED.sub(lambda m: m.group(1) + REDACTED, text)
+
+
+def without_private(text: str) -> str:
+    """The text without what is marked ``<private>…</private>`` (an unclosed tag hides the rest)."""
+    return _PRIVATE.sub("", text)
+
+
+def enabled(setting: str = "COGITO_MEM_CAPTURE") -> bool:
+    """A capture switch: on unless the variable says ``off`` (or 0, false, no)."""
+    return os.environ.get(setting, "on").strip().lower() not in ("0", "off", "false", "no")
 
 
 class Sink(Protocol):

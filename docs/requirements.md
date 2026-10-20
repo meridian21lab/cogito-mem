@@ -592,10 +592,15 @@ These fill gaps the sections above leave open. Each can change without touching 
    message being replied to). A run of messages by one author, such as notes saved one after another, are
    embedded alone: with the previous note prepended, a set of 9 unrelated notes went from 9/9 to 4/9 found
    by meaning (EmbeddingGemma 300M).
-10. **Capture keeps** the user's typed messages and the assistant's text replies. It leaves out tool calls and
-    output, thinking, sub-agent turns, slash-command output and injected system reminders. Obvious secrets (API
-    keys, tokens, private keys, `password=…`) are replaced with `[redacted]` before they are stored. Backfills
-    (`capture … --all`, exports) use `import`.
+10. **Capture keeps** the user's typed messages and the assistant's text replies, and from Claude Code one item
+    by author `actions` per turn (the tool calls between two prompts): the command lines it ran, marked when they
+    failed or did not run, and the files it read, edited or wrote, at most 800 characters
+    (`COGITO_MEM_CAPTURE_ACTIONS=off` leaves it out). Its `client_ref` is the line of the turn's first tool call,
+    so capturing again from any point adds no second copy. It leaves out tool output, file contents, thinking,
+    sub-agent turns, slash-command output, injected system reminders, compaction summaries and text inside
+    `<private>…</private>`. Obvious secrets (API keys, tokens, private keys, `password=…`) are replaced with
+    `[redacted]` before they are stored. Backfills (`capture … --all`, exports) use `import`.
+    `COGITO_MEM_CAPTURE=off` pauses the hooks. Recall shows `actions` items after the messages, in the room left.
 11. **MCP details:** `author` is the client's name from `initialize`; `thread_id` is the Claude Code session
     (Claude Code passes `CLAUDE_CODE_SESSION_ID` to MCP servers), else `default`. Tool errors come back as tool
     results with `isError`, and every result carries the §3.2 response as text and as `structuredContent`.
@@ -689,10 +694,9 @@ These fill gaps the sections above leave open. Each can change without touching 
     `--namespace` picks another memory for one command without saving it. A name that breaks the rule (letters,
     digits, `.`, `_`, `-`, up to 64) is an error that says so: on the command line, in the capture hook's output and
     in every MCP tool result; recall then adds nothing and notes why in `run/recall.log`. The Claude Code plugin
-    asks for the name when it is enabled (`userConfig.memory_name`, given to the MCP server as
-    `COGITO_MEM_NAMESPACE` and to the hooks as `CLAUDE_PLUGIN_OPTION_MEMORY_NAME`, which the plugin's script
-    passes on); left empty, Claude Code substitutes an empty string and the saved name or `<username>-hollow`
-    applies. `cogito-mem install --name` sets it outside the plugin.
+    asks for the name when it is enabled (`userConfig.memory_name`, which both the MCP server and the hooks
+    receive as `CLAUDE_PLUGIN_OPTION_MEMORY_NAME`; an explicit `COGITO_MEM_NAMESPACE` still wins); left empty,
+    Claude Code substitutes an empty string and the saved name or `<username>-hollow` applies. `cogito-mem install --name` sets it outside the plugin.
 
     **Nothing is lost on the way.** The first time a name is saved, a memory from before names (`memory/default`)
     is renamed to it, under a file lock (`run/namespace.lock`), after stopping a local service that holds the folder
@@ -708,3 +712,12 @@ These fill gaps the sections above leave open. Each can change without touching 
     `curl` examples reach the same memory as the assistant. It does not fall back to `<username>-hollow`:
     a service in Docker runs as another user, and would invent a name nobody chose. A Docker service with no name
     given keeps `default`.
+
+24. **The plugin runs `uv run --frozen` directly, with no launcher script** (20 Oct 2026). Anthropic's directory
+    review blocks an unpinned `uv run` and holds a local MCP server started through a shell or a script that runs a
+    launcher ([pre-submission checklist](https://claude.com/docs/plugins/pre-submission-checklist)). The MCP server
+    is now `uv` with plain arguments (`run --frozen --quiet --no-dev --project ${CLAUDE_PLUGIN_ROOT} cogito-mem mcp`)
+    and the hooks run the same command, so the exact versions in `uv.lock` are used and the old fallbacks (an
+    installed `cogito-mem`, a `python3` with numpy) are gone: the plugin needs `uv`. The listing also gained `icon`,
+    `documentationUrl`, `supportUrl`, `privacyPolicyUrl` and a `productivity` category, and `displayName` lost the
+    emoji, whose invisible variation selector blocks review.

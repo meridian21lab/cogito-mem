@@ -307,6 +307,21 @@ def test_previous_turn_and_speaker_together():
         ]
 
 
+def test_a_turns_action_note_does_not_come_between_prompt_and_reply():
+    with Memory(None, embedder=None) as m:
+        append(
+            m,
+            {"author": "user", "thread_id": "s1", "text": "Why did CI fail?"},
+            {"author": "actions", "thread_id": "s1", "text": "Ran `pytest -q` (failed). Read tests/test_io.py."},
+            {"author": "assistant", "thread_id": "s1", "text": "A race in temp-dir cleanup."},
+        )
+        prompts = m.namespace("default").prompts([1, 2], "previous", None, True)
+        assert prompts == [
+            "title: none | text: user: Why did CI fail?\n\nactions: Ran `pytest -q` (failed). Read tests/test_io.py.",
+            "title: none | text: user: Why did CI fail?\n\nassistant: A race in temp-dir cleanup.",
+        ]
+
+
 def test_notes_by_one_author_are_embedded_alone():
     """Context helps a reply, not a run of separate notes (they would blur each other)."""
     with Memory(None, embedder=None) as m:

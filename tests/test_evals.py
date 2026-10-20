@@ -189,11 +189,15 @@ class _FakeChat(BaseHTTPRequestHandler):
     """An OpenAI-compatible endpoint: always answers "Biscuit"; the judge says CORRECT when the gold is Biscuit."""
 
     calls = 0
+    bodies: list = []
 
     def do_POST(self):  # noqa: N802
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         type(self).calls += 1
+        type(self).bodies.append(body)
         prompt = body["messages"][-1]["content"]
+        if isinstance(prompt, list):  # a cacheable prefix and the question, as parts
+            prompt = "".join(part["text"] for part in prompt)
         if body.get("response_format"):
             content = json.dumps({"label": "CORRECT" if "Gold answer: Biscuit" in prompt else "WRONG"})
         else:
@@ -257,3 +261,76 @@ def test_locomo_qa_helpers(tmp_path):
     env = tmp_path / ".env"
     env.write_text("# keys\nA_KEY: one\nexport B_KEY='two'\nC_KEY=three\n")
     assert locomo_qa.read_env_file(env) == {"A_KEY": "one", "B_KEY": "two", "C_KEY": "three"}
+
+
+def test_locomo_qa_reasoning_models_and_two_judges(tmp_path):
+    from cogito_mem.evals import locomo_qa
+
+    _FakeChat.bodies = []
+    srv = HTTPServer(("127.0.0.1", 0), _FakeChat)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        data = tmp_path / "locomo.json"
+        data.write_text(json.dumps(mini_locomo()))
+        env = tmp_path / ".env"
+        env.write_text("OPENROUTER_API_KEY=test-key\n")
+        out = tmp_path / "qa.json"
+        argv = ["--data", str(data), "--protocol", "mem0-2026", "--context", "full", "--answer-model", "anthropic/claude-haiku-5.5",
+                "--judge-model", "openai/gpt-5-mini", "--judge-reasoning", "minimal", "--judge-max-tokens", "500",
+                "--judges", "mem0-2026,mem0-2025", "--answer-provider", "GMICloud,Parasail", "--llm-cache", str(tmp_path / "llm.jsonl"), "--env-file", str(env),
+                "--base-url", f"http://127.0.0.1:{srv.server_address[1]}", "--out", str(out)]  # fmt: skip
+        assert locomo_qa.main(argv) == 0
+        result = json.loads(out.read_text())
+        s = result["summary"]
+        assert set(s["J_by_judge"]) == {"mem0-2026", "mem0-2025"} and s["empty_answers"] == 0
+        assert result["meta"]["judges"] == ["mem0-2026", "mem0-2025"] and result["meta"]["served_by"]
+        assert all(set(r["judgments"]) == {"mem0-2026", "mem0-2025"} for r in result["per_question"])
+        answers = [b for b in _FakeChat.bodies if not b.get("response_format")]
+        judges = [b for b in _FakeChat.bodies if b.get("response_format")]
+        assert all(b["temperature"] == 0.0 and b["messages"][0]["content"][0]["cache_control"] for b in answers)
+        assert all(b["provider"] == {"order": ["GMICloud", "Parasail"], "allow_fallbacks": False} for b in answers)
+        assert all(b["reasoning"] == {"effort": "minimal"} and b["max_tokens"] == 500 and "temperature" not in b for b in judges)
+    finally:
+        srv.shutdown()
+    msgs = locomo_qa.answer_messages("mem0-2026", "full", "Where?", mini_locomo()[0], [], cache=True)
+    parts = msgs[0]["content"]
+    assert parts[0]["cache_control"] == {"type": "ephemeral"} and parts[1]["text"].startswith("\n\nQuestion: Where?")
+    assert locomo_qa.answer_messages("mem0-2026", "full", "Where?", mini_locomo()[0], [])[0]["content"] == parts[0]["text"] + parts[1]["text"]
+
+
+class _DropsFirstBody(BaseHTTPRequestHandler):
+    """The first answer stops in the middle of its chunked body, as a host that drops the connection does."""
+
+    calls = 0
+
+    def do_POST(self):  # noqa: N802
+        self.rfile.read(int(self.headers["Content-Length"]))
+        type(self).calls += 1
+        self.send_response(200)
+        if type(self).calls == 1:
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            self.wfile.write(b"10\r\n{\"choices\": [")
+            self.wfile.flush()
+            self.close_connection = True
+            return
+        data = json.dumps({"choices": [{"message": {"content": "Biscuit"}, "finish_reason": "stop"}], "usage": {}}).encode()
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *args):
+        pass
+
+
+def test_locomo_qa_llm_retries_a_dropped_body():
+    from cogito_mem.evals import locomo_qa
+
+    srv = HTTPServer(("127.0.0.1", 0), _DropsFirstBody)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        llm = locomo_qa.LLM(f"http://127.0.0.1:{srv.server_address[1]}", "key", None, retry_delay=0.01)
+        assert llm.chat("m", [{"role": "user", "content": "hi"}])["content"] == "Biscuit"
+        assert _DropsFirstBody.calls == 2
+    finally:
+        srv.shutdown()

@@ -1,9 +1,15 @@
 # cogito-mem
 
-**Long-term memory for your AI assistants, on your own machine.**
+<!-- mcp-name: io.github.meridian21lab/cogito-mem -->
+
+**Long-term memory for Claude Code, on your own machine.** Cogi the squirrel keeps every message you and Claude
+exchange, and brings back what Claude forgot. No API key, no cloud, no AI calls to store.
+
+[![Cogi: Claude forgets. Cogi doesn't.](https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/site/assets/cogi-card.png)](https://meridian21lab.github.io/cogito-mem/)
 
 🐿️ **Docs: [meridian21lab.github.io/cogito-mem](https://meridian21lab.github.io/cogito-mem/)**: install in two minutes, how it works, results, API and MCP.
 
+[![docs](https://img.shields.io/badge/docs-cogi-c8621a)](https://meridian21lab.github.io/cogito-mem/)
 [![tests](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml)
 [![docker](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
@@ -21,27 +27,30 @@ cogito-mem writes it down for you. It captures your sessions as you work and giv
 
 Everything stays in a folder on your computer. No account, no API key, no cloud.
 
-In Claude Code, with [uv](https://docs.astral.sh/uv/) installed, two commands in a terminal:
+In Claude Code, with [uv](https://docs.astral.sh/uv/) installed, one command in a terminal:
 
 ```sh
-claude plugin marketplace add meridian21lab/cogito-mem
-claude plugin install cogito-mem@cogito-mem --scope user
+claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem
 ```
 
 That's the whole setup ([the install guide](https://meridian21lab.github.io/cogito-mem/start.html) shows what you should
-see at each step). For Codex and Claude Desktop as well, one line connects every client it finds:
+see at each step; on Claude Code older than 2.1.292, run `claude plugin marketplace add meridian21lab/cogito-mem` and
+then `claude plugin install cogito-mem@cogito-mem`). To get updates, turn on auto-update once: `/plugin` →
+*Marketplaces* → *cogito-mem* → *Enable auto-update*. For Codex and Claude Desktop as well, one line connects every client it finds:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh
 ```
 
-> **Early access.** v0.1 is new. It is built and tested (132 tests, including both end-to-end acceptance tests),
-> and we are measuring it before calling it stable. Feedback and issues are very welcome.
+> **Early access.** v0.2 is new. It is built and tested (about 200 tests, including both end-to-end acceptance
+> tests), and we are measuring it before calling it stable. Feedback and issues are very welcome.
 
 ## What you get
 
 - **It remembers every session by itself.** Claude Code and Codex conversations are captured after each turn.
-  Past chats from claude.ai and ChatGPT come in from their data exports.
+  From Claude Code it also keeps what each turn did, in one short note: the commands run (and which failed) and
+  the files read, edited or written, never their output. Past chats from claude.ai and ChatGPT come in from their
+  data exports.
 - **It finds things by meaning and by words.** An open embedding model (Google's EmbeddingGemma 2) runs locally in
   llama.cpp, next to classic keyword search; the two rankings are fused.
 - **It answers in a few tokens.** A query returns the handful of stored messages that answer it, word for word,
@@ -68,6 +77,16 @@ curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/insta
 
 They work well together: keep the rules for your project in `CLAUDE.md`, and let cogito-mem remember what
 happened.
+
+**Next to other Claude Code memory plugins** (from each project's README, checked 20 Oct 2026):
+
+| | cogito-mem | [claude-mem](https://github.com/thedotmack/claude-mem) | [Mem0 plugin](https://github.com/mem0ai/mem0/tree/main/integrations/claude-code-plugin) | [cognee plugin](https://github.com/topoteretes/cognee-integrations) | [Supermemory plugin](https://github.com/supermemoryai/claude-supermemory) |
+|---|---|---|---|---|---|
+| AI calls to store a message | **none** | an observer model per tool call (Haiku on your Claude plan by default) | extraction on Mem0's servers | extraction with your LLM key or `claude -p` | in Supermemory's service |
+| Account or API key | **none** | optional sign-in | Mem0 Platform API key | an LLM key or the Claude CLI | API key or login |
+| Where your memory lives | **your computer** | your computer (cloud sync optional) | Mem0's cloud | your computer (cloud optional) | Supermemory's cloud (local mode available) |
+| What comes back | **your exact words, with dates** | AI-written observations | extracted memories | graph facts and summaries | extracted memories |
+| Searchable after | **the same turn** | the observer's run | a batch (every 5 exchanges) | the next graph run | the background save |
 
 ## Measured
 
@@ -138,6 +157,25 @@ it is 26 ms. Appending is fast because embedding happens in the background: at 1
 new item can be found by meaning about 57 ms later on the CPU and 13 ms later with Metal. With Metal, the model
 embeds about 21k tokens a second (1M tokens in 47 s). Reproduce with
 `COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --tokens 10M --random-vectors` (leave out the variable for Metal).
+
+**Finding the right session (LongMemEval-S).** To be measured. [LongMemEval](https://github.com/xiaowu0162/LongMemEval)
+gives each of its 500 questions a history of about 50 chat sessions (about 115k tokens) and labels the sessions, and
+the turns in them, that hold the answer. The number other local memory tools publish for it is session-level recall
+at 5, with no LLM involved: the share of questions for which a session holding the answer is among the first five
+sessions found. `eval longmemeval-recall` loads each question's sessions into a fresh memory (one item per turn,
+dated by its session), asks the question as of the question's date, and reports that recall at 1, 3, 5 and 10, the
+stricter variant (every answer session in the top k), NDCG@10 and turn-level recall, overall and per question type.
+It counts all 500 questions, as deja-vu and MemPalace do, and separately the 470 that are not abstention questions,
+as LongMemEval's own retrieval evaluation does. Download `longmemeval_s_cleaned.json` from
+[the dataset page](https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned), then:
+
+```sh
+cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --out results/lme-recall/hybrid.json --questions-out results/lme-recall/hybrid.jsonl
+cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --search keyword --out results/lme-recall/keyword.json
+cogito-mem eval longmemeval-recall compare results/lme-recall/keyword.json results/lme-recall/hybrid.json
+```
+
+Rerunning with the same `--questions-out` file resumes an interrupted run, and embeddings are cached.
 
 ## Use it
 
@@ -235,6 +273,8 @@ Everything has a working default. Environment variables, for when you need them:
 | `COGITO_MEM_GPU_LAYERS` / `COGITO_MEM_THREADS` | Passed to llama.cpp as `-ngl` / `-t` (`0` layers = CPU only). |
 | `COGITO_MEM_ALLOWED_HOSTS` | Extra `Host` names the service accepts (e.g. a Docker network name). |
 | `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL (reorders the top 30; GPU recommended). |
+| `COGITO_MEM_CAPTURE` | `off` pauses capture: the hooks store nothing (`capture … --all` still runs when you ask). |
+| `COGITO_MEM_CAPTURE_ACTIONS` | `off` stops the note of each Claude Code turn's commands and files (default on). |
 | `COGITO_MEM_NO_DOWNLOAD` | Never download anything. |
 
 ## Privacy and security
@@ -244,8 +284,12 @@ Everything has a working default. Environment variables, for when you need them:
 - The service listens on `127.0.0.1` only. It refuses requests whose `Host` or `Origin` is not local and bodies
   that are not JSON, so a web page you visit can neither read nor write it. There are no accounts: anything that
   runs as you on your machine can use it, as with any local tool.
-- Capture skips tool output, thinking and system text, and replaces API keys, tokens, private keys and
-  `password=…` values with `[redacted]` before anything is stored.
+- Capture skips tool output, file contents, thinking, system text and the summary Claude Code writes when it
+  compacts a session; of a command it keeps only the command line. API keys, tokens, private keys and
+  `password=…` values become `[redacted]` before anything is stored.
+- Text inside `<private>…</private>` is not stored; the rest of the message is. `COGITO_MEM_CAPTURE=off` (for
+  example under `"env"` in `~/.claude/settings.json`) pauses capture; `COGITO_MEM_CAPTURE_ACTIONS=off` keeps
+  messages only.
 - Nothing leaves your machine. The only network traffic is the one-time download of llama.cpp and the model.
 
 ## FAQ
@@ -295,6 +339,7 @@ The stage-0 measurements:
 
 ```sh
 cogito-mem eval locomo --data locomo10.json --search hybrid --out results/locomo.json
+cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --out results/lme-recall.json   # session R@k, no LLM
 cogito-mem eval run --data longmemeval_m.json --arm U2 --out results/u2.json      # LongMemEval, arms U1-U3, R
 cogito-mem eval compare results/u1.json results/u2.json --budget 300
 COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --data longmemeval_m.json --tokens 10M --out results/speed.json

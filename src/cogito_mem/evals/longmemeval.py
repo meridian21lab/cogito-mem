@@ -74,8 +74,11 @@ def config_for(args: argparse.Namespace) -> Config:
     return Config(search=args.search or "hybrid", doc_context=args.doc_context or "own", doc_author=author)
 
 
-def load_question(mem: Memory, q: dict) -> tuple[list[str], int]:
-    """Load the question's history. Returns (evidence message ids, evidence turns split into pieces)."""
+def load_question(mem: Memory, q: dict, evidence_sessions: set[str] | None = None) -> tuple[list[str], int]:
+    """Load the question's history. Returns (evidence message ids, evidence turns split into pieces).
+
+    Evidence turns are the ``has_answer`` turns, only those of ``evidence_sessions`` when it is given.
+    """
     sessions = list(zip(q["haystack_session_ids"], q["haystack_dates"], q["haystack_sessions"]))
     order = sorted(range(len(sessions)), key=lambda i: (parse_date(sessions[i][1]), i))
     evidence: list[str] = []
@@ -99,7 +102,7 @@ def load_question(mem: Memory, q: dict) -> tuple[list[str], int]:
                     "text": text,
                 }
             )
-            flags.append(bool(turn.get("has_answer")))
+            flags.append(bool(turn.get("has_answer")) and (evidence_sessions is None or str(sid) in evidence_sessions))
         if not items:
             continue
         last = base + len(turns)

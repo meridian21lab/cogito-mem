@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Install · Cogi</title>
-  <meta name="description" content="Install Cogi in Claude Code in two minutes: two commands, each with what you should see.">
+  <meta name="description" content="Install Cogi in Claude Code in two minutes: one command, and what you should see at each step.">
   <meta property="og:title" content="Install · Cogi">
-  <meta property="og:description" content="Install Cogi in Claude Code in two minutes: two commands, each with what you should see.">
+  <meta property="og:description" content="Install Cogi in Claude Code in two minutes: one command, and what you should see at each step.">
   <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
   <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/start.html">
   <meta name="twitter:card" content="summary_large_image">
@@ -32,7 +32,7 @@
   <main>
     <p class="eyebrow">Install</p>
     <h1>Cogi in Claude Code</h1>
-    <p class="lead">Five steps, about two minutes. Run one command at a time; after each you'll see what to expect.</p>
+    <p class="lead">Four steps, about two minutes. Run one command at a time; after each you'll see what to expect.</p>
 
     <ol class="steps">
       <li>
@@ -43,17 +43,17 @@
           <strong>new</strong> terminal afterwards, so it can be found.</p>
       </li>
       <li>
-        <h3>Add Cogi's marketplace</h3>
-<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin marketplace add meridian21lab/cogito-mem</code></pre></div>
-        <p class="see">Successfully added marketplace: cogito-mem</p>
-      </li>
-      <li>
-        <h3>Install the plugin</h3>
-<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin install cogito-mem@cogito-mem --scope user</code></pre></div>
+        <h3>Install Cogi</h3>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem</code></pre></div>
         <p class="see">Successfully installed plugin: cogito-mem@cogito-mem (scope: user)</p>
-        <p><code>--scope user</code> means Cogi remembers in every project. Your memory is called
-          <code>yourname-hollow</code>; the note that its name is "not yet set" just means that default is used.
-          To pick another name, add <code>--config memory_name=work-hollow</code>.</p>
+        <p class="small muted">Needs Claude Code 2.1.292 or newer (<code>claude --version</code>); on older versions use
+          the two commands under <em>Prefer to install from inside Claude Code?</em> below.</p>
+        <p>Cogi now remembers in every project. Your memory is called <code>yourname-hollow</code>; the note that its
+          name is "not yet set" just means that default is used. To pick another name, add
+          <code>--config memory_name=work-hollow</code>.</p>
+        <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>Stay up to date.</strong> In Claude Code, open
+          <code>/plugin</code>, go to <em>Marketplaces</em>, pick <em>cogito-mem</em> and choose <em>Enable
+          auto-update</em>.</p></div>
       </li>
       <li>
         <h3>Check it</h3>
@@ -150,6 +150,7 @@
       <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
       <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
       <a href="safety.html">What you install</a>
+      <a href="privacy.html">Privacy</a>
     </div>
   </footer>
 </body>
