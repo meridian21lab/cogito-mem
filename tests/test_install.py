@@ -247,7 +247,10 @@ def test_claude_code_plugin_files_are_consistent():
     # the MCP Registry entry ships with the same version, and the README carries its ownership line
     server = json.loads((repo / "server.json").read_text())
     assert server["version"] == server["packages"][0]["version"] == __version__
-    assert f"<!-- mcp-name: {server['name']} -->" in (repo / "README.md").read_text()
+    readme = (repo / "README.md").read_text()
+    assert f"<!-- mcp-name: {server['name']} -->" in readme
+    # the README is also the PyPI page, where links relative to the repository go nowhere
+    assert all(link.startswith("https://") for link in readme.split("](")[1:])
 
 def test_installer_scripts_exist():
     repo = Path(__file__).resolve().parents[1]
