@@ -6,7 +6,8 @@ payload Codex passes is not needed, so a change in its shape cannot break captur
 
 Kept: the user's messages and the agent's replies (``event_msg`` records of type
 ``user_message`` and ``agent_message``; older files without them fall back to
-``response_item`` messages, minus injected environment and instruction blocks).
+``response_item`` messages, minus injected environment and instruction blocks),
+without what is marked ``<private>…</private>``.
 ``client_ref`` is ``<session id>:<line number>``; ``thread_id`` is the session id.
 """
 
@@ -18,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-from . import Cursor, Sink, jsonl, read_new_lines, redact, send
+from . import Cursor, Sink, jsonl, read_new_lines, redact, send, without_private
 
 _INJECTED = ("<environment_context>", "<user_instructions>", "# AGENTS.md", "<permissions instructions>")
 
@@ -73,7 +74,8 @@ def items_from_records(records: list[tuple[int, dict]], session_id: str, use_eve
             text = _content_text(payload.get("content"))
             if author == "user" and text.lstrip().startswith(_INJECTED):
                 continue
-        if not author or not isinstance(text, str) or not text.strip():
+        text = without_private(text) if isinstance(text, str) else ""
+        if not author or not text.strip():
             continue
         item = {
             "author": author,

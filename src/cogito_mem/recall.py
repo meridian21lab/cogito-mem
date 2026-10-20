@@ -7,7 +7,8 @@ prints to the conversation, so Claude sees earlier work even when it never calls
 - ``UserPromptSubmit``: the memory is queried with the prompt. Items that score at
   least ``MIN_SCORE``, share enough of the prompt's words and are not from this
   session come back within ``MAX_TOKENS``, the current project's first, each with
-  its date and author.
+  its date and author. Messages come before the notes of what a turn did (author
+  ``actions``), which only fill the room left.
 - ``SessionStart`` (startup, resume): the last exchanges (each prompt with the final
   reply to it) of the most recent earlier session in the same project, read from its
   transcript. It also starts the local
@@ -31,7 +32,7 @@ from typing import Any, Callable
 
 from . import timeutil
 from .capture import jsonl
-from .capture.claude_code import items_from_lines, project_folder, project_of, projects_dir
+from .capture.claude_code import ACTIONS, items_from_lines, project_folder, project_of, projects_dir
 from .terms import query_terms, terms
 from .tokenizer import ApproxTokenizer, count, cut
 
@@ -94,7 +95,9 @@ def prompt_context(
         for it in resp["items"]
         if it["score"] >= min_score and it["thread_id"] != session and len(words & set(terms(it["text"]))) >= need
     ]
-    found.sort(key=lambda it: _title(it) != project)  # stable: this project's items first, each by score
+    # Stable: this project's items first, and in each, messages before ``actions`` items (what a
+    # turn did), which only take the room the messages leave; each by score.
+    found.sort(key=lambda it: (_title(it) != project, it["author"] == ACTIONS))
     lines: list[str] = []
     used = 0
     for it in found:
