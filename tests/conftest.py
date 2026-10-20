@@ -31,8 +31,10 @@ def isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
     for var in ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "COGITO_MEM_HOME", "COGITO_MEM_URL", "COGITO_MEM_PORT",
-                "CLAUDE_CODE_SESSION_ID", "COGITO_MEM_THREAD_ID"):
+                "CLAUDE_CODE_SESSION_ID", "COGITO_MEM_THREAD_ID", "COGITO_MEM_NAMESPACE"):
         monkeypatch.delenv(var, raising=False)
+    for var in ("LOGNAME", "USER", "LNAME", "USERNAME"):  # the memory is then named ksirg-hollow
+        monkeypatch.setenv(var, "ksirg")
     monkeypatch.setenv("COGITO_MEM_CLAUDE_DESKTOP_CONFIG", str(home / "claude_desktop_config.json"))
     return home
 

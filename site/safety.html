@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Safety · what you install · Cogi</title>
+  <meta name="description" content="Every file the plugin runs, every download, every network connection, and how to remove each part.">
+  <meta property="og:title" content="Safety · what you install · Cogi">
+  <meta property="og:description" content="Every file the plugin runs, every download, every network connection, and how to remove each part.">
+  <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
+  <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/safety.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/cogi.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="assets/cogi.svg" alt="">cogito-mem</a>
+      <nav class="nav" aria-label="Main">
+        <a href="index.html">Home</a>
+        <a href="start.html">Install</a>
+        <a href="how.html">How it works</a>
+        <a href="results.html">Results</a>
+        <a href="api.html">API &amp; MCP</a>
+        <a href="safety.html" aria-current="page">Safety</a>
+        <a href="https://github.com/meridian21lab/cogito-mem">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <p class="eyebrow">Safety</p>
+    <h1>What you install</h1>
+    <p class="lead">Cogi runs on your computer and never sends your conversations anywhere. Here is everything it
+      adds, downloads and stores, so you can check for yourself.</p>
+
+    <div class="cards">
+      <div class="card"><h3>Your computer only</h3><p>The service answers only on <code>127.0.0.1</code>, and it refuses requests from web pages.</p></div>
+      <div class="card"><h3>No cloud, no tracking</h3><p>No account, no API key, no analytics. After setup, Cogi makes no network calls.</p></div>
+      <div class="card"><h3>Open source</h3><p>Every line is <a href="https://github.com/meridian21lab/cogito-mem">on GitHub</a>, under the MIT license.</p></div>
+    </div>
+
+    <h2>What the plugin adds to Claude Code</h2>
+    <p>Three small files, each linked to its source:</p>
+    <div class="table">
+      <table>
+        <tr><th>File</th><th>What it tells Claude Code</th></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/.claude-plugin/plugin.json"><code>plugin.json</code></a></td><td>Start an MCP server called <code>cogi</code> with the two tools, and ask for your memory's name.</td></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/hooks/hooks.json"><code>hooks.json</code></a></td><td>After each answer and at the end of a session, save the new messages. At the start of a session and with each prompt, add relevant memories.</td></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/scripts/cogito-mem-plugin"><code>cogito-mem-plugin</code></a></td><td>A 28-line shell script that runs Cogi: with an installed <code>cogito-mem</code>, with uv, or with Python.</td></tr>
+      </table>
+    </div>
+
+    <h2>What gets downloaded, once</h2>
+    <div class="table">
+      <table>
+        <tr><th>What</th><th>From</th></tr>
+        <tr><td>Cogi itself (Python) and its one dependency, numpy</td><td><a href="https://github.com/meridian21lab/cogito-mem">this repository</a> and <a href="https://pypi.org/project/numpy/">PyPI</a>, by uv</td></tr>
+        <tr><td>llama.cpp's <code>llama-server</code>, which runs the model (skipped if you already have it)</td><td><a href="https://github.com/ggml-org/llama.cpp/releases">llama.cpp's official releases</a></td></tr>
+        <tr><td>The model, EmbeddingGemma 2 (310 MB, the big one)</td><td><a href="https://huggingface.co/ggml-org/embeddinggemma-2-GGUF">Hugging Face, ggml-org</a></td></tr>
+      </table>
+    </div>
+    <p class="small muted">Everything comes over HTTPS from its official source. After that, nothing is downloaded again.</p>
+
+    <h2>What is stored, and where</h2>
+    <div class="table">
+      <table>
+        <tr><th>In <code>~/.cogito-mem/</code></th><th>What</th></tr>
+        <tr><td><code>memory/yourname-hollow/</code></td><td>your messages, in one SQLite file</td></tr>
+        <tr><td><code>cache/</code></td><td>the numbers that make messages findable by meaning</td></tr>
+        <tr><td><code>models/</code>, <code>bin/</code></td><td>the model and llama.cpp</td></tr>
+        <tr><td><code>run/</code></td><td>logs, and the service's address while it runs</td></tr>
+        <tr><td><code>config.json</code></td><td>your memory's name</td></tr>
+      </table>
+    </div>
+    <p>Before anything is stored, API keys, tokens, private keys and passwords in your chats are replaced with
+      <code>[redacted]</code>. Tool output and file contents are not stored at all.</p>
+
+    <h2>Check it yourself</h2>
+    <p>See that Cogi listens only on your own computer:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>lsof -nP -iTCP:7327 -sTCP:LISTEN</code></pre></div>
+    <p class="see"><code>127.0.0.1:7327 (LISTEN)</code>, never <code>*:7327</code></p>
+    <p>Or switch off Wi-Fi: Cogi keeps saving and finding as before.</p>
+
+    <h2>Remove everything</h2>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin uninstall cogito-mem@cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>rm -rf ~/.cogito-mem</code></pre></div>
+    <p class="small muted">The first removes the plugin; the second erases your memories, the model and llama.cpp.</p>
+
+    <div class="next"><a href="api.html">← API &amp; MCP</a><a href="index.html">Home →</a></div>
+  </main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><img src="assets/cogi.svg" alt="">cogito-mem · free and open source (MIT)</span>
+      <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
+      <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
+      <a href="safety.html">What you install</a>
+    </div>
+  </footer>
+</body>
+</html>

@@ -12,12 +12,22 @@ import threading
 from pathlib import Path
 
 from . import __version__
+from .api import DEFAULT_MAX_TOKENS
 
 
 def _root(args: argparse.Namespace) -> Path:
     from .client import default_root
 
     return Path(args.root).expanduser() if getattr(args, "root", None) else default_root()
+
+
+def _namespace(args: argparse.Namespace) -> str:
+    """``--namespace``, or the memory's name (``names.default_namespace``)."""
+    if not getattr(args, "namespace", None):
+        from .names import default_namespace
+
+        args.namespace = default_namespace(_root(args))
+    return args.namespace
 
 
 def _print(obj: object) -> None:
@@ -65,6 +75,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         memory.close()
         return 1
 
+    _migrate_before_serving(root)
     threading.Thread(target=memory.open_all, name="cogito-mem-warm-up", daemon=True).start()
 
     def stop(*_: object) -> None:
@@ -89,8 +100,21 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _migrate_before_serving(root: Path) -> None:
+    """Rename ``memory/default`` to the chosen name, now that no other service holds the folder."""
+    from .names import InvalidName, chosen_namespace, migrate_default
+
+    try:
+        name = chosen_namespace(root)
+        if name is not None:
+            migrate_default(root, name)
+    except (InvalidName, OSError) as exc:
+        logging.warning("the memory's name: %s", exc)
+
+
 def cmd_mcp(args: argparse.Namespace) -> int:
     from .mcp_server import McpServer
+    from .names import InvalidName
 
     if args.in_process:
         from .memory import Memory
@@ -99,8 +123,21 @@ def cmd_mcp(args: argparse.Namespace) -> int:
         handle = memory.handle
     else:
         handle = _client(args).handle
-    McpServer(handle, namespace=args.namespace).run()
+    try:
+        namespace = _namespace(args)
+    except InvalidName as exc:  # answer every tool call with the reason, so the assistant can say it
+        namespace, handle = None, _refuse(str(exc))
+    McpServer(handle, namespace=namespace).run()
     return 0
+
+
+def _refuse(message: str):
+    from .errors import ApiError
+
+    def handle(body: dict) -> dict:
+        raise ApiError("invalid_argument", message)
+
+    return handle
 
 
 def cmd_install(args: argparse.Namespace) -> int:
@@ -113,6 +150,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         start=not args.no_start,
         url=args.url,
         recall=not args.no_recall,
+        name=args.name,
     )
 
 
@@ -152,6 +190,7 @@ def _detach(argv: list[str], root: Path) -> None:
 
 def cmd_capture(args: argparse.Namespace) -> int:
     root = _root(args)
+    _namespace(args)
     state = root / "run" / "capture"
     if args.source == "claude-code":
         from .capture import claude_code
@@ -196,9 +235,15 @@ def cmd_capture(args: argparse.Namespace) -> int:
 
 def cmd_recall(args: argparse.Namespace) -> int:
     from .client import Client
-    from .recall import TIMEOUT, claude_code_hook
+    from .names import InvalidName
+    from .recall import TIMEOUT, _log, claude_code_hook
 
     root = _root(args)
+    try:
+        _namespace(args)
+    except InvalidName as exc:  # recall is a hint: say nothing, and note why
+        _log(root / "run" / "recall.log", "recall", exc)
+        return 0
     out = claude_code_hook(
         sys.stdin.read,
         lambda: Client(url=args.url, root=root, autostart=False, timeout=TIMEOUT),
@@ -215,7 +260,7 @@ def cmd_recall(args: argparse.Namespace) -> int:
 def cmd_import(args: argparse.Namespace) -> int:
     from .capture.exports import import_export
 
-    _print(import_export(_client(args), args.kind, Path(args.path).expanduser(), args.namespace))
+    _print(import_export(_client(args), args.kind, Path(args.path).expanduser(), _namespace(args)))
     return 0
 
 
@@ -233,12 +278,12 @@ def cmd_request(args: argparse.Namespace) -> int:
 
 def cmd_append(args: argparse.Namespace) -> int:
     item = {"author": args.author, "text": args.text, "title": args.title, "thread_id": args.thread}
-    _print(_client(args).append([{k: v for k, v in item.items() if v is not None}], namespace=args.namespace))
+    _print(_client(args).append([{k: v for k, v in item.items() if v is not None}], namespace=_namespace(args)))
     return 0
 
 
 def cmd_query(args: argparse.Namespace) -> int:
-    resp = _client(args).query(args.text, namespace=args.namespace, top_k=args.top_k, max_tokens=args.max_tokens)
+    resp = _client(args).query(args.text, namespace=_namespace(args), top_k=args.top_k, max_tokens=args.max_tokens)
     if args.json:
         _print(resp)
         return 0
@@ -250,11 +295,12 @@ def cmd_query(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
+    name = _namespace(args)
     info = _client(args).status()
     if info is None:
-        print("cogito-mem is not running (it starts on the first request)")
+        print(f"cogito-mem is not running (it starts on the first request); memory: {name}")
         return 1
-    _print(info)
+    _print({"memory": name, **info})
     return 0
 
 
@@ -265,6 +311,10 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
 
 def cmd_eval(args: argparse.Namespace) -> int:
+    if args.eval_args[:1] == ["locomo-qa"]:
+        from .evals import locomo_qa
+
+        return locomo_qa.main(args.eval_args[1:])
     if args.eval_args[:1] == ["locomo"]:
         from .evals import locomo
 
@@ -281,6 +331,8 @@ def cmd_bench(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- parser
+
+NAMESPACE_HELP = "the memory to use (default: $COGITO_MEM_NAMESPACE, the saved name, or <username>-hollow)"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -307,7 +359,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--reranker", help="reranker GGUF path or llama-server URL (stage-0 arm R)")
 
     sp = add("mcp", cmd_mcp, "run the MCP server on stdio")
-    sp.add_argument("--namespace", default="default")
+    sp.add_argument("--namespace", help=NAMESPACE_HELP)
     sp.add_argument("--in-process", action="store_true", help="hold the memory in this process instead of the service")
     sp.add_argument("--embedder", default="auto", choices=["auto", "hash", "none"])
     sp.add_argument("--url", help=argparse.SUPPRESS)
@@ -317,6 +369,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--url", help="use the service at this URL (e.g. the Docker image) instead of a local one")
     sp.add_argument("--no-download", action="store_true", help="do not download llama.cpp or the model")
     sp.add_argument("--no-start", action="store_true", help="do not start the service")
+    sp.add_argument("--name", help="the memory's name (default: the saved name, or <username>-hollow)")
     sp.add_argument("--no-recall", action="store_true",
                     help="Claude Code: do not add relevant memory to each prompt (run install again to change)")  # fmt: skip
     sp = add("uninstall", cmd_uninstall, "disconnect the memory from a chat client (the memory is kept)")
@@ -331,14 +384,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("payload", nargs="?", help=argparse.SUPPRESS)  # Codex notify passes a JSON argument
     sp.add_argument("--transcript")
     sp.add_argument("--session")
-    sp.add_argument("--namespace", default="default")
+    sp.add_argument("--namespace", help=NAMESPACE_HELP)
     sp.add_argument("--all", action="store_true", help="backfill every past session as history")
     sp.add_argument("--wait", action="store_true", help="do the work now instead of in the background")
     sp.add_argument("--url", help=argparse.SUPPRESS)
 
     sp = add("recall", cmd_recall, "add what the memory knows to a Claude Code prompt or new session (used by the hooks)")
     sp.add_argument("source", choices=["claude-code"])
-    sp.add_argument("--namespace", default="default")
+    sp.add_argument("--namespace", help=NAMESPACE_HELP)
     sp.add_argument("--min-score", type=float, help="leave out items that score lower (default: 0.6, or $COGITO_MEM_RECALL_MIN_SCORE)")
     sp.add_argument("--max-tokens", type=int, default=300)
     sp.add_argument("--url", help=argparse.SUPPRESS)
@@ -346,7 +399,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("import", cmd_import, "load past chats from a claude.ai or ChatGPT data export")
     sp.add_argument("kind", choices=["claude", "chatgpt"])
     sp.add_argument("path", help="the export .zip, its folder, or conversations.json")
-    sp.add_argument("--namespace", default="default")
+    sp.add_argument("--namespace", help=NAMESPACE_HELP)
     sp.add_argument("--url", help=argparse.SUPPRESS)
 
     sp = add("request", cmd_request, "send a raw JSON request body (argument or stdin)")
@@ -358,23 +411,23 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--author", default="user")
     sp.add_argument("--title")
     sp.add_argument("--thread")
-    sp.add_argument("--namespace", default="default")
+    sp.add_argument("--namespace", help=NAMESPACE_HELP)
     sp.add_argument("--url")
 
     sp = add("query", cmd_query, "query the memory")
     sp.add_argument("text")
-    sp.add_argument("--namespace", default="default")
+    sp.add_argument("--namespace", help=NAMESPACE_HELP)
     sp.add_argument("--top-k", type=int, default=10)
-    sp.add_argument("--max-tokens", type=int, default=300)
+    sp.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     sp.add_argument("--json", action="store_true")
     sp.add_argument("--url")
 
-    sp = add("status", cmd_status, "show the service, the model and the namespaces")
+    sp = add("status", cmd_status, "show the memory's name, the service, the model and the namespaces")
     sp.add_argument("--url")
     sp = add("stop", cmd_stop, "stop the local service")
     sp.add_argument("--url")
 
-    sp = add("eval", cmd_eval, "quality tests: LongMemEval (`eval run`, `eval compare`) and LoCoMo (`eval locomo`)")
+    sp = add("eval", cmd_eval, "quality tests: LongMemEval (`eval run`, `eval compare`), LoCoMo (`eval locomo`, `eval locomo-qa`)")
     sp.add_argument("eval_args", nargs=argparse.REMAINDER)
     sp = add("bench", cmd_bench, "speed test (requirements §6); see `cogito-mem bench -h`")
     sp.add_argument("bench_args", nargs=argparse.REMAINDER)
@@ -388,4 +441,15 @@ def main(argv: list[str] | None = None) -> int:
     for var in ("OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
         os.environ.setdefault(var, "1")
     args = build_parser().parse_args(argv)
-    return int(args.func(args) or 0)
+    from .names import InvalidName, log
+
+    if args.func is not cmd_serve and not log.handlers:  # e.g. "renamed the memory ..." on stderr
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("cogito-mem: %(message)s"))
+        log.addHandler(handler)
+        log.setLevel(logging.INFO)
+    try:
+        return int(args.func(args) or 0)
+    except InvalidName as exc:
+        print(f"cogito-mem: {exc}", file=sys.stderr)
+        return 1

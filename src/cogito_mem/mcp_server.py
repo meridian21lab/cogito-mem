@@ -76,7 +76,7 @@ def _tools() -> list[dict]:
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 100000,
-                        "description": "Reading budget for the returned text, in tokens (default 300).",
+                        "description": "Reading budget for the returned text, in tokens (default 1000).",
                     },
                 },
                 "required": ["text"],
@@ -91,7 +91,7 @@ class McpServer:
     def __init__(
         self,
         handle: Callable[[dict], dict],
-        namespace: str = "default",
+        namespace: str | None = None,  # None: the memory's default name
         thread_id: str | None = None,
         thread_from_env: bool = True,
     ):

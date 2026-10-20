@@ -166,8 +166,7 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs/Zensical documentation
-/site
+# site/ is the docs site's source (published by .github/workflows/pages.yml), so it is kept
 
 # mypy
 .mypy_cache/

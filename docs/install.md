@@ -1,5 +1,8 @@
 # Installing cogito-mem
 
+> The friendliest version of this guide, with what you should see at each step, is on the docs site:
+> [meridian21lab.github.io/cogito-mem/start.html](https://meridian21lab.github.io/cogito-mem/start.html).
+
 cogito-mem runs on your own machine: macOS or Linux (Windows is experimental), about 1 GB of disk, no GPU
 needed. Pick **one** of the four ways below; they all give the same memory in `~/.cogito-mem`.
 
@@ -25,7 +28,8 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/mer
 It installs [uv](https://docs.astral.sh/uv/) if you don't have it (uv brings its own Python), installs cogito-mem
 as a uv tool, and then runs `cogito-mem install`, which:
 
-1. creates `~/.cogito-mem` with the memory `default`;
+1. creates `~/.cogito-mem` with one memory, named `<username>-hollow` (e.g. `ksirg-hollow`); pass `--name` to
+   choose another (`curl … | sh -s -- --name work`);
 2. gets llama.cpp's `llama-server` (the one on your `PATH`, e.g. `brew install llama.cpp`, or the official
    prebuilt release) and the EmbeddingGemma 2 model (310 MB);
 3. connects **every chat client it finds**: Claude Code (MCP server + capture and recall hooks), Codex (MCP server + capture
@@ -36,15 +40,18 @@ To connect only some clients: `curl … | sh -s -- claude-code codex`. Then **re
 
 ## B. Claude Code plugin
 
-Inside Claude Code:
+In a terminal:
 
+```sh
+claude plugin marketplace add meridian21lab/cogito-mem
+claude plugin install cogito-mem@cogito-mem --scope user
 ```
-/plugin marketplace add meridian21lab/cogito-mem
-/plugin install cogito-mem@cogito-mem
-```
 
-Or in one step: `/plugin install cogito-mem --marketplace meridian21lab/cogito-mem`.
+Or inside Claude Code, one command at a time (pasted together they run as one): `/plugin marketplace add
+meridian21lab/cogito-mem`, then `/plugin install cogito-mem@cogito-mem`, choose *Install for you (user scope)*, and
+run `/reload-plugins`.
 
+When you enable it, the plugin asks you to **name your memory**; leave it empty for `<username>-hollow`.
 The plugin registers the MCP server and the capture and recall hooks. It runs cogito-mem through `uv` (the first start takes a
 few seconds while uv builds its environment), or through an installed `cogito-mem`, or a `python3` that has numpy.
 On its first start the service downloads llama.cpp (unless one is on your `PATH`) and the model (310 MB) into
@@ -119,6 +126,10 @@ cogito-mem stop                                  # stop the service (any request
 cogito-mem uninstall claude-code                 # or codex, claude-desktop; the memory is kept
 rm -rf ~/.cogito-mem                             # erase the memory itself
 ```
+
+To rename the memory, stop the service (`cogito-mem stop`), rename its folder in `~/.cogito-mem/memory/`, then
+set the new name: `cogito-mem install --name <new>`, or in the plugin's options (`/plugin`). A memory from before
+names (`memory/default`) is renamed to your memory's name by itself, once.
 
 ## Troubleshooting
 

@@ -94,7 +94,7 @@ ago? I'd like to revisit it"*, and the assistant finds it with one memory query.
 
 | Key | Required | Meaning |
 |---|---|---|
-| `namespace` | no (default `"default"`) | One memory. Every namespace is its own folder on disk. |
+| `namespace` | no (default: the memory's saved name, else `"default"`; §15 item 23) | One memory. Every namespace is its own folder on disk. |
 | `import` | no (default `false`) | Loading history that was recorded elsewhere. When true, each item's `created_at` is set to its `valid_at`, so `as_of` treats it as if the memory had been running at the time. `valid_at` is then required and must not decrease. |
 | `items[].thread_id` | no (default `"default"`) | The conversation, session or thread. A query can filter on it exactly. |
 | `items[].author` | yes | Who wrote the item: `"user"`, `"assistant"` or an agent's name. |
@@ -137,7 +137,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
   },
   "as_of": null,
   "top_k": 10,
-  "max_tokens": 300
+  "max_tokens": 1000
 }
 ```
 
@@ -148,7 +148,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
 | `filter.*` | no | Exact filters. `null` means no filter. `kind` takes a list of kinds. `valid_after` is inclusive and `valid_before` exclusive; both apply to `valid_at`. |
 | `as_of` | no (default now) | The moment the memory is viewed from. Only items with `created_at` ≤ `as_of` are visible, and only retractions made by then apply. |
 | `top_k` | no (default 10, max 100) | The most items to return. |
-| `max_tokens` | no (default 300) | The reading budget: the most tokens of returned `text`, counted with the EmbeddingGemma 2 tokenizer. |
+| `max_tokens` | no (default 1000; 300 in the first draft, see §15 item 21) | The reading budget: the most tokens of returned `text`, counted with the EmbeddingGemma 2 tokenizer. |
 
 **How items are filled.** Items are taken in score order. An item that would push the total past
 `max_tokens` is skipped. The top item is always returned; if it alone is too long, it is cut to
@@ -221,7 +221,8 @@ This one command:
 - registers the MCP server with the client (local, over stdio);
 - turns on automatic capture where the client has hooks;
 - downloads the EmbeddingGemma 2 GGUF on first run;
-- creates the memory folder `~/.cogito-mem/` with the namespace `default`.
+- creates the memory folder `~/.cogito-mem/` with one namespace, named `<username>-hollow` unless the user
+  chooses another name (§15 item 23).
 
 `cogito-mem uninstall <client>` undoes it. The package runner (uvx, pipx or similar) is chosen when we build.
 
@@ -633,6 +634,11 @@ These fill gaps the sections above leave open. Each can change without touching 
     1000, against 32.5 / 46.7 / 57.6 % for keyword search and 0.1 / 0.6 / 4.4 % for the last N tokens
     (+2.7 points over keyword at 300 [0.7, 4.7]; +10.2 at 1000 [8.5, 12.0]).
 
+    With EmbeddingGemma 2 Q8_0, the model that ships (19 Oct 2026, on the author's M5 Max laptop), the new
+    default covers 39.0 / 56.5 / 72.5 % on all 10 conversations, against 36.0 / 49.5 / 59.8 % for keyword search
+    (+7.0 points at 300 [5.3, 8.8]; +12.7 at 1000 [11.0, 14.5]); R@10 57.2 % against 51.6 %. The other arms in
+    the table were not rerun with it.
+
     Paired differences on the 3 conversations, with 95 % bootstrap intervals: new default vs U2 +18.0 points at N = 300 [13.3, 22.7]
     and +13.3 at N = 1000 [9.7, 17.0]; vs keyword + author +0.3 at 300 [−3.4, 4.2] (no difference) and +8.9 at
     1000 [5.2, 12.5]. Turn by turn, a LoCoMo answer ("Researching adoption agencies") rarely says who is
@@ -647,15 +653,25 @@ These fill gaps the sections above leave open. Each can change without touching 
 18. **BLAS runs on one thread in the service.** The query's one large matrix product is memory-bound, and idle
     BLAS threads spinning on the cores llama-server needs added about 70 ms to each query on a 4-core VM
     (embedding 174 ms → 105 ms median with one BLAS thread).
-19. **Speed on a 4-core cloud VM** (Intel Xeon 2.8 GHz, CPU only, EmbeddingGemma 300M Q8_0 for the query,
-    synthetic text): p95 140 ms at 1M tokens and 163 ms at 10M tokens; search and fill take about 3 ms and
-    28 ms of that, the query embedding the rest. This VM is weaker than the gate's laptop (§6), where the gate
-    still has to be measured. Appends: 5 ms (512 tokens), 47 ms (4k), 69 ms (8k, over the 50 ms target: the
-    text is tokenized once through llama-server before returning); searchable by meaning about 0.4 s later.
+19. **Speed on the author's laptop** (MacBook Pro, M5 Max, 18 cores, 19 Oct 2026; EmbeddingGemma 2 Q8_0 embeds
+    every query; the memory is synthetic text with random vectors): p95 22.8 ms at 1M tokens and 26.0 ms at
+    10M tokens with the CPU alone (median 14.5 and 17.8 ms), 14.2 ms at 10M with Metal; 26.1 ms at 10M on the
+    CPU over localhost HTTP. §6's gate (p95 ≤ 100 ms at 10M tokens, CPU only) passes, with synthetic text
+    standing in for LongMemEval's sessions. Appends at 10M tokens on the CPU: 2.2 / 2.7 / 4.4 / 7.4 / 10.9 ms
+    median for 512 / 1k / 2k / 4k / 8k tokens (0.8 / 1.4 / 2.5 / 4.7 / 9.1 ms with Metal), all under the 50 ms
+    target; searchable by meaning about 57 ms later on the CPU and 13 ms with Metal (medians of 10). With Metal
+    the model embeds about 21k tokens a second (1M tokens in 46.9 s). Earlier, on a 4-core cloud VM (Intel Xeon
+    2.8 GHz, CPU only, EmbeddingGemma 300M Q8_0 for the query): p95 140 ms at 1M tokens and 163 ms at 10M, of
+    which search and fill took about 3 ms and 28 ms; appends 5 ms (512 tokens), 47 ms (4k), 69 ms (8k, over the
+    50 ms target there: the text is tokenized once through llama-server before returning).
 20. **Arm R on CPU is far over budget:** Qwen3-Reranker-0.6B in llama.cpp scored 32 candidates in about 16 s on
     the same VM (about 0.5 s each), so R stays a GPU option, as §7 expects. Its scores also looked
     uncalibrated (0.015 for a clear match); check the GGUF's rerank template before using R's scores.
-21. **Recall filters by shared words, not by `similarity`.** On a copy of a real memory (470 messages,
+21. **The default budget is 1,000 tokens, not 300** (author's decision, 19 Oct 2026). On LoCoMo answered by
+    gpt-4o-mini and judged by an LLM, 300 tokens scored 8.7 points below the whole conversation (−12.5 to −4.7),
+    while 1,000 was level with it (−1.8, −5.5 to +1.8), and 1,000 tokens is small next to a chat client's context.
+    The pass marks of §13 still name their own budgets.
+22. **Recall filters by shared words, not by `similarity`.** On a copy of a real memory (470 messages,
     1,191 items, EmbeddingGemma 2 Q8_0), 18 prompts were run, 9 about the work stored in it and 9 unrelated, and
     each returned item was labelled on topic or not. The closest item scored a similarity of 0.78 to 0.88 for
     the related prompts and 0.65 to 0.77 for the unrelated ones, so a threshold has almost no margin. Item by
@@ -664,3 +680,31 @@ These fill gaps the sections above leave open. Each can change without touching 
     unrelated prompts, kept 42, 9 and nothing. Similarity relative to the prompt's other items (z-score, gap to
     the mean) overlapped too. Allowing either the word rule or similarity ≥ 0.85 kept one more on-topic item and
     no noise, too little to set a threshold on.
+23. **The memory is named `<username>-hollow`** (author's decision, 19 Oct 2026), e.g. `ksirg-hollow`: the hollow
+    is where Cogi, the squirrel, keeps its nuts. `default` told users nothing about what or whose the memory was.
+    The name comes from `COGITO_MEM_NAMESPACE` when it is set and not empty, else from `~/.cogito-mem/config.json`
+    (`{"namespace": …}`), else from the username (`getpass.getuser()`, lowercased, characters outside
+    `[a-z0-9._-]` replaced by `-`, cut to fit 64; `my-hollow` if nothing is left). The name in use is saved to
+    `config.json`, so the CLI, the MCP server and the hooks agree even when only one of them has the variable;
+    `--namespace` picks another memory for one command without saving it. A name that breaks the rule (letters,
+    digits, `.`, `_`, `-`, up to 64) is an error that says so: on the command line, in the capture hook's output and
+    in every MCP tool result; recall then adds nothing and notes why in `run/recall.log`. The Claude Code plugin
+    asks for the name when it is enabled (`userConfig.memory_name`, given to the MCP server as
+    `COGITO_MEM_NAMESPACE` and to the hooks as `CLAUDE_PLUGIN_OPTION_MEMORY_NAME`, which the plugin's script
+    passes on); left empty, Claude Code substitutes an empty string and the saved name or `<username>-hollow`
+    applies. `cogito-mem install --name` sets it outside the plugin.
+
+    **Nothing is lost on the way.** The first time a name is saved, a memory from before names (`memory/default`)
+    is renamed to it, under a file lock (`run/namespace.lock`), after stopping a local service that holds the folder
+    open (the next request starts it again), and with one INFO line. When both folders exist, both are kept and a
+    warning is logged; nothing is renamed when the name is `default`. The service does the same at start, but only
+    for a name it was given (the variable, e.g. `docker run -e`, or `config.json`), never one derived from its own
+    user, which in a container is not the person's. Nothing else is keyed by the name: capture cursors are keyed by
+    session or file, and the embedding cache by model and prompt, so a renamed memory keeps both.
+
+    **Requests without `namespace` go to the saved name, or to `default` when none is saved.** The clients always
+    send the name, so this only matters to HTTP and Python callers and to MCP over HTTP without `?namespace=`.
+    The service reads `config.json` in its own memory folder, which the local clients write, so the README's
+    `curl` examples reach the same memory as the assistant. It does not fall back to `<username>-hollow`:
+    a service in Docker runs as another user, and would invent a name nobody chose. A Docker service with no name
+    given keeps `default`.

@@ -41,7 +41,8 @@ def test_install_claude_code_without_cli(isolated_env, monkeypatch):
 
     launcher = root / "bin" / "cogito-mem"
     assert launcher.exists() and os.access(launcher, os.X_OK)
-    assert (root / "memory" / "default" / "log.sqlite3").exists()
+    assert (root / "memory" / "ksirg-hollow" / "log.sqlite3").exists()
+    assert json.loads((root / "config.json").read_text()) == {"namespace": "ksirg-hollow"}
     cfg = json.loads((home / ".claude.json").read_text())
     assert cfg["mcpServers"]["cogito-mem"] == {"type": "stdio", "command": str(launcher), "args": ["mcp"], "env": {}}
     data = json.loads(settings.read_text())
@@ -62,7 +63,7 @@ def test_install_claude_code_without_cli(isolated_env, monkeypatch):
     data = json.loads(settings.read_text())
     assert data == {"model": "opus", "hooks": {"Stop": [their_hook]}}
     assert "cogito-mem" not in json.loads((home / ".claude.json").read_text()).get("mcpServers", {})
-    assert (root / "memory" / "default" / "log.sqlite3").exists()  # the memory is kept
+    assert (root / "memory" / "ksirg-hollow" / "log.sqlite3").exists()  # the memory is kept
 
 
 @pytest.mark.skipif(shutil.which("claude") is None, reason="the claude CLI is not installed")
@@ -208,6 +209,7 @@ def test_doctor_reports_problems_and_fixes(isolated_env, monkeypatch):
     text = "\n".join(lines)
     assert "[FAIL] memory folder" in text and "fix: run `cogito-mem install`" in text
     assert "[FAIL] service at http://127.0.0.1:9" in text
+    assert f"[ok  ] memory: ksirg-hollow ({isolated_env / '.cogito-mem' / 'memory' / 'ksirg-hollow'})" in text
     assert "problem(s) found" in lines[-1]
 
 
@@ -223,7 +225,8 @@ def test_claude_code_plugin_files_are_consistent():
     # The MCP server is declared in plugin.json: a root .mcp.json would also load as a project
     # config when the repository is opened in Claude Code, where ${CLAUDE_PLUGIN_ROOT} is unset.
     assert not (repo / ".mcp.json").exists()
-    mcp = plugin["mcpServers"]["cogito-mem"]
+    # shown in /mcp as plugin:cogito-mem:cogi
+    mcp = plugin["mcpServers"]["cogi"]
     assert mcp["args"] == ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"]
     hooks = json.loads((repo / "hooks" / "hooks.json").read_text())["hooks"]
     for event in ("Stop", "SessionEnd"):

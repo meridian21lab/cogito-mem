@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Install · Cogi</title>
+  <meta name="description" content="Install Cogi in Claude Code in two minutes: two commands, each with what you should see.">
+  <meta property="og:title" content="Install · Cogi">
+  <meta property="og:description" content="Install Cogi in Claude Code in two minutes: two commands, each with what you should see.">
+  <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
+  <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/start.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/cogi.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="assets/cogi.svg" alt="">cogito-mem</a>
+      <nav class="nav" aria-label="Main">
+        <a href="index.html">Home</a>
+        <a href="start.html" aria-current="page">Install</a>
+        <a href="how.html">How it works</a>
+        <a href="results.html">Results</a>
+        <a href="api.html">API &amp; MCP</a>
+        <a href="safety.html">Safety</a>
+        <a href="https://github.com/meridian21lab/cogito-mem">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <p class="eyebrow">Install</p>
+    <h1>Cogi in Claude Code</h1>
+    <p class="lead">Five steps, about two minutes. Run one command at a time; after each you'll see what to expect.</p>
+
+    <ol class="steps">
+      <li>
+        <h3>Get the helper, uv</h3>
+        <p>Cogi runs with <a href="https://docs.astral.sh/uv/">uv</a>. This installs only the helper, not Cogi yet.</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre></div>
+        <p class="small muted">Already have it? If <code>uv --version</code> works, skip this. Otherwise open a
+          <strong>new</strong> terminal afterwards, so it can be found.</p>
+      </li>
+      <li>
+        <h3>Add Cogi's marketplace</h3>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin marketplace add meridian21lab/cogito-mem</code></pre></div>
+        <p class="see">Successfully added marketplace: cogito-mem</p>
+      </li>
+      <li>
+        <h3>Install the plugin</h3>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin install cogito-mem@cogito-mem --scope user</code></pre></div>
+        <p class="see">Successfully installed plugin: cogito-mem@cogito-mem (scope: user)</p>
+        <p><code>--scope user</code> means Cogi remembers in every project. Your memory is called
+          <code>yourname-hollow</code>; the note that its name is "not yet set" just means that default is used.
+          To pick another name, add <code>--config memory_name=work-hollow</code>.</p>
+      </li>
+      <li>
+        <h3>Check it</h3>
+        <p>Start Claude Code (<code>claude</code>) and type:</p>
+<div class="cmd"><span class="label">In Claude Code</span><pre><code>/mcp</code></pre></div>
+        <p class="see"><code>plugin:cogito-mem:cogi</code> ✔ 2 tools</p>
+      </li>
+      <li>
+        <h3>Try it</h3>
+        <p>Mention something in passing:</p>
+<div class="cmd"><span class="label">Say to Claude</span><pre><code>Let's call the staging server "acorn".</code></pre></div>
+        <p>Wipe Claude's short-term memory:</p>
+<div class="cmd"><span class="label">In Claude Code</span><pre><code>/clear</code></pre></div>
+        <p>And ask:</p>
+<div class="cmd"><span class="label">Say to Claude</span><pre><code>What did we call the staging server?</code></pre></div>
+        <p class="see">Claude answers "acorn": Cogi brought it back.</p>
+        <p>Now peek into the hollow from a terminal:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>curl -s localhost:7327/v1/status</code></pre></div>
+        <p class="see"><code>"state": "ready"</code>, and how many messages Cogi keeps</p>
+        <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>First time?</strong> Cogi downloads its model
+          (310 MB) when it first wakes up, which takes about a minute. Until then the status says
+          <code>"starting"</code> and Cogi finds things by their exact words only.</p></div>
+      </li>
+    </ol>
+
+    <h2>Good to know</h2>
+
+    <details>
+      <summary>Bring in your earlier sessions</summary>
+      <p>Cogi starts collecting from now on. To add every Claude Code session you had before, install the
+        <code>cogito-mem</code> terminal command and run it once:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>uv tool install git+https://github.com/meridian21lab/cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem capture claude-code --all</code></pre></div>
+    </details>
+
+    <details>
+      <summary>Prefer to install from inside Claude Code?</summary>
+      <p>Type these one at a time; pasting both at once runs them as one command.</p>
+<div class="cmd"><span class="label">In Claude Code</span><pre><code>/plugin marketplace add meridian21lab/cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">In Claude Code</span><pre><code>/plugin install cogito-mem@cogito-mem</code></pre></div>
+      <p>Choose <strong>Install for you (user scope)</strong>, leave the name empty for <code>yourname-hollow</code>,
+        then run <code>/reload-plugins</code>.</p>
+      <div class="table">
+        <table>
+          <tr><th>Scope</th><th>Cogi remembers in</th><th>Who else is affected</th></tr>
+          <tr><td><strong>User</strong> (choose this)</td><td>every project</td><td>no one</td></tr>
+          <tr><td>Project</td><td>this repository only</td><td>everyone who opens it is asked to install Cogi too</td></tr>
+          <tr><td>Local</td><td>this repository only</td><td>no one</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details id="other-ways">
+      <summary>Other ways: Codex, Claude Desktop, Docker, Python</summary>
+      <p><strong>One line for every app it finds</strong> (Claude Code, Codex, Claude Desktop):</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh</code></pre></div>
+      <p><strong>Docker</strong>, then connect Claude Code by URL:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>docker run -d --name cogito-mem -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp</code></pre></div>
+      <p><strong>Python</strong>: <code>pip install git+https://github.com/meridian21lab/cogito-mem</code>, then see
+        <a href="api.html">API &amp; MCP</a>.</p>
+    </details>
+
+    <details>
+      <summary>Stop Cogi from adding memories to each prompt</summary>
+      <p>Add this to <code>~/.claude/settings.json</code>. Claude can still search when you ask.</p>
+<div class="cmd"><span class="label">JSON</span><pre><code>{ "env": { "COGITO_MEM_RECALL": "off" } }</code></pre></div>
+    </details>
+
+    <details>
+      <summary>Remove Cogi</summary>
+<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin uninstall cogito-mem@cogito-mem</code></pre></div>
+      <p>That keeps your memories. To erase them too:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>rm -rf ~/.cogito-mem</code></pre></div>
+    </details>
+
+    <h2>If something looks wrong</h2>
+    <div class="table">
+      <table>
+        <tr><th>You see</th><th>Do this</th></tr>
+        <tr><td><code>/mcp</code> shows ✘ next to <code>cogi</code></td><td>Close Claude Code, open a new terminal (so uv is found) and start it again.</td></tr>
+        <tr><td><code>curl: … Connection refused</code></td><td>Cogi wakes up when Claude first saves or searches. Ask Claude anything, then try again.</td></tr>
+        <tr><td><code>"state": "starting"</code></td><td>The model is still downloading. Give it a minute.</td></tr>
+        <tr><td><code>not a valid GitHub owner/repo</code></td><td>Two commands were pasted together. Run one at a time.</td></tr>
+        <tr><td>Anything else</td><td>Logs are in <code>~/.cogito-mem/run/</code>. <a href="https://github.com/meridian21lab/cogito-mem/issues">Tell us</a>.</td></tr>
+      </table>
+    </div>
+
+    <div class="next"><a href="index.html">← Home</a><a href="how.html">How it works →</a></div>
+  </main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><img src="assets/cogi.svg" alt="">cogito-mem · free and open source (MIT)</span>
+      <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
+      <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
+      <a href="safety.html">What you install</a>
+    </div>
+  </footer>
+</body>
+</html>

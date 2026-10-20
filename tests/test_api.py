@@ -320,7 +320,10 @@ def test_top_item_is_cut_to_budget_with_source_end_moved(mem):
     assert item["source"] == {"id": msg["id"], "title": None, "start": 0, "end": len(item["text"])}
 
 
-def test_long_message_is_split_into_pieces_with_exact_spans(mem):
+def test_long_message_is_split_into_pieces_with_exact_spans():
+    # Keyword search only: the hash embedder's vectors are noise, so with them in the ranking which piece wins the
+    # last query is arbitrary, and whether they existed yet when it ran was a race with the background embedder.
+    mem = Memory(None, embedder="hash", config=Config(search="keyword"))
     paragraphs = [f"Section {i}. " + " ".join(f"fact{i}_{j} is stated here." for j in range(40)) for i in range(5)]
     text = "\n\n".join(paragraphs)
     msg = append(mem, {"author": "writer", "title": "Report", "text": text})["items"][0]
@@ -335,6 +338,7 @@ def test_long_message_is_split_into_pieces_with_exact_spans(mem):
         assert item["id"] != msg["id"]
     hit = query(mem, "fact3_7", top_k=1)["items"][0]
     assert "fact3_7 " in hit["text"]
+    mem.close()
 
 
 def test_context_is_accepted_and_never_returned(mem):

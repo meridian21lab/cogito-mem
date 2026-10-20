@@ -166,7 +166,7 @@ def test_remember_an_idea_from_a_week_ago(machine):
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         status = json.loads(cogito("status").stdout or "{}")
-        if status.get("namespaces", {}).get("default", {}).get("messages", 0) >= expected:
+        if status.get("namespaces", {}).get("ksirg-hollow", {}).get("messages", 0) >= expected:
             break
         time.sleep(0.2)
     else:

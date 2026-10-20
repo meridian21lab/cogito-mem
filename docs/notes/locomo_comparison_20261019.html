@@ -1,0 +1,368 @@
+<meta charset="utf-8">
+<title>cogito-mem on LoCoMo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* Layout: a measurement report in the repo's note style. Verdict and four figures up top, then the
+   like-for-like chart, the cost curve, categories, speed, the other protocol, and the Claude Code part. */
+:root {
+  --bg: #f3f5f7;
+  --surface: #ffffff;
+  --surface-2: #e8edf1;
+  --ink: #13202a;
+  --ink-2: #3f4e59;
+  --ink-3: #66757f;
+  --rule: #d3dbe1;
+  --rule-strong: #9fb0bb;
+  --accent: #0a756d;
+  --accent-soft: #d3eeea;
+  --signal: #9a5f06;
+  --signal-soft: #f5e8cf;
+  --gray-mark: #a9b6bf;
+  --gray-mark-2: #c9d2d8;
+  --code-bg: #eef2f5;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418; --surface: #151d23; --surface-2: #1c262d; --ink: #e4ecf0; --ink-2: #b2bfc7;
+    --ink-3: #85949d; --rule: #29353d; --rule-strong: #4a5b66; --accent: #4cc2b4; --accent-soft: #12332e;
+    --signal: #e2a948; --signal-soft: #392b12; --gray-mark: #5d6d78; --gray-mark-2: #3a4750; --code-bg: #111a1f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418; --surface: #151d23; --surface-2: #1c262d; --ink: #e4ecf0; --ink-2: #b2bfc7;
+  --ink-3: #85949d; --rule: #29353d; --rule-strong: #4a5b66; --accent: #4cc2b4; --accent-soft: #12332e;
+  --signal: #e2a948; --signal-soft: #392b12; --gray-mark: #5d6d78; --gray-mark-2: #3a4750; --code-bg: #111a1f;
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 64px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; line-height: 1.15; margin: 0; color: var(--ink); }
+h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0; max-width: 72ch; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.section { display: flex; flex-direction: column; gap: 18px; }
+.lead { color: var(--ink-2); }
+.small { font-size: 0.9rem; }
+.muted { color: var(--ink-3); }
+header.hero { padding-block: 48px 32px; display: flex; flex-direction: column; gap: 18px; border-bottom: 1px solid var(--rule); }
+.hero .sub { font-size: 1.2rem; color: var(--ink-2); max-width: 64ch; }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+.fig { border-top: 2px solid var(--ink); padding-top: 10px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.fig .k { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-3); }
+.fig .v { font-family: var(--f-display); font-weight: 700; font-size: 2rem; line-height: 1.1; }
+.fig .v small { font-size: 1rem; font-weight: 500; color: var(--ink-2); }
+.fig p { font-size: 0.92rem; color: var(--ink-2); }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.chart { width: 100%; overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text { font-family: var(--f-mono); fill: var(--ink-2); }
+.chart .tick { font-size: 11px; fill: var(--ink-3); font-variant-numeric: tabular-nums; }
+.chart .lab { font-size: 12.5px; fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.chart .lab.dim { fill: var(--ink-2); }
+.chart .val { font-size: 12px; fill: var(--ink); font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.chart .prov { font-size: 10.5px; fill: var(--ink-3); }
+.chart .grid { stroke: var(--rule); stroke-width: 1; }
+.chart .axis { stroke: var(--rule-strong); stroke-width: 1; }
+.chart .ref { stroke: var(--signal); stroke-width: 1.5; }
+.chart .reftext { font-size: 11px; fill: var(--signal); }
+.chart .bar { fill: var(--gray-mark); }
+.chart .bar.ours { fill: var(--accent); }
+.chart .bar.base { fill: var(--gray-mark-2); }
+.chart .hit { fill: transparent; cursor: default; }
+.chart .hit:hover + .bar, .chart .hit:focus + .bar { opacity: 0.8; }
+.chart .dot { fill: var(--gray-mark); stroke: var(--surface); stroke-width: 2; }
+.chart .dot.ours { fill: var(--accent); }
+.chart .dot.base { fill: var(--surface); stroke: var(--ink-2); stroke-width: 2; }
+.chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--f-mono); font-size: 0.78rem; color: var(--ink-2); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.legend .k-ours { background: var(--accent); }
+.legend .k-pub { background: var(--gray-mark); }
+.legend .k-base { background: var(--gray-mark-2); }
+.legend .k-ref { width: 16px; height: 0; border-top: 2px solid var(--signal); border-radius: 0; vertical-align: 3px; }
+.legend .k-ring { background: var(--surface); border: 2px solid var(--ink-2); border-radius: 50%; }
+#tip { position: fixed; z-index: 10; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--rule-strong);
+  border-radius: 8px; padding: 8px 10px; font-family: var(--f-mono); font-size: 0.78rem; line-height: 1.45; max-width: 320px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+#tip b { font-size: 1rem; font-family: var(--f-display); }
+details { border-top: 1px solid var(--rule); padding-top: 8px; }
+summary { cursor: pointer; font-family: var(--f-mono); font-size: 0.8rem; color: var(--ink-2); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--f-mono); white-space: nowrap; }
+tr.ours td { background: var(--accent-soft); }
+.pill { font-family: var(--f-mono); font-size: 0.68rem; letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--rule-strong); color: var(--ink-2); white-space: nowrap; }
+.pill.here { border-color: var(--accent); color: var(--accent); }
+.pill.self { border-color: var(--signal); color: var(--signal); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.cols > * { min-width: 0; }
+ul.tight, ol.tight { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+pre { margin: 0; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; overflow-x: auto; font-family: var(--f-mono); font-size: 0.78rem; line-height: 1.5; color: var(--ink); }
+.note { border-left: 3px solid var(--signal); background: var(--signal-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 0.95rem; }
+@media (prefers-reduced-motion: no-preference) { .chart .bar, .chart .dot { transition: opacity .15s; } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="eyebrow">cogito-mem v0.1 · measured 19 Oct 2026 · MacBook Pro M5 Max</span>
+    <h1>cogito-mem on LoCoMo</h1>
+    <p class="sub">Scored the way the Mem0 paper scored Mem0, Zep and the others, cogito-mem answers 74.7 % of LoCoMo's 1,540 questions from a 1,000-token budget of stored turns, and on the same questions that is statistically level with handing the model the whole conversation (76.5). Published under the same protocol: Mem0 66.9, Mem0g 68.4, Zep 66.0 as Mem0 ran it and 75.1 as Zep ran it. It stores without an LLM and answers a query in about 10 ms on this laptop.</p>
+    <div class="figs" id="figs"></div>
+  </header>
+
+  <section class="section">
+    <span class="eyebrow">Like for like</span>
+    <h2>Same answering model, same judge</h2>
+    <p class="lead">Every bar below was scored the way the Mem0 paper scored its table: the memory hands context to
+      <span class="mono">gpt-4o-mini</span>, which answers; <span class="mono">gpt-4o-mini</span> then marks the answer CORRECT or WRONG against
+      LoCoMo's gold answer, over the 1,540 questions of categories 1–4. We ran the full-context baseline the same way, so
+      our harness can be checked against the paper's 72.9.</p>
+    <div class="card">
+      <div class="legend"><span><i class="k-ours"></i>cogito-mem, measured here</span><span><i class="k-base"></i>full context (no memory)</span><span><i class="k-pub"></i>published</span><span><i class="k-ref"></i>our full-context run</span></div>
+      <div class="chart" id="bars" role="img" aria-label="LoCoMo J score by system"></div>
+      <details><summary>Show as a table, with sources</summary><div class="tablewrap" id="bars-table"></div></details>
+    </div>
+    <p class="small muted">Self-reported means the vendor ran its own system. Rows marked 3rd party come from the Mem0 paper, where Mem0 configured Zep, LangMem, ChatGPT memory and A-Mem; Zep disputed its row. Our bars are single runs; with 1,540 questions a run's 95 % interval is about ±2.2 points (±3 for the 762-question full-context run). Text only drops the photo captions, as Mem0's harness did; it changes nothing (−0.1 points, 95 % interval −1.6 to +1.4). Hover a bar for its context size.</p>
+    <h3>Against full context in the same harness</h3>
+    <p class="lead">Absolute scores move with the harness. With the same model, prompts and judge, our full-context run scored 76.5 on the
+      first five conversations, where the paper reported 72.9 over all ten. Dividing each system by the full-context score
+      measured alongside it removes that offset.</p>
+    <div class="card"><div class="tablewrap" id="rel-table"></div></div>
+  </section>
+
+  <section class="section">
+    <span class="eyebrow">Cost per question</span>
+    <h2>What the answering model has to read</h2>
+    <p class="lead">Context is counted as the answering model counts it: billed prompt tokens minus the fixed instructions, so dates and speaker names are included. cogito-mem gains 9.4 points from the 300 to the 1,000-token budget (paired 95 % interval 7.1 to 11.6) and 2.3 more at 2,500 (0.5 to 4.0). Every system scored with the same prompts sits below the cogito-mem line at its own context size. MemOS (*), with its own answer prompt and an unnamed judge, reports 75.8 at about 1,600 tokens.</p>
+    <div class="card">
+      <div class="legend"><span><i class="k-ours"></i>cogito-mem at 300 / 1,000 / 2,500 tokens</span><span><i class="k-ring"></i>full context, our run</span><span><i class="k-pub"></i>published, with tokens reported</span></div>
+      <div class="chart" id="curve" role="img" aria-label="J score against tokens of context per question"></div>
+      <details><summary>Show as a table</summary><div class="tablewrap" id="curve-table"></div></details>
+    </div>
+  </section>
+
+  <section class="section">
+    <span class="eyebrow">By question type</span>
+    <h2>Where it wins and where it loses</h2>
+    <p class="lead">Single-hop questions, one fact said once, are where returning the original turns pays off: 84.5 at 1,000 tokens against 72.9 for Mem0. Temporal questions do well because every returned turn carries its date; the whole conversation does worst there (59.6), as the model loses track of which session said what. Multi-hop and open-domain questions need several turns or an inference across the conversation, and that is where a fixed budget runs out first. When every turn an answer needs was returned, gpt-4o-mini answered 85.6 % correctly at 1,000 tokens; when one was missing, 45.7 %.</p>
+    <div class="card"><div class="tablewrap" id="cat-table"></div></div>
+    <p class="small muted">Categories use the dataset's own ids: 1 multi-hop (282), 2 temporal (321), 3 open-domain (96), 4 single-hop (841). The Mem0 paper attached these names to different ids; its row here is re-mapped by question count, so it may differ from the paper's printed columns.</p>
+  </section>
+
+  <section class="section">
+    <span class="eyebrow">Speed on this laptop</span>
+    <h2>Query time does not matter at this size</h2>
+    <p class="lead">A query over one LoCoMo conversation takes about 10 ms. Over 10M tokens the 95th percentile is 26 ms on the CPU alone, a quarter of the 100 ms target in the requirements. Hosted memories report 0.1 to 3 s, largely network and their own model calls, so this compares architectures, not hardware. Appending returns in 1 to 11 ms; embedding follows in the background at about 21k tokens a second, so 10M tokens of history is indexed in about 8 minutes.</p>
+    <div class="cols">
+      <div class="card"><h3>cogito-mem, M5 Max</h3><div class="tablewrap" id="speed-table"></div></div>
+      <div class="card"><h3>Published search latency</h3><div class="tablewrap" id="pubspeed-table"></div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <span class="eyebrow">The other leaderboard</span>
+    <h2>Why vendors now report 90 % and more</h2>
+    <p class="lead">Since late 2025 most vendors report LoCoMo with stronger answering models (GPT-4.1-mini, GPT-5, Gemini 3), longer
+      step-by-step answer prompts and more lenient judges. Those numbers measure the model and the prompt as much as the memory, and
+      they are not comparable with the table above or with each other.</p>
+    <div class="card"><div class="tablewrap" id="modern-table"></div></div>
+    <div class="note">Three things move these numbers. <b>The judge:</b> we re-judged our own 1,540 answers at 1,000 tokens with Mem0's 2026 judge, keeping gpt-4o-mini, and the score rose from 74.7 to 86.3; 180 answers flipped to correct and one to wrong. <b>The answering model:</b> in the MIRIX paper the whole conversation alone scores 87.5 with gpt-4.1-mini. <b>The ceiling:</b> an audit of LoCoMo found 99 of the 1,540 gold answers wrong, so a perfect system scores about 93.6, and several published scores sit at or above it. Mem0's 2026 protocol with GPT-5 would cost roughly $40 to $60 on OpenRouter; it was not run here.</div>
+  </section>
+
+  <section class="section">
+    <span class="eyebrow">Claude Code</span>
+    <h2>Using it inside a Claude Code session</h2>
+    <div class="cols">
+  <div class="card"><h3>Tested in this session</h3><ul class="tight">
+    <li>The repo's own <code>.mcp.json</code> failed to start here: it runs <code>${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin</code>, and that variable is set only when the repo is installed as a plugin, not when it is opened as a project.</li>
+    <li>The MCP server over stdio, driven the way Claude Code drives it: handshake, both tools listed, <code>memory_query</code> in 10 to 22 ms, <code>memory_append</code> in under 1 ms.</li>
+    <li>Capture of this repo's two Claude Code sessions into a separate <code>trial</code> memory: 480 messages and 194k tokens appended in half a second, embedded in the background within seconds.</li>
+    <li>Recall over those sessions finds the conversation around a topic, but often not the decision itself: decisions end up in files and tool output (the decision log in <code>docs/requirements.md</code>), which capture skips on purpose.</li>
+    <li>Fixed on the way: <code>cogito-mem setup</code> could not install llama.cpp on any platform, because llama.cpp's newest GitHub release (v0.7.0) carries no binaries; new installs were silently keyword-only.</li>
+  </ul></div>
+  <div class="card"><h3>The integration to aim for</h3><ol class="tight">
+    <li><b>Install once for every project.</b> The plugin or <code>cogito-mem install claude-code</code>: a user-scope MCP server plus the Stop and SessionEnd capture hooks; then <code>cogito-mem capture claude-code --all</code> for the history.</li>
+    <li><b>Push recall instead of waiting for a tool call.</b> A <code>UserPromptSubmit</code> hook queries the memory with each prompt (about 15 ms) and adds the hits above a score threshold as context. With many MCP servers, Claude Code defers their tools behind tool search, so a recall tool that waits to be called is rarely used unprompted.</li>
+    <li><b>Start where the last session ended.</b> A <code>SessionStart</code> hook adds the last few exchanges of the previous session in the same project.</li>
+    <li><b>Know the project.</b> Store each turn's <code>cwd</code> and git branch (the transcript has both; captured items have no title today) and prefer the current project when ranking.</li>
+    <li><b>Remember decisions, not only chat.</b> Capture commit messages, and have Claude save decisions with <code>memory_append</code>, as the server's instructions already ask.</li>
+    <li><b>Read more when asked to remember.</b> 300 tokens suits context pushed on every prompt (J 65.3 on LoCoMo); an explicit "do you remember…" should ask for about 1,000 (J 74.7).</li>
+  </ol></div>
+</div>
+  </section>
+
+  <section class="section">
+    <span class="eyebrow">Method and caveats</span>
+    <h2>How this was measured</h2>
+    <div class="cols">
+  <div class="card"><h3>Setup</h3><ul class="tight small">
+    <li><b>Data:</b> <code>locomo10.json</code> from snap-research/locomo (sha256 <span class="mono">79fa87e9…</span>): 10 conversations, 1,540 questions in categories 1–4; the 446 adversarial questions are left out, as everyone does.</li>
+    <li><b>Memory:</b> cogito-mem 0.1.0 at commit <span class="mono">2951bfa</span> plus this evaluation, default settings: BM25 and EmbeddingGemma 2 (Q8_0, 256 numbers, each turn embedded with the turn before it and its author) fused by rank, llama.cpp b11724 on Metal. A fresh memory per conversation; each turn is one item dated with its session; each question is asked as of just after the last session, <code>top_k</code> 100, <code>max_tokens</code> 300, 1,000 or 2,500.</li>
+    <li><b>Answer and judge:</b> <code>openai/gpt-4o-mini</code> through OpenRouter, temperature 0, with Mem0's prompts word for word: the memory prompt Mem0 used for Zep, the paper's full-context prompt, and its judge prompt in JSON mode. Returned turns are shown in date order as "date: speaker: text".</li>
+    <li><b>Runs:</b> one per configuration (the paper averaged 10); full context on the first five conversations only. All LLM calls are cached, so a rerun is free. Total spent on OpenRouter: $8.00.</li>
+    <li><b>Speed:</b> <code>cogito-mem bench speed</code>, 1,000 queries one at a time, top_k 10, 300 tokens. Every query is embedded by the real model; the stored 10M tokens are synthetic text with random vectors (embedding them for real is timed separately, on 1M tokens).</li>
+  </ul></div>
+  <div class="card"><h3>Caveats</h3><ul class="tight small">
+    <li>Our full-context run is the check on the harness. On the first five conversations (762 questions) it scored 76.5, against the paper's 72.9 over all ten, so our setup may score a few points more generously than the paper's. Compare shares of full context, or subtract about 3 points before comparing absolute numbers. Finishing it on all ten would cost about $3.30 more; OpenRouter credit ran short.</li>
+    <li>Context tokens are counted with EmbeddingGemma's tokenizer for cogito-mem and with each author's own tokenizer for the others.</li>
+    <li>Almost every published number is self-reported or run by a competitor. Only the full-context baseline was re-run here.</li>
+    <li>LoCoMo conversations are about 20k tokens, so any model can read them whole. The benchmark tests retrieval at a small scale; LongMemEval-M (1.5M tokens per question) is the stage-0 test in the requirements for that reason.</li>
+    <li>The gpt-4o-mini judge is generous: the audit found it accepts most vague but on-topic wrong answers, for every system alike.</li>
+  </ul></div>
+</div>
+<pre>cogito-mem eval locomo-qa --data locomo10.json --env-file .env --context memory --budget 1000 --out results/locomo-qa/paper-mem1000.json
+cogito-mem eval locomo-qa --data locomo10.json --env-file .env --context full --out results/locomo-qa/paper-full.json
+cogito-mem eval locomo-qa compare results/locomo-qa/paper-full.json results/locomo-qa/paper-mem1000.json
+COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --tokens 10M --random-vectors --out results/m5max/speed-10M-cpu.json</pre>
+  </section>
+</div>
+<div id="tip" hidden></div>
+
+<script type="application/json" id="data">{"rel": [{"name": "Zep, own rerun", "J": 75.14, "full": 72.9, "kind": "pub", "basis": "Zep vs the Mem0 paper's full context", "share": 103.1}, {"name": "cogito-mem, 2,500 tokens", "J": 78.08398950131233, "full": 76.51, "kind": "ours", "basis": "same 762 questions", "share": 102.1}, {"name": "cogito-mem, 1,000 tokens", "J": 74.67191601049869, "full": 76.51, "kind": "ours", "basis": "same 762 questions", "share": 97.6}, {"name": "Mem0g", "J": 68.44, "full": 72.9, "kind": "pub", "basis": "Mem0 paper", "share": 93.9}, {"name": "Mem0", "J": 66.88, "full": 72.9, "kind": "pub", "basis": "Mem0 paper", "share": 91.7}, {"name": "Zep, run by Mem0", "J": 65.99, "full": 72.9, "kind": "pub", "basis": "Mem0 paper", "share": 90.5}, {"name": "cogito-mem, 300 tokens", "J": 67.8477690288714, "full": 76.51, "kind": "ours", "basis": "same 762 questions", "share": 88.7}, {"name": "Plain RAG, best", "J": 60.97, "full": 72.9, "kind": "pub", "basis": "Mem0 paper", "share": 83.6}, {"name": "LangMem", "J": 58.1, "full": 72.9, "kind": "pub", "basis": "Mem0 paper", "share": 79.7}, {"name": "ChatGPT memory", "J": 52.9, "full": 72.9, "kind": "pub", "basis": "Mem0 paper", "share": 72.6}, {"name": "A-Mem", "J": 48.38, "full": 72.9, "kind": "pub", "basis": "Mem0 paper", "share": 66.4}], "figs": [{"k": "J at a 1,000-token budget", "v": "74.7", "unit": "%", "p": "LoCoMo, 1,540 questions; gpt-4o-mini answers and judges, as in the Mem0 paper (74.6 without photo captions)"}, {"k": "Share of full context", "v": "98", "unit": "%", "p": "74.7 against 76.5 for the whole conversation, on the same 762 questions; Mem0 reached 92 % in its paper"}, {"k": "Query p95 at 10M tokens", "v": "26", "unit": "ms", "p": "CPU only, against a 100 ms target; 14 ms with Metal"}, {"k": "LLM calls to store a message", "v": "0", "p": "one local embedding; Mem0 and Zep run an LLM on every write"}], "bars": [{"name": "cogito-mem, 300 tokens", "J": 65.32, "tokens": 435.4, "kind": "ours", "prov": "here", "who": "measured on this laptop, 19 Oct 2026", "models": "gpt-4o-mini / gpt-4o-mini"}, {"name": "cogito-mem, 1,000 tokens", "J": 74.68, "tokens": 1545.1, "kind": "ours", "prov": "here", "who": "measured on this laptop, 19 Oct 2026", "models": "gpt-4o-mini / gpt-4o-mini"}, {"name": "cogito-mem, 2,500 tokens", "J": 76.95, "tokens": 3695.2, "kind": "ours", "prov": "here", "who": "measured on this laptop, 19 Oct 2026", "models": "gpt-4o-mini / gpt-4o-mini"}, {"name": "cogito-mem, 1,000, text only", "J": 74.55, "tokens": 1596.5, "kind": "ours", "prov": "here", "who": "photo captions left out, as Mem0's harness did", "models": "gpt-4o-mini / gpt-4o-mini"}, {"name": "Full context, our run", "J": 76.51, "tokens": 26509.4, "kind": "base", "prov": "here", "ref": true, "who": "the whole conversation, Mem0's full-context prompt; first 5 conversations (762 questions)", "models": "gpt-4o-mini / gpt-4o-mini"}, {"name": "Full context, Mem0 paper", "J": 72.9, "tokens": 26031, "kind": "base", "prov": "third", "who": "Mem0 paper, 10 runs", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "Mem0", "J": 66.88, "tokens": 1764, "kind": "pub", "prov": "self", "who": "Mem0 paper", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "Mem0 with graph (Mem0g)", "J": 68.44, "tokens": 3616, "kind": "pub", "prov": "self", "who": "Mem0 paper", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "Zep, run by Mem0", "J": 65.99, "tokens": 3911, "kind": "pub", "prov": "third", "who": "Mem0 paper (a competitor's run)", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "Zep, own rerun", "J": 75.14, "tokens": null, "kind": "pub", "prov": "self", "who": "Zep's rebuttal of Mem0's run", "models": "Mem0's harness, corrected (models not restated)", "src": "https://www.getzep.com/blog/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory/", "srcText": "Zep blog"}, {"name": "Plain RAG, best setting", "J": 60.97, "tokens": 512, "kind": "pub", "prov": "third", "who": "Mem0 paper: 2 chunks of 256 tokens", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "LangMem", "J": 58.1, "tokens": 127, "kind": "pub", "prov": "third", "who": "Mem0 paper", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "ChatGPT memory", "J": 52.9, "tokens": 4437, "kind": "pub", "prov": "third", "who": "Mem0 paper", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "A-Mem", "J": 48.38, "tokens": 2520, "kind": "pub", "prov": "third", "who": "Mem0 paper", "models": "gpt-4o-mini / gpt-4o-mini", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}], "curve": [{"name": "cogito-mem, 300", "J": 65.32, "tokens": 435.4, "kind": "ours", "label": {"text": "cogito-mem 300", "dx": 9, "dy": 16}}, {"name": "cogito-mem, 1,000", "J": 74.68, "tokens": 1545.1, "kind": "ours", "label": {"text": "cogito-mem 1,000", "dx": 9, "dy": 19}}, {"name": "cogito-mem, 2,500", "J": 76.95, "tokens": 3695.2, "kind": "ours", "label": {"text": "cogito-mem 2,500", "dx": -10, "dy": -10}}, {"name": "Full context, our run (762 questions)", "J": 76.51, "tokens": 26509.4, "kind": "base", "label": {"text": "full context", "dx": -10, "dy": -10}}, {"name": "Full context, Mem0 paper", "J": 72.9, "tokens": 26031, "kind": "pub", "who": "Mem0 paper", "label": {"text": "full context (paper)", "dx": -10, "dy": 18}}, {"name": "Mem0", "J": 66.88, "tokens": 1764, "kind": "pub", "who": "self-reported", "label": {"text": "Mem0", "dx": 9, "dy": 4}}, {"name": "Mem0g", "J": 68.44, "tokens": 3616, "kind": "pub", "who": "self-reported", "label": {"text": "Mem0g", "dx": 9, "dy": -4}}, {"name": "Zep (Mem0's run)", "J": 65.99, "tokens": 3911, "kind": "pub", "who": "Mem0 paper", "label": {"text": "Zep", "dx": 9, "dy": 12}}, {"name": "Plain RAG", "J": 60.97, "tokens": 512, "kind": "pub", "who": "Mem0 paper", "label": {"text": "RAG", "dx": 9, "dy": 4}}, {"name": "LangMem", "J": 58.1, "tokens": 127, "kind": "pub", "who": "Mem0 paper", "label": {"text": "LangMem", "dx": 9, "dy": 4}}, {"name": "ChatGPT memory", "J": 52.9, "tokens": 4437, "kind": "pub", "who": "Mem0 paper", "label": {"text": "ChatGPT memory", "dx": 9, "dy": 4}}, {"name": "A-Mem", "J": 48.38, "tokens": 2520, "kind": "pub", "who": "Mem0 paper", "label": {"text": "A-Mem", "dx": 9, "dy": 4}}, {"name": "MemOS (own prompts)", "J": 75.8, "tokens": 1589, "kind": "pub", "who": "self-reported, gpt-4o-mini answers, judge not stated", "label": {"text": "MemOS*", "dx": -9, "dy": -6}}], "cats": [{"name": "cogito-mem, 300 tokens", "sh": 73.48, "mh": 44.33, "t": 69.16, "od": 42.71, "all": 65.32, "kind": "ours"}, {"name": "cogito-mem, 1,000 tokens", "sh": 84.54, "mh": 61.7, "t": 69.16, "od": 44.79, "all": 74.68, "kind": "ours"}, {"name": "cogito-mem, 2,500 tokens", "sh": 87.51, "mh": 67.38, "t": 66.67, "od": 46.88, "all": 76.95, "kind": "ours"}, {"name": "Full context, our run (762 questions)", "sh": 87.08, "mh": 72.54, "t": 59.62, "od": 50.0, "all": 76.51, "kind": "base"}, {"name": "Mem0 (paper, re-mapped)", "sh": 72.93, "mh": 67.13, "t": 55.51, "od": 51.15, "all": 66.88, "kind": "pub"}, {"name": "Mem0g (paper, re-mapped)", "sh": 75.71, "mh": 65.71, "t": 58.13, "od": 47.19, "all": 68.44, "kind": "pub"}, {"name": "Zep, Mem0's run (re-mapped)", "sh": 76.6, "mh": 61.7, "t": 49.31, "od": 41.35, "all": 65.99, "kind": "pub"}], "speed": {"head": ["What", "Median", "p95"], "rows": [["Query, LoCoMo conversation (~20k tokens), Metal", "9.4 ms", "9.9 ms"], ["Query, 1M tokens, CPU only", "14.5 ms", "22.8 ms"], ["Query, 10M tokens, CPU only (target p95 \u2264 100 ms)", "17.8 ms", "26.0 ms"], ["Query, 10M tokens, Metal", "13.0 ms", "14.2 ms"], ["Query over localhost HTTP, 10M, Metal", "13.2 ms", "14.5 ms"], ["Append a 512-token message, Metal", "0.8 ms", "1.3 ms"], ["Append an 8k-token message, Metal", "9.1 ms", "9.5 ms"], ["New message findable by meaning, Metal", "13.0 ms", "25.0 ms"], ["Embedding throughput, Metal", "21k tokens/s", "\u2013"]], "numeric": [1, 2]}, "pubspeed": [{"name": "Mem0 OSS (paper)", "p50": "148 ms", "p95": "200 ms", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "Mem0g (paper)", "p50": "476 ms", "p95": "657 ms", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "Zep, Mem0's run", "p50": "513 ms", "p95": "778 ms", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}, {"name": "Zep, own 2026 page", "p50": "87 ms", "p95": "155 ms", "src": "https://www.getzep.com/research", "srcText": "getzep.com/research"}, {"name": "Mem0 platform, Apr 2026 run", "p50": "3.06 s", "p95": "6.01 s", "src": "https://github.com/mem0ai/memory-benchmarks", "srcText": "results file"}, {"name": "Hindsight (AMB run)", "p50": "880 ms", "p95": "1.43 s", "src": "https://agentmemorybenchmark.ai", "srcText": "AMB"}, {"name": "Hybrid-search baseline (AMB)", "p50": "106 ms", "p95": "699 ms", "src": "https://agentmemorybenchmark.ai", "srcText": "AMB"}, {"name": "LangMem (Mem0 paper)", "p50": "17.99 s", "p95": "59.82 s", "src": "https://arxiv.org/abs/2504.19413", "srcText": "arXiv 2504.19413"}], "modern": [{"name": "Zep (2026)", "J": "94.7", "answer": "gpt-5.4", "judge": "gpt-5.4, chain of thought", "prov": "self", "src": "https://www.getzep.com/research", "srcText": "getzep.com"}, {"name": "EverMemOS", "J": "93.05", "answer": "gpt-4.1-mini", "judge": "gpt-4o-mini + 2 judges", "prov": "self", "src": "https://arxiv.org/abs/2601.02163", "srcText": "arXiv 2601.02163"}, {"name": "ByteRover 2.0", "J": "92.2", "answer": "Gemini 3 Flash", "judge": "Gemini 3 Flash", "prov": "self", "src": "https://www.byterover.dev/blog/benchmark-ai-agent-memory", "srcText": "blog"}, {"name": "Hindsight", "J": "92.01", "answer": "gemini-3.1-pro", "judge": "gemini-2.5-flash-lite", "prov": "self", "src": "https://agentmemorybenchmark.ai", "srcText": "AMB (vendor-run)"}, {"name": "Mem0 platform (Apr 2026)", "J": "91.6 (README: 92.5)", "answer": "gpt-5, top 200 memories", "judge": "gpt-5, lenient rules", "prov": "self", "src": "https://github.com/mem0ai/memory-benchmarks", "srcText": "memory-benchmarks"}, {"name": "MemMachine v0.2", "J": "91.69", "answer": "gpt-4.1-mini", "judge": "gpt-4o-mini", "prov": "self", "src": "https://arxiv.org/abs/2604.04853", "srcText": "arXiv 2604.04853"}, {"name": "Honcho", "J": "89.9", "answer": "Claude Haiku 4.5", "judge": "not named", "prov": "self", "src": "https://plasticlabs.ai/blog/research/Benchmarking-Honcho", "srcText": "blog"}, {"name": "Full context (MIRIX paper)", "J": "87.52", "answer": "gpt-4.1-mini", "judge": "GPT-4.1", "prov": "third", "src": "https://arxiv.org/abs/2507.07957", "srcText": "arXiv 2507.07957"}, {"name": "MemOS (paper, gpt-4o-mini)", "J": "75.80", "answer": "gpt-4o-mini, own prompt", "judge": "not stated", "prov": "self", "src": "https://arxiv.org/abs/2507.03724", "srcText": "arXiv 2507.03724"}, {"name": "Hybrid-search baseline (raw chunks)", "J": "79.09", "answer": "gemini-3.1-pro", "judge": "gemini-2.5-flash-lite", "prov": "third", "src": "https://agentmemorybenchmark.ai", "srcText": "AMB"}, {"name": "MemMachine v0.1", "J": "84.87", "answer": "gpt-4o-mini, own prompt", "judge": "gpt-4o-mini", "prov": "self", "src": "https://memmachine.ai/blog/2025/09/memmachine-reaches-new-heights-on-locomo/", "srcText": "blog"}, {"name": "Letta filesystem agent", "J": "74.0", "answer": "gpt-4o-mini (agent)", "judge": "not stated", "prov": "self", "src": "https://www.letta.com/blog/benchmarking-ai-agent-memory", "srcText": "blog"}]}</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const NS = "http://www.w3.org/2000/svg";
+  const tip = document.getElementById("tip");
+  const el = (name, attrs, parent) => { const n = document.createElementNS(NS, name); for (const k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; };
+  const txt = (parent, x, y, s, cls, anchor) => { const t = el("text", { x, y, class: cls || "", "text-anchor": anchor || "start" }, parent); t.textContent = s; return t; };
+  function showTip(ev, lines) {
+    tip.replaceChildren();
+    lines.forEach((l, i) => { const d = document.createElement(i === 0 ? "b" : "div"); d.textContent = l; tip.appendChild(d); if (i === 0) tip.appendChild(document.createElement("br")); });
+    tip.hidden = false;
+    const r = tip.getBoundingClientRect();
+    let x = (ev.clientX ?? 0) + 14, y = (ev.clientY ?? 0) + 14;
+    if (ev.type === "focus") { const b = ev.target.getBoundingClientRect(); x = b.left; y = b.bottom + 6; }
+    if (x + r.width > innerWidth - 8) x = innerWidth - r.width - 8;
+    if (y + r.height > innerHeight - 8) y = y - r.height - 28;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  const hideTip = () => { tip.hidden = true; };
+  function hover(node, lines) {
+    node.setAttribute("tabindex", "0");
+    node.setAttribute("aria-label", lines.join(", "));
+    node.addEventListener("pointermove", e => showTip(e, lines));
+    node.addEventListener("focus", e => showTip(e, lines));
+    node.addEventListener("pointerleave", hideTip);
+    node.addEventListener("blur", hideTip);
+  }
+  function table(id, head, rows, numeric, rowClass) {
+    const t = document.createElement("table");
+    const tr = t.createTHead().insertRow();
+    head.forEach((h, i) => { const th = document.createElement("th"); th.textContent = h; if (numeric.includes(i)) th.className = "n"; tr.appendChild(th); });
+    const tb = t.createTBody();
+    rows.forEach((r, ri) => {
+      const row = tb.insertRow(); if (rowClass && rowClass(ri)) row.className = rowClass(ri);
+      r.forEach((c, i) => {
+        const td = row.insertCell(); if (numeric.includes(i)) td.className = "n";
+        if (c && typeof c === "object" && c.href) { const a = document.createElement("a"); a.href = c.href; a.textContent = c.text; a.target = "_blank"; a.rel = "noopener"; td.appendChild(a); }
+        else if (c && typeof c === "object" && c.pill) { const s = document.createElement("span"); s.className = "pill " + c.cls; s.textContent = c.pill; td.appendChild(s); }
+        else td.textContent = c == null ? "–" : c;
+      });
+    });
+    document.getElementById(id).appendChild(t);
+  }
+  const PROV = { here: "measured here", third: "3rd party", self: "self-reported" };
+  const provPill = p => ({ pill: PROV[p], cls: p === "here" ? "here" : p === "self" ? "self" : "" });
+  const fmt = (x, d = 1) => x == null ? "–" : Number(x).toFixed(d);
+  const tok = x => x == null ? "–" : Math.round(x).toLocaleString("en-US");
+
+  // ---- figures
+  const figs = document.getElementById("figs");
+  D.figs.forEach(f => {
+    const d = document.createElement("div"); d.className = "fig";
+    const k = document.createElement("span"); k.className = "k"; k.textContent = f.k;
+    const v = document.createElement("span"); v.className = "v"; v.textContent = f.v;
+    if (f.unit) { const s = document.createElement("small"); s.textContent = " " + f.unit; v.appendChild(s); }
+    const p = document.createElement("p"); p.textContent = f.p;
+    d.append(k, v, p); figs.appendChild(d);
+  });
+
+  // ---- bars: J by system (emphasis: ours in accent, the rest gray)
+  (function bars() {
+    const rows = D.bars.slice().sort((a, b) => b.J - a.J);
+    const W = 760, rowH = 30, top = 18, left = 238, right = 128, H = top + rows.length * rowH + 30;
+    const x = v => left + (v / 100) * (W - left - right);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "xMinYMin meet" });
+    svg.style.minWidth = "560px";
+    [0, 20, 40, 60, 80, 100].forEach(v => { el("line", { x1: x(v), x2: x(v), y1: top - 6, y2: H - 26, class: "grid" }, svg); txt(svg, x(v), H - 10, String(v), "tick", "middle"); });
+    el("line", { x1: x(0), x2: x(0), y1: top - 6, y2: H - 26, class: "axis" }, svg);
+    const ref = D.bars.find(b => b.ref);
+    if (ref) el("line", { x1: x(ref.J), x2: x(ref.J), y1: top - 10, y2: H - 26, class: "ref" }, svg);
+    rows.forEach((r, i) => {
+      const y = top + i * rowH, bh = 16, by = y + (rowH - bh) / 2;
+      txt(svg, left - 10, y + rowH / 2 + 4, r.name, "lab" + (r.kind === "ours" ? "" : " dim"), "end");
+      const w = Math.max(2, x(r.J) - x(0));
+      const hit = el("rect", { x: 0, y, width: W, height: rowH, class: "hit" }, svg);
+      const cls = "bar" + (r.kind === "ours" ? " ours" : r.kind === "base" ? " base" : "");
+      el("path", { d: `M${x(0)},${by} h${w - 4} a4,4 0 0 1 4,4 v${bh - 8} a4,4 0 0 1 -4,4 h${-(w - 4)} z`, class: cls }, svg);
+      txt(svg, x(r.J) + 6, y + rowH / 2 + 4, fmt(r.J), "val");
+      txt(svg, W - 4, y + rowH / 2 + 4, PROV[r.prov], "prov", "end");
+      hover(hit, [`${r.name}: J ${fmt(r.J)}`, r.who, r.tokens ? `${tok(r.tokens)} tokens of context per question` : "context size not reported", r.models]);
+    });
+    document.getElementById("bars").appendChild(svg);
+    table("bars-table", ["System", "J", "Context tokens", "Answer / judge", "Who ran it", "Source"],
+      rows.map(r => [r.name, fmt(r.J), r.tokens ? tok(r.tokens) : null, r.models, provPill(r.prov), r.src ? { href: r.src, text: r.srcText || "link" } : null]),
+      [1, 2], i => rows[i].kind === "ours" ? "ours" : "");
+  })();
+
+  // ---- curve: J against context tokens (log x)
+  (function curve() {
+    const W = 760, H = 380, L = 52, R = 24, T = 18, B = 46;
+    const lx0 = Math.log10(100), lx1 = Math.log10(40000), y0 = 40, y1 = 80;
+    const x = v => L + (Math.log10(v) - lx0) / (lx1 - lx0) * (W - L - R);
+    const y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "xMinYMin meet" });
+    svg.style.minWidth = "520px";
+    [40, 50, 60, 70, 80].forEach(v => { el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), class: "grid" }, svg); txt(svg, L - 8, y(v) + 4, String(v), "tick", "end"); });
+    [100, 300, 1000, 3000, 10000, 30000].forEach(v => { txt(svg, x(v), H - B + 18, v >= 1000 ? (v / 1000) + "k" : String(v), "tick", "middle"); });
+    txt(svg, (L + W - R) / 2, H - 6, "tokens of context per question (log scale)", "tick", "middle");
+    txt(svg, L, T - 4, "J", "tick", "start");
+    el("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, class: "axis" }, svg);
+    const pts = D.curve.filter(p => p.tokens && p.J != null);
+    const ours = pts.filter(p => p.kind === "ours").sort((a, b) => a.tokens - b.tokens);
+    if (ours.length > 1) el("path", { d: ours.map((p, i) => (i ? "L" : "M") + x(p.tokens) + "," + y(p.J)).join(" "), class: "line" }, svg);
+    pts.forEach(p => {
+      const cls = "dot" + (p.kind === "ours" ? " ours" : p.kind === "base" ? " base" : "");
+      const c = el("circle", { cx: x(p.tokens), cy: y(p.J), r: p.kind === "pub" ? 4.5 : 5.5, class: cls }, svg);
+      const hit = el("circle", { cx: x(p.tokens), cy: y(p.J), r: 13, class: "hit" }, svg);
+      hover(hit, [`${p.name}: J ${fmt(p.J)}`, `${tok(p.tokens)} tokens per question`, p.who || ""]);
+      if (p.label) {
+        const dx = p.label.dx || 9, dy = p.label.dy || 4;
+        txt(svg, x(p.tokens) + dx, y(p.J) + dy, p.label.text || p.name, p.kind === "pub" ? "lab dim" : "lab", dx < 0 ? "end" : "start");
+      }
+    });
+    document.getElementById("curve").appendChild(svg);
+    table("curve-table", ["System", "Tokens / question", "J"], pts.slice().sort((a, b) => a.tokens - b.tokens).map(p => [p.name, tok(p.tokens), fmt(p.J)]), [1, 2],
+      i => pts.slice().sort((a, b) => a.tokens - b.tokens)[i].kind === "ours" ? "ours" : "");
+  })();
+
+  table("rel-table", ["System", "J", "Full context, same harness", "Share of full context", "Basis"],
+    D.rel.map(r => [r.name, fmt(r.J), fmt(r.full), fmt(r.share) + " %", r.basis]), [1, 2, 3], i => D.rel[i].kind === "ours" ? "ours" : "");
+  table("cat-table", ["System", "single-hop (841)", "multi-hop (282)", "temporal (321)", "open-domain (96)", "overall"],
+    D.cats.map(c => [c.name, fmt(c.sh), fmt(c.mh), fmt(c.t), fmt(c.od), fmt(c.all)]), [1, 2, 3, 4, 5], i => D.cats[i].kind === "ours" ? "ours" : "");
+  table("speed-table", D.speed.head, D.speed.rows, D.speed.numeric);
+  table("pubspeed-table", ["System", "Search p50", "Search p95", "Source"], D.pubspeed.map(r => [r.name, r.p50, r.p95, { href: r.src, text: r.srcText }]), [1, 2]);
+  table("modern-table", ["System", "J", "Answer model", "Judge", "Who ran it", "Source"],
+    D.modern.map(r => [r.name, r.J, r.answer, r.judge, provPill(r.prov), { href: r.src, text: r.srcText }]), [1]);
+})();
+</script>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How it works · Cogi</title>
+  <meta name="description" content="How Cogi collects, keeps and finds your messages: the hollow, the basket and the search.">
+  <meta property="og:title" content="How it works · Cogi">
+  <meta property="og:description" content="How Cogi collects, keeps and finds your messages: the hollow, the basket and the search.">
+  <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
+  <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/how.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/cogi.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="assets/cogi.svg" alt="">cogito-mem</a>
+      <nav class="nav" aria-label="Main">
+        <a href="index.html">Home</a>
+        <a href="start.html">Install</a>
+        <a href="how.html" aria-current="page">How it works</a>
+        <a href="results.html">Results</a>
+        <a href="api.html">API &amp; MCP</a>
+        <a href="safety.html">Safety</a>
+        <a href="https://github.com/meridian21lab/cogito-mem">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <p class="eyebrow">How it works</p>
+    <h1>Collect, keep, find</h1>
+    <p class="lead">Cogi has three jobs. Each message you and Claude exchange is a nut; your memory is Cogi's hollow.</p>
+
+    <div class="flow">
+      <div class="card"><span class="num">1</span><h3>Collect</h3>
+        <p>When Claude finishes an answer, a hook passes the new messages to Cogi, in the background. Your chat never waits.</p></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="card"><span class="num">2</span><h3>Keep</h3>
+        <p>Cogi stores each message word for word with its date, and indexes it two ways: by its words and by its meaning.</p></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="card"><span class="num">3</span><h3>Find</h3>
+        <p>Asked a question, Cogi searches both ways, merges the results and hands back the best few messages.</p></div>
+    </div>
+
+    <h2>Two ways nuts come back</h2>
+    <div class="two">
+      <div class="card"><h3>By themselves</h3>
+        <p>With each prompt, Cogi adds what earlier sessions said about it (up to 300 tokens), and nothing when
+          nothing matches well. A new session starts with how the last one in the same project ended.</p></div>
+      <div class="card"><h3>When Claude asks</h3>
+        <p>When you refer to something earlier, Claude searches the memory itself (<code>memory_query</code>)
+          and reads up to 1,000 tokens. Saying <em>"check your memory"</em> makes sure it does.</p></div>
+    </div>
+
+    <h2>The basket: how much comes back</h2>
+    <p>Each search fills a basket of at most <strong>1,000 tokens</strong>, about 750 words or a page and a half. Tokens are
+      how AI models count text.</p>
+    <ul class="list-yes">
+      <li>The best-matching message goes in first, then the next, until the basket is full or holds 10 messages.</li>
+      <li>A message too big for the space left is skipped; a smaller one further down can still fit.</li>
+      <li>Long messages are kept in pieces of about 256 tokens, so one long plan can't fill the basket alone.</li>
+    </ul>
+    <p>Why tokens, not "5 results"? Messages differ a lot in size, and Claude's room is counted in tokens. On LoCoMo,
+      1,000 tokens answer as well as the whole conversation (<a href="results.html">see the results</a>).</p>
+
+    <h2>The hollow: your memory</h2>
+    <p>Your memory is called <code>yourname-hollow</code>, for example <code>ksirg-hollow</code>. Every Claude Code
+      session, in every project, goes into it, so Claude can recall across sessions and projects. Each session keeps its
+      own label inside, and a search looks through them all.</p>
+    <p>The status shows what is inside:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>curl -s localhost:7327/v1/status</code></pre></div>
+    <pre class="out">"embedder": { "state": "ready", … },
+"namespaces": {
+  "ksirg-hollow": { "messages": 100, "items": 142, "vectors": 142, "pending": 0 }
+}</pre>
+    <div class="table">
+      <table>
+        <tr><td><code>messages</code></td><td>messages kept, yours and Claude's</td></tr>
+        <tr><td><code>items</code></td><td>the pieces they were cut into</td></tr>
+        <tr><td><code>vectors</code></td><td>pieces already findable by meaning</td></tr>
+        <tr><td><code>pending</code></td><td>pieces still waiting for that (usually 0)</td></tr>
+      </table>
+    </div>
+    <p class="small muted">To use another name, set <code>COGITO_MEM_NAMESPACE</code>, or install with
+      <code>--config memory_name=…</code>. Changing it starts a new, empty hollow.</p>
+
+    <h2>What Cogi keeps, and what it skips</h2>
+    <div class="two">
+      <div class="card"><h3>Keeps</h3>
+        <ul class="list-yes">
+          <li>What you type</li>
+          <li>Claude's answers</li>
+          <li>When each was said, and in which session</li>
+        </ul></div>
+      <div class="card"><h3>Skips</h3>
+        <ul class="list-no">
+          <li>Tool output, file contents and Claude's thinking</li>
+          <li>System messages</li>
+          <li>Secrets: API keys, tokens and passwords become <code>[redacted]</code></li>
+        </ul></div>
+    </div>
+
+    <details>
+      <summary>Under the hood</summary>
+      <ul>
+        <li><strong>Meaning:</strong> a small open model, <a href="https://ai.google.dev/gemma/docs/embeddinggemma">EmbeddingGemma 2</a>
+          (310 MB), runs on your computer in <a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a> and turns
+          each piece into 256 numbers. "The database choice" finds "we picked SQLite".</li>
+        <li><strong>Words:</strong> a classic keyword index (BM25) finds exact names and terms.</li>
+        <li><strong>Together:</strong> the two rankings are merged (reciprocal rank fusion).</li>
+        <li><strong>Storage:</strong> one SQLite file per hollow that is only ever added to; nothing is edited or deleted.</li>
+        <li><strong>Service:</strong> one small background service on <code>127.0.0.1:7327</code> holds the model. It wakes
+          when needed and sleeps after an idle hour.</li>
+      </ul>
+    </details>
+
+    <div class="next"><a href="start.html">← Install</a><a href="results.html">Results →</a></div>
+  </main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><img src="assets/cogi.svg" alt="">cogito-mem · free and open source (MIT)</span>
+      <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
+      <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
+      <a href="safety.html">What you install</a>
+    </div>
+  </footer>
+</body>
+</html>

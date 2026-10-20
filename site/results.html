@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Results · Cogi</title>
+  <meta name="description" content="How Cogi was tested: LoCoMo answers judged like Mem0 and Zep were, finding the right messages, speed and cost.">
+  <meta property="og:title" content="Results · Cogi">
+  <meta property="og:description" content="How Cogi was tested: LoCoMo answers judged like Mem0 and Zep were, finding the right messages, speed and cost.">
+  <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
+  <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/results.html">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="assets/cogi.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="index.html"><img src="assets/cogi.svg" alt="">cogito-mem</a>
+      <nav class="nav" aria-label="Main">
+        <a href="index.html">Home</a>
+        <a href="start.html">Install</a>
+        <a href="how.html">How it works</a>
+        <a href="results.html" aria-current="page">Results</a>
+        <a href="api.html">API &amp; MCP</a>
+        <a href="safety.html">Safety</a>
+        <a href="https://github.com/meridian21lab/cogito-mem">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wide">
+    <p class="eyebrow">Results</p>
+    <h1>Is Cogi any good?</h1>
+    <p class="lead">We tested it the way memory services test themselves, on a laptop, with the model that ships.
+      Short answer: as good as rereading everything, for $0, in milliseconds.</p>
+
+    <div class="cards">
+      <div class="card"><div class="big">74.7%</div><p>of LoCoMo questions answered right from 1,000 tokens</p></div>
+      <div class="card"><div class="big">98%</div><p>of what rereading the whole conversation scores</p></div>
+      <div class="card"><div class="big">26 ms</div><p>to search 10 million tokens, laptop CPU only</p></div>
+      <div class="card"><div class="big">0</div><p>AI calls to save a message, so $0 per message</p></div>
+    </div>
+
+    <h2>Answers, next to the others</h2>
+    <p>On <a href="https://github.com/snap-research/locomo">LoCoMo</a> (10 long conversations, 1,540 questions), an
+      AI model answers each question from what the memory hands it, and a second AI model grades the answer. This is
+      the test <a href="https://arxiv.org/abs/2504.19413">Mem0's paper</a> used for Mem0, Zep and others.</p>
+    <div class="chart">
+      <h3>How close each memory gets to rereading everything</h3>
+      <p class="sub">Score as a share of the whole-conversation score measured the same way · higher is better</p>
+      <div class="bars">
+        <span class="name me">Cogi, 1,000 tokens</span><div class="track" title="74.7 of 76.5"><div class="fill me" style="width:97.6%"></div><span class="val" style="left:97.6%">98%</span></div>
+        <span class="name">Mem0 with graph</span><div class="track" title="68.4 of 72.9"><div class="fill" style="width:93.9%"></div><span class="val" style="left:93.9%">94%</span></div>
+        <span class="name">Mem0</span><div class="track" title="66.9 of 72.9"><div class="fill" style="width:91.7%"></div><span class="val" style="left:91.7%">92%</span></div>
+        <span class="name">Zep (run by Mem0)</span><div class="track" title="66.0 of 72.9"><div class="fill" style="width:90.5%"></div><span class="val" style="left:90.5%">91%</span></div>
+        <span class="name">Plain search (RAG)</span><div class="track" title="61.0 of 72.9"><div class="fill" style="width:83.6%"></div><span class="val" style="left:83.6%">84%</span></div>
+        <span class="name">ChatGPT memory</span><div class="track" title="52.9 of 72.9"><div class="fill" style="width:72.6%"></div><span class="val" style="left:72.6%">73%</span></div>
+      </div>
+      <p class="note">Others' scores are from the Mem0 paper. Zep disputes Mem0's run of Zep; in its own rerun Zep
+        reports 75.1, which is 103% by this measure.</p>
+    </div>
+    <details>
+      <summary>The numbers in a table</summary>
+      <div class="table">
+        <table>
+          <tr><th>Memory</th><th class="n">Score</th><th class="n">Whole conversation</th><th class="n">Share</th><th>Source</th></tr>
+          <tr class="me"><td>Cogi, 1,000 tokens</td><td class="n">74.7</td><td class="n">76.5</td><td class="n">98%</td><td>measured 19 Oct 2026</td></tr>
+          <tr><td>Mem0 with graph (Mem0g)</td><td class="n">68.4</td><td class="n">72.9</td><td class="n">94%</td><td>Mem0 paper</td></tr>
+          <tr><td>Mem0</td><td class="n">66.9</td><td class="n">72.9</td><td class="n">92%</td><td>Mem0 paper</td></tr>
+          <tr><td>Zep, run by Mem0</td><td class="n">66.0</td><td class="n">72.9</td><td class="n">91%</td><td>Mem0 paper</td></tr>
+          <tr><td>Zep, own rerun</td><td class="n">75.1</td><td class="n">72.9</td><td class="n">103%</td><td><a href="https://www.getzep.com/blog/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory/">Zep blog</a></td></tr>
+          <tr><td>Plain search (RAG), best setting</td><td class="n">61.0</td><td class="n">72.9</td><td class="n">84%</td><td>Mem0 paper</td></tr>
+          <tr><td>ChatGPT memory</td><td class="n">52.9</td><td class="n">72.9</td><td class="n">73%</td><td>Mem0 paper</td></tr>
+        </table>
+      </div>
+      <p class="small muted">Why shares? Our whole-conversation run scored 76.5 where the paper's scored 72.9, so our
+        setup may grade a little more generously. Dividing each score by the whole-conversation score measured alongside
+        it removes that difference.</p>
+    </details>
+
+    <h2>A bigger basket, better answers</h2>
+    <div class="chart">
+      <h3>Answers right, by how much Cogi hands back</h3>
+      <p class="sub">LoCoMo, first 5 conversations (762 questions), graded as above</p>
+      <div class="bars">
+        <span class="name me">300 tokens</span><div class="track"><div class="fill me" style="width:67.8%"></div><span class="val" style="left:67.8%">67.8%</span></div>
+        <span class="name me">1,000 tokens</span><div class="track"><div class="fill me" style="width:74.7%"></div><span class="val" style="left:74.7%">74.7%</span></div>
+        <span class="name me">2,500 tokens</span><div class="track"><div class="fill me" style="width:78.1%"></div><span class="val" style="left:78.1%">78.1%</span></div>
+        <span class="name">Whole conversation (~26,000 tokens)</span><div class="track"><div class="fill" style="width:76.5%"></div><span class="val" style="left:76.5%">76.5%</span></div>
+      </div>
+      <p class="note">Claude gets up to 300 tokens with each prompt by itself, and 1,000 when it searches.</p>
+    </div>
+    <p>Cogi shines on single facts (84.5% right at 1,000 tokens) and on dates, since every message carries its own.
+      It is weaker on questions that need many facts at once (61.7%), where a fixed basket runs out first.</p>
+
+    <h2>Finding the right messages</h2>
+    <div class="chart">
+      <h3>Every message an answer needs, handed back within 1,000 tokens</h3>
+      <p class="sub">LoCoMo, all 10 conversations, 1,536 questions</p>
+      <div class="bars">
+        <span class="name me">Cogi</span><div class="track"><div class="fill me" style="width:72.5%"></div><span class="val" style="left:72.5%">72.5%</span></div>
+        <span class="name">Keyword search only</span><div class="track"><div class="fill" style="width:59.8%"></div><span class="val" style="left:59.8%">59.8%</span></div>
+        <span class="name">The last 1,000 tokens</span><div class="track"><div class="fill" style="width:4.2%"></div><span class="val" style="left:4.2%">4.2%</span></div>
+        <span class="name">1,000 random tokens</span><div class="track"><div class="fill" style="width:3.5%"></div><span class="val" style="left:3.5%">3.5%</span></div>
+      </div>
+      <p class="note">Searching by meaning and by words together beats words alone by 12.7 points (95% interval 11.0 to 14.5).</p>
+    </div>
+
+    <h2>Fast</h2>
+    <div class="cards">
+      <div class="card"><div class="big">26 ms</div><p>95% of searches in 10 million tokens, CPU only (target: 100 ms)</p></div>
+      <div class="card"><div class="big">14 ms</div><p>the same with the laptop's GPU</p></div>
+      <div class="card"><div class="big">1–11 ms</div><p>to save a message; findable by meaning a moment later</p></div>
+    </div>
+    <div class="table">
+      <table>
+        <tr><th>Published search times</th><th class="n">95% of searches within</th></tr>
+        <tr class="me"><td>Cogi, 10 million tokens, laptop CPU</td><td class="n">26 ms</td></tr>
+        <tr><td>Zep, its own 2026 page</td><td class="n">155 ms</td></tr>
+        <tr><td>Mem0, open source (Mem0 paper)</td><td class="n">200 ms</td></tr>
+        <tr><td>Mem0 with graph (Mem0 paper)</td><td class="n">657 ms</td></tr>
+        <tr><td>Mem0 platform, April 2026 run</td><td class="n">6.0 s</td></tr>
+      </table>
+    </div>
+    <p class="small muted">These compare designs, not hardware: hosted memories include the network and their own AI calls.</p>
+
+    <h2>Free</h2>
+    <p>Saving a message costs one local embedding: no AI calls, no API key, $0. Services that extract facts call an AI
+      model for every message they store, and you pay for each call.</p>
+
+    <h2>Should you pick Cogi?</h2>
+    <div class="two">
+      <div class="card"><h3>Yes, if you</h3>
+        <ul class="list-yes">
+          <li>work in Claude Code or Codex and lose context in long sessions or across days</li>
+          <li>want your conversations to stay on your computer</li>
+          <li>want no account, no API key and no bill</li>
+          <li>want exact words and dates, not an AI's summary</li>
+        </ul></div>
+      <div class="card"><h3>Something else, if you need</h3>
+        <ul class="list-no">
+          <li>memory in cloud agents or claude.ai today</li>
+          <li>one memory shared between machines or a team</li>
+          <li>answers that join many facts across many sessions</li>
+          <li>a whole agent framework (<a href="https://www.letta.com/">Letta</a>), not just memory</li>
+        </ul></div>
+    </div>
+
+    <details>
+      <summary>How we measured</summary>
+      <ul>
+        <li><strong>Where:</strong> MacBook Pro, Apple M5 Max, 19 Oct 2026, with EmbeddingGemma 2 (Q8_0), the model that ships.</li>
+        <li><strong>Answers:</strong> gpt-4o-mini answers and gpt-4o-mini grades, with the Mem0 paper's prompts word for
+          word. One run per row (about ±2.2 points). The whole conversation was run on the first 5 conversations only.</li>
+        <li><strong>Finding messages:</strong> a question counts when every turn LoCoMo labels as evidence is in what Cogi hands back.</li>
+        <li><strong>Speed:</strong> 1,000 searches one at a time, over 10 million tokens of synthetic text.</li>
+        <li><strong>Newer scores of 90% and more</strong> that some services publish use stronger answering models and
+          more lenient graders; they are not comparable with these.</li>
+      </ul>
+      <p>Everything is reproducible with <code>cogito-mem eval</code> and <code>cogito-mem bench</code>; the
+        <a href="reports/locomo-2026-10-19.html">full report</a> has every number, chart and caveat.</p>
+    </details>
+
+    <div class="next"><a href="how.html">← How it works</a><a href="api.html">API &amp; MCP →</a></div>
+  </main>
+  <footer class="foot">
+    <div class="foot-in">
+      <span><img src="assets/cogi.svg" alt="">cogito-mem · free and open source (MIT)</span>
+      <a href="https://github.com/meridian21lab/cogito-mem">Source code</a>
+      <a href="https://github.com/meridian21lab/cogito-mem/issues">Ask a question or report a problem</a>
+      <a href="safety.html">What you install</a>
+    </div>
+  </footer>
+</body>
+</html>

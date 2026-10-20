@@ -162,8 +162,8 @@ class _Handler(BaseHTTPRequestHandler):
         headers: dict[str, str] = {}
         session_id = self.headers.get("Mcp-Session-Id")
         if initializing:
-            namespace = (query.get("namespace") or ["default"])[0]
-            if not NAMESPACE_RE.match(namespace):
+            namespace = (query.get("namespace") or [None])[0]  # None: the memory's default name
+            if namespace is not None and not NAMESPACE_RE.match(namespace):
                 return self._send(400, {"jsonrpc": "2.0", "id": None, "error": {"code": -32602, "message": "bad namespace"}})
             session_id, mcp = self.server.new_mcp_session(namespace)
             headers["Mcp-Session-Id"] = session_id
@@ -215,7 +215,7 @@ class MemoryServer(ThreadingHTTPServer):
 
     # ------------------------------------------------------------------ MCP sessions
 
-    def new_mcp_session(self, namespace: str) -> tuple[str, McpServer]:
+    def new_mcp_session(self, namespace: str | None) -> tuple[str, McpServer]:
         session_id = uuid.uuid4().hex
         mcp = McpServer(self.memory.handle, namespace=namespace, thread_from_env=False)
         with self._sessions_lock:

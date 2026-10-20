@@ -1,17 +1,26 @@
 {
   "name": "cogito-mem",
-  "displayName": "cogito-mem memory",
+  "displayName": "Cogi 🐿️ cogito-mem memory",
   "version": "0.1.0",
   "description": "Long-term local memory for Claude Code: every session is captured, and relevant earlier work comes back with each prompt, from days or weeks ago. Runs on your machine; nothing leaves it.",
   "author": { "name": "meridian21lab", "url": "https://github.com/meridian21lab" },
-  "homepage": "https://github.com/meridian21lab/cogito-mem",
+  "homepage": "https://meridian21lab.github.io/cogito-mem/",
   "repository": "https://github.com/meridian21lab/cogito-mem",
   "license": "MIT",
   "keywords": ["memory", "mcp", "local-first", "embeddings", "llama.cpp", "recall"],
+  "userConfig": {
+    "memory_name": {
+      "type": "string",
+      "title": "Name your memory",
+      "description": "Where Cogi keeps your nuts. Leave empty for <your username>-hollow. Letters, digits, . _ - (up to 64).",
+      "required": false
+    }
+  },
   "mcpServers": {
-    "cogito-mem": {
+    "cogi": {
       "command": "sh",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/cogito-mem-plugin", "mcp"],
+      "env": { "COGITO_MEM_NAMESPACE": "${user_config.memory_name}" }
     }
   }
 }
