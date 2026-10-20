@@ -38,6 +38,7 @@ import argparse
 import concurrent.futures
 import datetime as _dt
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -259,15 +260,17 @@ class LLM:
 
     RETRY = (408, 409, 425, 429, 500, 502, 503, 504, 520, 522, 524, 529)
 
-    def __init__(self, base_url: str, api_key: str, cache_path: Path | None, timeout: float = 300.0):
+    def __init__(self, base_url: str, api_key: str, cache_path: Path | None, timeout: float = 300.0, retry_delay: float = 2.0):
         self.url = base_url.rstrip("/") + "/v1/chat/completions"
         self.api_key = api_key
         self.timeout = timeout
+        self.retry_delay = retry_delay
         self.cache_path = cache_path
         self._lock = threading.Lock()
         self._cache: dict[str, dict] = {}
         self.calls = self.hits = 0
         self.cost = 0.0
+        self.providers: dict[str, int] = defaultdict(int)
         if cache_path and cache_path.exists():
             for line in cache_path.read_text().splitlines():
                 try:
@@ -276,21 +279,30 @@ class LLM:
                 except (ValueError, KeyError):
                     continue
 
-    def chat(self, model: str, messages: list[dict], temperature: float | None = 0.0, json_mode: bool = False) -> dict:
+    def chat(self, model: str, messages: list[dict], temperature: float | None = 0.0, json_mode: bool = False,
+             reasoning: str | None = None, max_tokens: int | None = None, providers: list[str] | None = None) -> dict:
         body: dict = {"model": model, "messages": messages}
         if temperature is not None:
             body["temperature"] = temperature
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        if reasoning:
+            body["reasoning"] = {"effort": reasoning}
+        if max_tokens:
+            body["max_tokens"] = max_tokens  # also bounds what OpenRouter reserves for a request in flight
+        if providers:  # OpenRouter routing: open models are served at different precisions by different hosts
+            body["provider"] = {"order": providers, "allow_fallbacks": False}
         key = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
         with self._lock:
             if key in self._cache:
                 self.hits += 1
-                return self._cache[key]
+                hit = self._cache[key]
+                self.providers[f"{hit.get('model')} via {hit.get('provider')}"] += 1
+                return hit
         data = json.dumps({**body, "usage": {"include": True}}).encode()
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}",
                    "HTTP-Referer": "https://github.com/meridian21lab/cogito-mem", "X-Title": "cogito-mem eval"}  # fmt: skip
-        delay = 2.0
+        delay = self.retry_delay
         for attempt in range(8):
             try:
                 req = urllib.request.Request(self.url, data=data, headers=headers)
@@ -306,7 +318,8 @@ class LLM:
                 detail = exc.read().decode("utf-8", "replace")[:300]
                 if exc.code not in self.RETRY or attempt == 7:
                     raise RuntimeError(f"{model}: HTTP {exc.code}: {detail}") from None
-            except (urllib.error.URLError, TimeoutError, ValueError, KeyError, IndexError, _Retry) as exc:
+            # a host can drop the connection mid-body (http.client.IncompleteRead) or reset it (OSError)
+            except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError, KeyError, IndexError, _Retry) as exc:
                 if attempt == 7:
                     raise RuntimeError(f"{model}: {exc}") from None
             time.sleep(delay)
@@ -314,6 +327,7 @@ class LLM:
         with self._lock:
             self.calls += 1
             self.cost += float(out["usage"].get("cost") or 0.0)
+            self.providers[f"{out.get('model')} via {out.get('provider')}"] += 1
             self._cache[key] = out
             if self.cache_path:
                 with open(self.cache_path, "a", encoding="utf-8") as fh:
@@ -387,7 +401,7 @@ def without_captions(sample: dict) -> dict:
     return {**sample, "conversation": conv}
 
 
-def answer_messages(protocol: str, arm: str, question: str, sample: dict, items: list[dict]) -> list[dict]:
+def answer_messages(protocol: str, arm: str, question: str, sample: dict, items: list[dict], cache: bool = False) -> list[dict]:
     if protocol == "mem0-2025":
         if arm == "full":
             context = "".join(f"{d} | {s}: {t}\n" for d, s, t in full_lines(sample))
@@ -405,7 +419,14 @@ def answer_messages(protocol: str, arm: str, question: str, sample: dict, items:
     else:
         lines = [f"({day_text(i['valid_at'])}) {i['author']}: {i['text']}" for i in items[:BENCH_MEMORY_LIMIT]]
     text = "\n".join(["The following memories are presented in chronological order (oldest to newest).", ""] + lines)
-    return [{"role": "user", "content": BENCH_ANSWER_PROMPT.format(memories=text, question=question, reference_date=reference)}]
+    prompt = BENCH_ANSWER_PROMPT.format(memories=text, question=question, reference_date=reference)
+    if not cache:
+        return [{"role": "user", "content": prompt}]
+    # Instructions and memories come before the question, so they form a prefix the provider can cache:
+    # with full context it is the same for every question of a conversation.
+    cut = prompt.rindex("\n\nQuestion: ")
+    return [{"role": "user", "content": [{"type": "text", "text": prompt[:cut], "cache_control": {"type": "ephemeral"}},
+                                         {"type": "text", "text": prompt[cut:]}]}]  # fmt: skip
 
 
 def judge_messages(protocol: str, question: str, gold: str, answer: str, category: int) -> list[dict]:
@@ -464,16 +485,27 @@ def retrieve(mem: Memory, sample: dict, args: argparse.Namespace) -> tuple[dict,
 
 
 def answer_and_judge(llm: LLM, args: argparse.Namespace, sample: dict, row: dict) -> dict:
-    msgs = answer_messages(args.protocol, args.context, row["question"], sample, row["items"])
-    temp = None if args.no_temperature else 0.0
-    ans = llm.chat(args.answer_model, msgs, temperature=temp)
+    # explicit cache marks for the providers that need them; OpenAI, DeepSeek and others cache prefixes on their own
+    cache = args.prompt_cache and args.protocol == "mem0-2026" and args.answer_model.startswith(("anthropic/", "google/"))
+    msgs = answer_messages(args.protocol, args.context, row["question"], sample, row["items"], cache=cache)
+    # reasoning models take no temperature
+    ans = llm.chat(args.answer_model, msgs, temperature=None if (args.no_temperature or args.answer_reasoning) else 0.0,
+                   reasoning=args.answer_reasoning, max_tokens=args.answer_max_tokens,
+                   providers=args.answer_provider.split(",") if args.answer_provider else None)  # fmt: skip
     answer = extract_answer(args.protocol, ans["content"])
-    jud = llm.chat(args.judge_model, judge_messages(args.protocol, row["question"], row["gold"], answer, row["category_id"]),
-                   temperature=temp, json_mode=True)  # fmt: skip
-    correct, parsed = judge_label(jud["content"])
+    judgments, parsed = {}, True
+    for judge in args.judges:
+        jud = llm.chat(args.judge_model, judge_messages(judge, row["question"], row["gold"], answer, row["category_id"]),
+                       temperature=None if (args.no_temperature or args.judge_reasoning) else 0.0, json_mode=True,
+                       reasoning=args.judge_reasoning, max_tokens=args.judge_max_tokens)  # fmt: skip
+        judgments[judge], ok = judge_label(jud["content"])
+        parsed = parsed and ok
+    usage = ans["usage"]
     out = {k: v for k, v in row.items() if k != "items"}
-    out.update({"answer": answer, "correct": correct, "judge_parsed": parsed, "f1": round(token_f1(answer, row["gold"]), 4),
-                "prompt_tokens": ans["usage"].get("prompt_tokens"), "completion_tokens": ans["usage"].get("completion_tokens"),
+    out.update({"answer": answer, "correct": judgments[args.judges[0]], "judgments": judgments, "judge_parsed": parsed,
+                "f1": round(token_f1(answer, row["gold"]), 4), "prompt_tokens": usage.get("prompt_tokens"),
+                "cached_tokens": (usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
+                "completion_tokens": usage.get("completion_tokens"), "finish_reason": ans.get("finish_reason"),
                 "items_returned": len(row["items"])})  # fmt: skip
     if args.keep_context:
         out["items"] = row["items"]
@@ -503,7 +535,11 @@ def summarize(rows: list[dict]) -> dict:
         "mean_prompt_tokens": _mean([r.get("prompt_tokens") for r in rows]),
         "mean_completion_tokens": _mean([r.get("completion_tokens") for r in rows]),
         "judge_unparsed": sum(not r["judge_parsed"] for r in rows),
+        "empty_answers": sum(not r["answer"] for r in rows),
     }
+    judges = list(rows[0].get("judgments") or {}) if rows else []
+    if len(judges) > 1:
+        summary["J_by_judge"] = {j: round(100 * sum(r["judgments"][j] for r in rows) / len(rows), 2) for j in judges}
     covered = [r for r in rows if r.get("evidence_turns")]
     if covered:
         hit = [r for r in covered if r["evidence_covered"]]
@@ -522,6 +558,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     args.answer_model = args.answer_model or defaults["answer_model"]
     args.judge_model = args.judge_model or defaults["judge_model"]
     args.top_k = args.top_k or defaults["top_k"]
+    args.judges = args.judges.split(",") if args.judges else [args.protocol]
     env = dict(os.environ)
     if args.env_file:
         env = {**read_env_file(Path(args.env_file)), **env}
@@ -547,7 +584,10 @@ def cmd_run(args: argparse.Namespace) -> int:
                  "context": args.context, "budget": args.budget if args.context == "memory" else None,
                  "top_k": args.top_k if args.context == "memory" else None, "search": cfg.search,
                  "captions": not args.no_captions,
-                 "answer_model": args.answer_model, "judge_model": args.judge_model, "base_url": base})  # fmt: skip
+                 "answer_model": args.answer_model, "judge_model": args.judge_model, "base_url": base, "judges": args.judges,
+                 "answer_reasoning": args.answer_reasoning, "judge_reasoning": args.judge_reasoning,
+                 "answer_max_tokens": args.answer_max_tokens, "judge_max_tokens": args.judge_max_tokens,
+                 "prompt_cache": args.prompt_cache, "answer_provider": args.answer_provider})  # fmt: skip
     loads, rows = [], []
     t0 = time.perf_counter()
     try:
@@ -557,8 +597,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             if args.questions:
                 qrows = qrows[: args.questions]
             loads.append(info)
+            # the first question alone, so the rest can read the prompt prefix it leaves in the provider's cache
+            done = [answer_and_judge(llm, args, sample, qrows[0])] if qrows else []
             with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
-                done = list(pool.map(lambda r, s=sample: answer_and_judge(llm, args, s, r), qrows))
+                done += list(pool.map(lambda r, s=sample: answer_and_judge(llm, args, s, r), qrows[1:]))
             rows.extend(done)
             s = summarize(rows)
             print(f"[{i + 1}/{len(samples)}] {info['sample_id']}: J {s['J']}  F1 {s['F1']}  ctx {s['mean_context_tokens']} tokens"
@@ -570,6 +612,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     summary = summarize(rows)
     summary["llm_cost_usd"] = round(llm.cost, 4)
     meta["conversations"] = loads
+    meta["served_by"] = dict(sorted(llm.providers.items(), key=lambda kv: -kv[1]))
     meta["finished_utc"] = utc_now()
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -587,8 +630,11 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
     ra, rb = index(a), index(b)
     common = sorted(set(ra) & set(rb))
-    xa = [float(ra[q]["correct"]) for q in common]
-    xb = [float(rb[q]["correct"]) for q in common]
+    def ok(r):
+        return r["judgments"][args.judge] if args.judge else r["correct"]
+
+    xa = [float(ok(ra[q])) for q in common]
+    xb = [float(ok(rb[q])) for q in common]
     mean, lo, hi = paired_bootstrap(xa, xb, args.bootstrap, args.seed)
     print(json.dumps({"questions": len(common), "a": round(100 * sum(xa) / len(xa), 2),
                       "b": round(100 * sum(xb) / len(xb), 2), "difference_points": round(100 * mean, 2),
@@ -603,6 +649,7 @@ def build_parser() -> argparse.ArgumentParser:
     c = sub.add_parser("compare", help="paired difference in J of two runs (b minus a)")
     c.add_argument("a")
     c.add_argument("b")
+    c.add_argument("--judge", help="compare by this judge prompt's verdicts (default: each run's first)")
     c.add_argument("--bootstrap", type=int, default=10_000)
     c.add_argument("--seed", type=int, default=0)
     c.set_defaults(func=cmd_compare)
@@ -617,6 +664,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--answer-model", help="default: the protocol's (openai/gpt-4o-mini or openai/gpt-5)")
     p.add_argument("--judge-model", help="default: the protocol's")
     p.add_argument("--no-temperature", action="store_true", help="send no temperature (for reasoning models)")
+    p.add_argument("--answer-reasoning", help="reasoning effort for the answering model (e.g. minimal, low, medium)")
+    p.add_argument("--judge-reasoning", help="reasoning effort for the judge")
+    p.add_argument("--answer-max-tokens", type=int, help="output cap for an answer, reasoning included")
+    p.add_argument("--judge-max-tokens", type=int, help="output cap for a judgment, reasoning included")
+    p.add_argument("--answer-provider", help="OpenRouter providers for the answering model, in order, comma-separated; no others")
+    p.add_argument("--judges", help="judge prompts to apply, comma-separated; the first gives J (default: the protocol's)")
+    p.add_argument("--prompt-cache", action=argparse.BooleanOptionalAction, default=True,
+                   help="mark the 2026 prompt's instructions and memories as a cacheable prefix (default: on)")
     p.add_argument("--base-url", help="OpenAI-compatible base URL (default $OPENROUTER_BASE_URL or OpenRouter)")
     p.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
     p.add_argument("--env-file", help="read API settings from this file (KEY=value or KEY: value)")
