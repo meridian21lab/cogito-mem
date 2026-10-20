@@ -1,9 +1,15 @@
 # cogito-mem
 
-**Long-term memory for your AI assistants, on your own machine.**
+<!-- mcp-name: io.github.meridian21lab/cogito-mem -->
+
+**Long-term memory for Claude Code, on your own machine.** Cogi the squirrel keeps every message you and Claude
+exchange, and brings back what Claude forgot. No API key, no cloud, no AI calls to store.
+
+[![Cogi: Claude forgets. Cogi doesn't.](https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/site/assets/cogi-card.png)](https://meridian21lab.github.io/cogito-mem/)
 
 🐿️ **Docs: [meridian21lab.github.io/cogito-mem](https://meridian21lab.github.io/cogito-mem/)**: install in two minutes, how it works, results, API and MCP.
 
+[![docs](https://img.shields.io/badge/docs-cogi-c8621a)](https://meridian21lab.github.io/cogito-mem/)
 [![tests](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/tests.yml)
 [![docker](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml/badge.svg)](https://github.com/meridian21lab/cogito-mem/actions/workflows/docker.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
@@ -21,22 +27,23 @@ cogito-mem writes it down for you. It captures your sessions as you work and giv
 
 Everything stays in a folder on your computer. No account, no API key, no cloud.
 
-In Claude Code, with [uv](https://docs.astral.sh/uv/) installed, two commands in a terminal:
+In Claude Code, with [uv](https://docs.astral.sh/uv/) installed, one command in a terminal:
 
 ```sh
-claude plugin marketplace add meridian21lab/cogito-mem
-claude plugin install cogito-mem@cogito-mem --scope user
+claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem
 ```
 
 That's the whole setup ([the install guide](https://meridian21lab.github.io/cogito-mem/start.html) shows what you should
-see at each step). For Codex and Claude Desktop as well, one line connects every client it finds:
+see at each step; on Claude Code older than 2.1.292, run `claude plugin marketplace add meridian21lab/cogito-mem` and
+then `claude plugin install cogito-mem@cogito-mem`). To get updates, turn on auto-update once: `/plugin` →
+*Marketplaces* → *cogito-mem* → *Enable auto-update*. For Codex and Claude Desktop as well, one line connects every client it finds:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh
 ```
 
-> **Early access.** v0.1 is new. It is built and tested (132 tests, including both end-to-end acceptance tests),
-> and we are measuring it before calling it stable. Feedback and issues are very welcome.
+> **Early access.** v0.2 is new. It is built and tested (about 200 tests, including both end-to-end acceptance
+> tests), and we are measuring it before calling it stable. Feedback and issues are very welcome.
 
 ## What you get
 
@@ -68,6 +75,16 @@ curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/insta
 
 They work well together: keep the rules for your project in `CLAUDE.md`, and let cogito-mem remember what
 happened.
+
+**Next to other Claude Code memory plugins** (from each project's README, checked 20 Oct 2026):
+
+| | cogito-mem | [claude-mem](https://github.com/thedotmack/claude-mem) | [Mem0 plugin](https://github.com/mem0ai/mem0/tree/main/integrations/claude-code-plugin) | [cognee plugin](https://github.com/topoteretes/cognee-integrations) | [Supermemory plugin](https://github.com/supermemoryai/claude-supermemory) |
+|---|---|---|---|---|---|
+| AI calls to store a message | **none** | an observer model per tool call (Haiku on your Claude plan by default) | extraction on Mem0's servers | extraction with your LLM key or `claude -p` | in Supermemory's service |
+| Account or API key | **none** | optional sign-in | Mem0 Platform API key | an LLM key or the Claude CLI | API key or login |
+| Where your memory lives | **your computer** | your computer (cloud sync optional) | Mem0's cloud | your computer (cloud optional) | Supermemory's cloud (local mode available) |
+| What comes back | **your exact words, with dates** | AI-written observations | extracted memories | graph facts and summaries | extracted memories |
+| Searchable after | **the same turn** | the observer's run | a batch (every 5 exchanges) | the next graph run | the background save |
 
 ## Measured
 
