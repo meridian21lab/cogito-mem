@@ -145,4 +145,4 @@ names (`memory/default`) is renamed to your memory's name by itself, once.
 | Keep something out of the memory | Put it inside `<private>…</private>`; to pause capture, set `COGITO_MEM_CAPTURE=off` (for Claude Code under `"env"` in `~/.claude/settings.json`) |
 | Behind a TLS-inspecting proxy | Set `SSL_CERT_FILE` to your CA bundle; for Docker builds pass `--secret id=extra_ca,src=ca.pem` |
 
-Everything else has a working default; the full list of settings is in the [README](../README.md#settings).
+Everything else has a working default; the full list of settings is in the [reference](reference.md#settings).
