@@ -140,6 +140,7 @@ names (`memory/default`) is renamed to your memory's name by itself, once.
 | Port 7327 is taken | `export COGITO_MEM_PORT=7400` before `cogito-mem install` |
 | Search finds only exact words | The model isn't loaded: run `cogito-mem doctor`; logs are in `~/.cogito-mem/run/` |
 | Run on CPU only | `COGITO_MEM_GPU_LAYERS=0` |
+| Keep something out of the memory | Put it inside `<private>…</private>`; to pause capture, set `COGITO_MEM_CAPTURE=off` (for Claude Code under `"env"` in `~/.claude/settings.json`) |
 | Behind a TLS-inspecting proxy | Set `SSL_CERT_FILE` to your CA bundle; for Docker builds pass `--secret id=extra_ca,src=ca.pem` |
 
 Everything else has a working default; the full list of settings is in the [README](../README.md#settings).
