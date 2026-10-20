@@ -19,8 +19,10 @@ exchange, and brings back what Claude forgot. No API key, no cloud, no AI calls 
   their output.
 - **Private and free.** One folder on your computer. No account, no API key, no AI calls to save a message, nothing
   leaves your machine.
-- **Tested.** On the LoCoMo benchmark, the 1,000 tokens Cogi hands back answer 74.7% of questions right, level with
-  rereading the whole conversation (76.5%). A search over 10 million tokens takes 26 ms on a laptop CPU.
+- **Tested.** On LongMemEval-S, the past session holding the answer is among the first five Cogi finds for 99.0% of
+  500 questions, with no AI model involved; other local memory plugins publish 95.2–98.0%. On LoCoMo, the 1,000 tokens
+  Cogi hands back answer 74.7% of questions right, level with rereading the whole conversation (76.5%). A search over
+  10 million tokens takes 26 ms on a laptop CPU.
   [See the results](https://meridian21lab.github.io/cogito-mem/results.html).
 
 ## Install

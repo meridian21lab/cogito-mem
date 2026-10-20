@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Results · Cogi</title>
-  <meta name="description" content="How Cogi was tested: LoCoMo answers judged like Mem0 and Zep were, finding the right messages, speed and cost.">
+  <meta name="description" content="How Cogi was tested: LoCoMo answers judged like Mem0 and Zep were, LongMemEval session recall next to other local memories, speed and cost.">
   <meta property="og:title" content="Results · Cogi">
-  <meta property="og:description" content="How Cogi was tested: LoCoMo answers judged like Mem0 and Zep were, finding the right messages, speed and cost.">
+  <meta property="og:description" content="How Cogi was tested: LoCoMo answers judged like Mem0 and Zep were, LongMemEval session recall next to other local memories, speed and cost.">
   <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
   <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/results.html">
   <meta name="twitter:card" content="summary_large_image">
@@ -38,8 +38,8 @@
     <div class="cards">
       <div class="card"><div class="big">74.7%</div><p>of LoCoMo questions answered right from 1,000 tokens</p></div>
       <div class="card"><div class="big">98%</div><p>of what rereading the whole conversation scores</p></div>
+      <div class="card"><div class="big">99.0%</div><p>right session in the top 5 on LongMemEval, no AI model involved</p></div>
       <div class="card"><div class="big">26 ms</div><p>to search 10 million tokens, laptop CPU only</p></div>
-      <div class="card"><div class="big">0</div><p>AI calls to save a message, so $0 per message</p></div>
     </div>
 
     <h2>Answers, next to the others</h2>
@@ -107,6 +107,53 @@
       <p class="note">Searching by meaning and by words together beats words alone by 12.7 points (95% interval 11.0 to 14.5).</p>
     </div>
 
+    <h2>Finding the right session, next to the others</h2>
+    <p>On <a href="https://github.com/xiaowu0162/LongMemEval">LongMemEval-S</a>, each of 500 questions comes with a
+      history of about 50 chat sessions (115,000 tokens), and the sessions that hold the answer are labelled. The number
+      local memory plugins publish is how often one of them is among the first five sessions found. No AI model answers
+      or grades anything, so the scores come straight from search.</p>
+    <div class="chart">
+      <h3>A session with the answer among the first five found</h3>
+      <p class="sub">LongMemEval-S, all 500 questions · local memories that make no AI calls · higher is better</p>
+      <div class="bars">
+        <span class="name me">Cogi</span><div class="track" title="495 of 500"><div class="fill me" style="width:99.0%"></div><span class="val" style="left:99.0%">99.0%</span></div>
+        <span class="name">hippo-memory</span><div class="track"><div class="fill" style="width:98.0%"></div><span class="val" style="left:98.0%">98.0%</span></div>
+        <span class="name">deja-vu</span><div class="track"><div class="fill" style="width:97.2%"></div><span class="val" style="left:97.2%">97.2%</span></div>
+        <span class="name">MemPalace</span><div class="track"><div class="fill" style="width:96.6%"></div><span class="val" style="left:96.6%">96.6%</span></div>
+        <span class="name">iai memory engine</span><div class="track"><div class="fill" style="width:96.2%"></div><span class="val" style="left:96.2%">96.2%</span></div>
+        <span class="name">agentmemory</span><div class="track"><div class="fill" style="width:95.2%"></div><span class="val" style="left:95.2%">95.2%</span></div>
+        <span class="name">Cogi, keyword search only</span><div class="track" title="475 of 500"><div class="fill" style="width:95.0%"></div><span class="val" style="left:95.0%">95.0%</span></div>
+      </div>
+      <p class="note">Each project's own run, as it publishes it. Cogi's 95% interval is 97.7 to 99.6, so it is level
+        with hippo-memory and deja-vu and ahead of the rest.</p>
+    </div>
+    <p>Cogi misses 5 questions of 500. It also finds <em>every</em> session an answer needs among the first five for
+      90.8% of questions, and it ranks the right session first for 92.6%. Searching by meaning and by words together
+      beats words alone by 4.0 points here.</p>
+    <p><strong>A stricter test, as in real use.</strong> These scores let a memory find sessions dated after the
+      question, as LongMemEval's own scoring does. Cogi normally searches only up to the moment you ask, and 44 questions
+      have an answer session from later the same day. Asked that way, Cogi scores <strong>95.0%</strong>. None of the
+      other memories publishes this number.</p>
+    <details>
+      <summary>The numbers in a table, and what each memory searches</summary>
+      <div class="table">
+        <table>
+          <tr><th>Memory</th><th class="n">Top 5</th><th class="n">Top 10</th><th>What it searches</th><th>Source</th></tr>
+          <tr class="me"><td>Cogi</td><td class="n">99.0</td><td class="n">99.4</td><td>every message of both sides, by meaning (EmbeddingGemma 2) and by words</td><td>measured 20 Oct 2026</td></tr>
+          <tr class="me"><td>Cogi, up to the question's date</td><td class="n">95.0</td><td class="n">95.4</td><td>the same, only what was said before the question</td><td>measured 20 Oct 2026</td></tr>
+          <tr><td>hippo-memory</td><td class="n">98.0</td><td class="n"></td><td>every message, by meaning (MiniLM) and by words; best of 5 settings</td><td><a href="https://github.com/kitfunso/hippo-memory/blob/main/docs/evals/2026-09-23-longmemeval-reproduction.md">its report</a></td></tr>
+          <tr><td>deja-vu</td><td class="n">97.2</td><td class="n">98.6</td><td>whole sessions, by words only</td><td><a href="https://github.com/vshulcz/deja-vu">its README</a></td></tr>
+          <tr><td>MemPalace (raw mode)</td><td class="n">96.6</td><td class="n"></td><td>whole sessions, your messages only, by meaning (MiniLM)</td><td><a href="https://github.com/MemPalace/mempalace/blob/develop/benchmarks/BENCHMARKS.md">its benchmarks</a></td></tr>
+          <tr><td>iai memory engine</td><td class="n">96.2</td><td class="n">97.8</td><td>whole sessions, your messages only, by meaning (bge-small)</td><td><a href="https://github.com/CodeAbra/iai-personal-memory-engine/blob/main/BENCHMARKS.md">its benchmarks</a></td></tr>
+          <tr><td>agentmemory</td><td class="n">95.2</td><td class="n"></td><td>whole sessions, by words and by meaning (first 512 characters, MiniLM)</td><td><a href="https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md">its benchmark</a></td></tr>
+          <tr><td>Cogi, keyword search only</td><td class="n">95.0</td><td class="n">98.0</td><td>every message, by words only</td><td>measured 20 Oct 2026</td></tr>
+        </table>
+      </div>
+      <p class="small muted">Memory services such as Zep, Mem0, Supermemory and Hindsight publish a different
+        LongMemEval number: how many answers an AI model gets right from what the memory hands it. That depends on the
+        model as much as the memory, so it cannot sit in this table. We have not run it yet.</p>
+    </details>
+
     <h2>Fast</h2>
     <div class="cards">
       <div class="card"><div class="big">26 ms</div><p>95% of searches in 10 million tokens, CPU only (target: 100 ms)</p></div>
@@ -150,10 +197,13 @@
     <details>
       <summary>How we measured</summary>
       <ul>
-        <li><strong>Where:</strong> MacBook Pro, Apple M5 Max, 19 Oct 2026, with EmbeddingGemma 2 (Q8_0), the model that ships.</li>
+        <li><strong>Where:</strong> MacBook Pro, Apple M5 Max, 19–20 Oct 2026, with EmbeddingGemma 2 (Q8_0), the model that ships.</li>
         <li><strong>Answers:</strong> gpt-4o-mini answers and gpt-4o-mini grades, with the Mem0 paper's prompts word for
           word. One run per row (about ±2.2 points). The whole conversation was run on the first 5 conversations only.</li>
         <li><strong>Finding messages:</strong> a question counts when every turn LoCoMo labels as evidence is in what Cogi hands back.</li>
+        <li><strong>Finding sessions:</strong> LongMemEval-S (<code>longmemeval_s_cleaned.json</code>), all 500 questions, 20 Oct
+          2026, a fresh memory per question holding every turn of its history. Other memories' scores are their own
+          published runs, checked against their scripts on 20 Oct 2026.</li>
         <li><strong>Speed:</strong> 1,000 searches one at a time, over 10 million tokens of synthetic text.</li>
         <li><strong>Newer scores of 90% and more</strong> that some services publish use stronger answering models and
           more lenient graders; they are not comparable with these.</li>

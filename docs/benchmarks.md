@@ -114,3 +114,44 @@ cogito-mem eval longmemeval-recall compare results/lme-recall/keyword.json resul
 ```
 
 Rerunning with the same `--questions-out` file resumes an interrupted run, and embeddings are cached.
+
+**Next to other memories (LongMemEval-S).** Every published retrieval number below comes from the project's own
+harness and was checked against its README or benchmark document and its scoring script on 20 Oct 2026. All of them use
+`longmemeval_s_cleaned.json` and session-level recall_any@5 over all 500 questions unless stated otherwise. None calls an
+LLM to retrieve, and none applies a date cutoff, so the comparable cogito-mem number is the `--as-of none` one.
+
+| Memory | R@5 | R@10 | What it indexes | Embedder | Date, source |
+|---|---|---|---|---|---|
+| **cogito-mem** (hybrid) | **99.0** (95 % CI 97.7–99.6) | 99.4 | one item per turn, both roles; BM25 + vectors | EmbeddingGemma 2, 308M, local | 20 Oct 2026, this page |
+| hippo-memory | 98.0 | | one item per turn; BM25 + vectors fused by RRF; best of 5 settings | all-MiniLM-L6-v2 | 23 Sep 2026, [report](https://github.com/kitfunso/hippo-memory/blob/main/docs/evals/2026-09-23-longmemeval-reproduction.md) |
+| deja-vu | 97.2 | 98.6 | one document per session, both roles | none (lexical) | 22 Sep 2026, [README](https://github.com/vshulcz/deja-vu), [results](https://github.com/vshulcz/deja-vu/blob/main/docs/benchmarks/longmemeval-s-full.json) |
+| MemPalace (raw mode) | 96.6 | | one document per session, user turns only | all-MiniLM-L6-v2 (Chroma default) | 14 Apr 2026, [BENCHMARKS.md](https://github.com/MemPalace/mempalace/blob/develop/benchmarks/BENCHMARKS.md) |
+| iai-personal-memory-engine | 96.2 | 97.8 | one document per session, user turns only | bge-small-en-v1.5 | Sep 2026, [BENCHMARKS.md](https://github.com/CodeAbra/iai-personal-memory-engine/blob/main/BENCHMARKS.md) |
+| agentmemory | 95.2 (BM25 only 86.2) | | one document per session, both roles; only the first 512 characters embedded | all-MiniLM-L6-v2 | 8 Apr 2026, [LONGMEMEVAL.md](https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md) |
+| cogito-mem, keyword only | 95.0 | 98.0 | one item per turn, both roles; BM25 | none | 20 Oct 2026, this page |
+| cogito-mem, as of the question date | 95.0 | 95.4 | as the hybrid row, sessions after the question hidden | EmbeddingGemma 2 | 20 Oct 2026, this page |
+
+cogito-mem misses 5 of the 500 questions. hippo-memory's 98.0 lies inside its 95 % interval and deja-vu's 97.2 just
+below it, so with 500 questions the honest reading is: level with the best two, ahead of the rest. Three cases
+change the picture:
+
+- **The stricter metric.** [gbrain](https://github.com/garrytan/gbrain-evals/blob/main/docs/benchmarks/2026-05-07-longmemeval-s.md)
+  reports recall_all@5 (every answer session in the top 5) over the 470 answerable questions: 93.19 with OpenAI's
+  text-embedding-3-large, and 95.53 with a Voyage cross-encoder reranker. On the same 470, cogito-mem's recall_all@5 is
+  **91.3**, behind both. Its recall_any@5 there is 98.9, against gbrain's 98.72.
+- **Numbers that measure something else.** mcp-memory-service's 86.0 is fractional recall (answer sessions found ÷
+  answer sessions). MemPalace's 98.4 "hybrid v4" is on 450 held-out questions, and its 100 % used an LLM reranker tuned on
+  known failures, which its own document calls teaching to the test. Supermemory's "97 % Recall@20 with aggregation"
+  does not define aggregation. None of these belongs in the table.
+- **The LongMemEval paper** reports retrieval only on LongMemEval_M (about 500 sessions per question), over user turns
+  only, with recall_all on 470 questions. Its best session-level R@5 there is 0.762 (Contriever with LLM-extracted fact
+  keys). That is a different split, so it is not a baseline for the table.
+
+Memory services publish **QA accuracy** on LongMemEval-S instead: an LLM reads what the memory returns and a judge,
+usually gpt-4o, grades its answer. That score depends on the reader model as much as on the memory, and cogito-mem has
+not run it yet. For reference, with their reader models and sources: Zep 71.2 (gpt-4o; 63.8 with gpt-4o-mini;
+[paper](https://arxiv.org/abs/2501.13956)); Supermemory 81.6 (gpt-4o) and 85.2 (gemini-3); Hindsight 89.0 (gpt-oss-120b)
+and 91.4 (Gemini 3 Pro) ([hindsight-benchmarks](https://github.com/vectorize-io/hindsight-benchmarks)); Mastra
+observational memory 84.2 (gpt-4o) and 94.9 (gpt-5-mini) ([Mastra](https://mastra.ai/research/observational-memory));
+Mem0 94.4 for its April 2026 platform, model not named ([docs](https://docs.mem0.ai/core-concepts/memory-evaluation)). Reading
+only the answer sessions scores 82.4 with gpt-4o.
