@@ -7,6 +7,7 @@ llama.cpp: LoCoMo and speed on 19 Oct 2026, LongMemEval-S on 20 Oct 2026. These 
 entries.
 
 - [At a glance](#at-a-glance)
+- [Setup](#setup)
 - [LongMemEval-S: finding the right session](#longmemeval-s-finding-the-right-session)
 - [LoCoMo: answering from the memory](#locomo-answering-from-the-memory)
 - [LoCoMo: finding the right messages](#locomo-finding-the-right-messages)
@@ -26,6 +27,21 @@ first k found. *all@k*: every such session is. *NDCG@10*: how well the first 10 
 answer session first). *MRR*: 1 ÷ the rank of the first answer session, averaged. *p95*: 95 % of searches finish
 within this time. *95 % CI*: the 95 % confidence interval (Wilson for a single score, paired bootstrap for a
 difference).
+
+## Setup
+
+| | |
+|---|---|
+| Machine | MacBook Pro, Apple M5 Max (18 cores), macOS 26.5, Python 3.12 |
+| Software | cogito-mem 0.2.0 for LongMemEval, 0.1.0 for LoCoMo and speed; llama.cpp as `cogito-mem setup` installs it |
+| Model | EmbeddingGemma 2 (308M parameters), Q8_0 GGUF; Metal unless a row says CPU only |
+| Memory | a fresh one per LongMemEval question and per LoCoMo conversation; one item per message, embedded with its author and the message it replies to |
+| LongMemEval data | `longmemeval_s_cleaned.json`, sha256 `d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442` |
+| LoCoMo data | `locomo10.json` from [snap-research/locomo](https://github.com/snap-research/locomo), sha256 `79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4` |
+| LLM calls (LoCoMo answers only) | gpt-4o-mini through [OpenRouter](https://openrouter.ai), temperature 0, every call cached |
+
+Each run writes its settings, versions, machine and dataset hash into the result file's `meta`, so a number can be
+traced to the run that made it.
 
 ## LongMemEval-S: finding the right session
 
@@ -61,6 +77,26 @@ What it means:
 - **Meaning and words together beat words alone**, as of the question date: +4.0 points of R@5 (95 % CI 2.2 to 5.8),
   +9.2 of all@5 (6.6 to 11.8) and +6.3 of NDCG@10 (4.7 to 7.9), paired over the same questions.
 - **A query takes** a median of 11 ms as of the question date and 19 ms with no cutoff.
+
+**By question type** (R@5 / all@5, in %). Every type but temporal reasoning is at 97.6 or above with no cutoff; the
+date cutoff only moves temporal reasoning, the type whose answers come later the same day.
+
+| Question type | Questions | Hybrid, no cutoff | Hybrid, as of the question date | Keyword only, no cutoff |
+|---|---|---|---|---|
+| single-session-user | 64 | 100 / 100 | 100 / 100 | 98.4 / 98.4 |
+| single-session-assistant | 56 | 100 / 100 | 100 / 100 | 100 / 100 |
+| single-session-preference | 30 | 100 / 100 | 100 / 100 | 73.3 / 73.3 |
+| multi-session | 121 | 98.4 / 82.6 | 98.4 / 82.6 | 95.0 / 65.3 |
+| temporal-reasoning | 127 | 97.6 / 84.2 | 83.5 / 55.9 | 94.5 / 75.6 |
+| knowledge-update | 72 | 100 / 100 | 100 / 98.6 | 100 / 95.8 |
+| abstention (`_abs`) | 30 | 100 / 83.3 | 93.3 / 76.7 | 90.0 / 60.0 |
+
+Search by meaning matters most for preference questions ("what would I like…"), where the words of the question
+rarely appear in the answer: 100 against 73.3 for keywords alone.
+
+**Turn level.** The same runs also score the individual messages LongMemEval marks as holding the answer (479
+questions have them). With no cutoff, hybrid search puts one of them among the first five messages it returns for 85.0 %
+of questions and among the first ten for 91.6 % (NDCG@10 0.656).
 
 ### Next to other memories
 
@@ -150,6 +186,36 @@ What it means:
   absolute scores from different harnesses are not directly comparable. The Results page therefore shows each score
   as a share of its own harness's whole-conversation score.
 
+**As a share of the whole conversation**, the comparison the Results page shows:
+
+| Memory | Score | Whole conversation, same harness | Share | Source |
+|---|---|---|---|---|
+| **cogito-mem, 1,000 tokens** | 74.7 | 76.5 | **98 %** | this page, 19 Oct 2026 |
+| Mem0 with graph (Mem0g) | 68.4 | 72.9 | 94 % | Mem0 paper |
+| Mem0 | 66.9 | 72.9 | 92 % | Mem0 paper |
+| Zep, run by Mem0 | 66.0 | 72.9 | 91 % | Mem0 paper |
+| Zep, its own rerun | 75.1 | 72.9 | 103 % | [Zep blog](https://www.getzep.com/blog/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory/) |
+| Plain search (RAG), best setting | 61.0 | 72.9 | 84 % | Mem0 paper |
+| ChatGPT memory | 52.9 | 72.9 | 73 % | Mem0 paper |
+
+Newer LoCoMo scores of 90 % and more that some services publish use stronger answering models, more lenient graders
+or a changed question set, so they are not comparable with these.
+
+**By question category**, cogito-mem at 1,000 tokens (all 10 conversations):
+
+| Category | Questions | Answered right |
+|---|---|---|
+| single-hop | 841 | 84.5 % |
+| temporal | 321 | 69.2 % |
+| multi-hop | 282 | 61.7 % |
+| open-domain | 96 | 44.8 % |
+| **all** | **1,540** | **74.7 %** |
+
+Single facts and dates are its strength, since every message keeps its own date. Questions that need many facts at
+once are weaker, because a fixed budget runs out first. When every evidence turn was inside the 1,000 tokens (72.5 %
+of questions), 85.6 % of answers were right; when one was missing, 45.7 % were. The memory's reply averaged 999
+tokens, retrieval took a median of 9.4 ms, and the whole run cost $0.53 in LLM calls.
+
 Reproduce with an [OpenRouter](https://openrouter.ai) key in `.env` (`OPENROUTER_API_KEY=…`). Every LLM call is
 cached, and the 1,000-token run cost about $0.53:
 
@@ -206,6 +272,17 @@ Saving is fast because embedding happens in the background. Medians at 10M token
 
 A new item can be found by meaning about 57 ms after it is saved on the CPU, and 13 ms after with Metal. With Metal,
 the model embeds about 21k tokens a second (1M tokens in 47 s).
+
+**Next to published search times** (95 % of searches within). These compare designs, not hardware: hosted memories
+include the network and their own AI calls.
+
+| Memory | p95 search |
+|---|---|
+| **cogito-mem, 10M tokens, laptop CPU** | **26 ms** |
+| Zep, its own 2026 page | 155 ms |
+| Mem0, open source (Mem0 paper) | 200 ms |
+| Mem0 with graph (Mem0 paper) | 657 ms |
+| Mem0 platform, April 2026 run | 6.0 s |
 
 Reproduce with `COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --tokens 10M --random-vectors` (leave out the variable
 for Metal).
