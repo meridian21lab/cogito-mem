@@ -40,7 +40,7 @@ gh repo edit meridian21lab/cogito-mem \
   --add-topic claude-code,claude-code-plugin,claude,mcp,mcp-server,agent-memory,ai-memory,long-term-memory,local-first,llama-cpp,embeddings,privacy
 ```
 
-Then *Settings → General → Social preview*: upload `site/assets/cogi-card.png`; and *Settings → General →
+Then *Settings → General → Social preview*: upload the Cogi card image from the site's assets folder; and *Settings → General →
 Features*: turn on **Discussions**.
 
 ## Phase 1: launch (weeks 1–4)

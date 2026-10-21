@@ -252,7 +252,7 @@ def test_claude_code_plugin_files_are_consistent():
     # the README is also the PyPI page, where links relative to the repository go nowhere; only bundled images may be
     # relative (the plugin directory shows no others), and the release points them at GitHub before building
     assert all(link.startswith(("https://", "site/assets/")) for link in readme.split("](")[1:])
-    assert "](site/assets/#](https://raw.githubusercontent.com/" in (repo / ".github/workflows/release.yml").read_text()
+    assert 'sed -i "s#](site/assets/#](https://' in (repo / ".github/workflows/release.yml").read_text()
     # the plugin directory keeps each line break, so a paragraph or list item is one line
     prose = readme.split("```")[::2]
     assert not any(a and b and not b.startswith(("-", "|", "#", ">", "<", "!", "[")) and not b[0].isdigit()
