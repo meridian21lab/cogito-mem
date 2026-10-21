@@ -46,9 +46,9 @@
     <div class="table">
       <table>
         <tr><th>File</th><th>What it tells Claude Code</th></tr>
-        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/.claude-plugin/plugin.json"><code>plugin.json</code></a></td><td>Start an MCP server called <code>cogi</code> with the two tools, and ask for your memory's name.</td></tr>
-        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/hooks/hooks.json"><code>hooks.json</code></a></td><td>After each answer and at the end of a session, save the new messages. At the start of a session and with each prompt, add relevant memories.</td></tr>
-        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/pyproject.toml"><code>pyproject.toml</code></a>, <a href="https://github.com/meridian21lab/cogito-mem/blob/main/uv.lock"><code>uv.lock</code></a></td><td>Every command above runs <code>uv run --frozen … cogito-mem</code>: Cogi's own Python code from the plugin folder, with the exact package versions in the lockfile.</td></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/.claude-plugin/plugin.json"><code>plugin.json</code></a></td><td>Start an MCP server called <code>cogi</code> with the two tools, and ask for your memory's name.</td></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/hooks/hooks.json"><code>hooks.json</code></a></td><td>After each answer and at the end of a session, save the new messages. At the start of a session and with each prompt, add relevant memories.</td></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/pyproject.toml"><code>pyproject.toml</code></a>, <a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/uv.lock"><code>uv.lock</code></a></td><td>Every command above runs <code>uvx cogito-mem==&lt;version&gt;</code>: the released Cogi from PyPI, at the exact version the plugin pins. The lockfile lists that release and numpy with their checksums.</td></tr>
       </table>
     </div>
 
@@ -56,7 +56,7 @@
     <div class="table">
       <table>
         <tr><th>What</th><th>From</th></tr>
-        <tr><td>Cogi itself (Python) and its one dependency, numpy</td><td><a href="https://github.com/meridian21lab/cogito-mem">this repository</a> and <a href="https://pypi.org/project/numpy/">PyPI</a>, by uv</td></tr>
+        <tr><td>Cogi itself (Python) and its one dependency, numpy</td><td><a href="https://pypi.org/project/cogito-mem/">PyPI</a>, by uv; the source of every release is <a href="https://github.com/meridian21lab/cogito-mem">this repository</a></td></tr>
         <tr><td>llama.cpp's <code>llama-server</code>, which runs the model (skipped if you already have it)</td><td><a href="https://github.com/ggml-org/llama.cpp/releases">llama.cpp's official releases</a></td></tr>
         <tr><td>The model, EmbeddingGemma 2 (310 MB, the big one)</td><td><a href="https://huggingface.co/ggml-org/embeddinggemma-2-GGUF">Hugging Face, ggml-org</a></td></tr>
       </table>

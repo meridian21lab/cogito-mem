@@ -20,14 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - name: Check the tag matches every version (package, plugin, MCP Registry entry)
+      - name: Check the tag matches every version (package, MCP Registry entry; the plugin follows after PyPI)
         run: |
           python3 - <<'PY'
           import json, os, tomllib
           tag = os.environ["GITHUB_REF_NAME"]
           versions = {
               "pyproject.toml": tomllib.load(open("pyproject.toml", "rb"))["project"]["version"],
-              "plugin.json": json.load(open(".claude-plugin/plugin.json"))["version"],
               "server.json": json.load(open("server.json"))["version"],
               "server.json package": json.load(open("server.json"))["packages"][0]["version"],
           }

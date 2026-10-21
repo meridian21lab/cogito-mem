@@ -30,7 +30,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
         run: |
           npm install -g @anthropic-ai/claude-code
-          claude plugin validate . --strict
+          claude plugin validate . --strict          # the marketplace
+          claude plugin validate plugin --strict     # the plugin folder
       - uses: astral-sh/setup-uv@v6
         if: matrix.python == '3.13'
       - name: Install the way docs/install.md says (way A), from this checkout instead of PyPI

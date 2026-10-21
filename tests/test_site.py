@@ -39,5 +39,5 @@ def test_every_page_has_the_shared_frame(page):
 def test_the_plugin_homepage_is_the_site():
     import json
 
-    plugin = json.loads((SITE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    plugin = json.loads((SITE.parent / "plugin" / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
     assert plugin["homepage"] == "https://meridian21lab.github.io/cogito-mem/"

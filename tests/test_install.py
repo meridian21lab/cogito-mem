@@ -216,48 +216,64 @@ def test_doctor_reports_problems_and_fixes(isolated_env, monkeypatch):
 
 def test_claude_code_plugin_files_are_consistent():
     repo = Path(__file__).resolve().parents[1]
-    plugin = json.loads((repo / ".claude-plugin" / "plugin.json").read_text())
+    # The plugin is its own folder: all that people who install it get, and all that the directory scans.
+    folder = repo / "plugin"
+    plugin = json.loads((folder / ".claude-plugin" / "plugin.json").read_text())
     market = json.loads((repo / ".claude-plugin" / "marketplace.json").read_text())
     assert plugin["name"] == "cogito-mem" == market["plugins"][0]["name"]
-    assert market["plugins"][0]["source"] == "./"
-    from cogito_mem import __version__
-
-    assert plugin["version"] == __version__
+    assert market["plugins"][0]["source"] == "./plugin"
+    assert not (repo / ".claude-plugin" / "plugin.json").exists() and not (repo / "hooks").exists()
     # The MCP server is declared in plugin.json: a root .mcp.json would also load as a project
     # config when the repository is opened in Claude Code, where ${CLAUDE_PLUGIN_ROOT} is unset.
     assert not (repo / ".mcp.json").exists()
-    # shown in /mcp as plugin:cogito-mem:cogi. Anthropic's directory review wants each server started by running
-    # a program with plain arguments (no shell) and `uv run` pinned with --frozen; the hooks run the same command.
-    run = ["uv", "run", "--frozen", "--quiet", "--no-dev", "--project", "${CLAUDE_PLUGIN_ROOT}", "cogito-mem"]
+    shipped = sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*")
+                     if p.is_file() and ".venv" not in p.parts and "__pycache__" not in p.parts)
+    assert shipped == [".claude-plugin/plugin.json", "LICENSE", "README.md", "cogi-card.png", "hooks/hooks.json",
+                       "icon.png", "pyproject.toml", "uv.lock"]
+    # Every command runs the released package at the version the plugin pins (shown in /mcp as
+    # plugin:cogito-mem:cogi), in the plain `uvx <package>==<version>` form the directory's locked launch reads.
+    from cogito_mem import __version__
+
+    pin = f"cogito-mem=={plugin['version']}"
+    assert tuple(map(int, plugin["version"].split("."))) <= tuple(map(int, __version__.split(".")))
     mcp = plugin["mcpServers"]["cogi"]
-    assert [mcp["command"], *mcp["args"]] == [*run, "mcp"]
+    assert [mcp["command"], *mcp["args"]] == ["uvx", pin, "mcp"]
     assert mcp["env"] == {"CLAUDE_PLUGIN_OPTION_MEMORY_NAME": "${user_config.memory_name}"}
-    hooks = json.loads((repo / "hooks" / "hooks.json").read_text())["hooks"]
-    hook_run = " ".join(run).replace("${CLAUDE_PLUGIN_ROOT}", '"${CLAUDE_PLUGIN_ROOT}"')
+    hooks = json.loads((folder / "hooks" / "hooks.json").read_text())["hooks"]
     for event in ("Stop", "SessionEnd"):
-        assert hooks[event][0]["hooks"][0]["command"] == f"{hook_run} capture claude-code"
+        assert hooks[event][0]["hooks"][0]["command"] == f"uvx {pin} capture claude-code"
     for event in ("UserPromptSubmit", "SessionStart"):
-        assert hooks[event][0]["hooks"][0]["command"] == f"{hook_run} recall claude-code"
+        assert hooks[event][0]["hooks"][0]["command"] == f"uvx {pin} recall claude-code"
     assert hooks["SessionStart"][0]["matcher"] == "startup|resume"
+    # uv.lock beside it records that release, from PyPI, and its dependencies with their hashes
+    assert f'dependencies = ["{pin}"]' in (folder / "pyproject.toml").read_text()
+    lock = (folder / "uv.lock").read_text()
+    assert f'name = "cogito-mem"\nversion = "{plugin["version"]}"\nsource = {{ registry = "https://pypi.org/simple" }}' in lock
+    assert 'name = "numpy"' in lock and "sha256:" in lock
     # the directory reads these listing fields; displayName must have no invisible characters
     assert plugin["displayName"].isprintable() and all(ord(c) < 0x2000 for c in plugin["displayName"])
-    assert (repo / plugin["icon"]).is_file()
+    assert (folder / plugin["icon"]).is_file()
     for key in ("documentationUrl", "supportUrl", "privacyPolicyUrl", "termsOfServiceUrl", "homepage"):
         assert plugin[key].startswith("https://")
     assert market["plugins"][0]["category"] == "productivity"
-    # the MCP Registry entry ships with the same version, and the README carries its ownership line
+    # the MCP Registry entry ships with the package's version, and the README carries its ownership line
     server = json.loads((repo / "server.json").read_text())
     assert server["version"] == server["packages"][0]["version"] == __version__
     readme = (repo / "README.md").read_text()
     assert f"<!-- mcp-name: {server['name']} -->" in readme
     # the README is also the PyPI page, where links relative to the repository go nowhere; only bundled images may be
-    # relative (the plugin directory shows no others), and the release points them at GitHub before building
+    # relative, and the release points them at GitHub before building
     assert all(link.startswith(("https://", "site/assets/")) for link in readme.split("](")[1:])
     assert 'sed -i "s#](site/assets/#](https://' in (repo / ".github/workflows/release.yml").read_text()
-    # the plugin directory keeps each line break, so a paragraph or list item is one line
-    prose = readme.split("```")[::2]
-    assert not any(a and b and not b.startswith(("-", "|", "#", ">", "<", "!", "[")) and not b[0].isdigit()
-                   for part in prose for a, b in zip(part.splitlines(), part.splitlines()[1:]))
+    # the plugin's README is the listing: links on the web or to its own images, at least 40 words
+    listing = (folder / "README.md").read_text()
+    assert all(link.startswith("https://") or (folder / link.split(")")[0]).is_file() for link in listing.split("](")[1:])
+    assert len(" ".join(listing.split("```")[::2]).split()) >= 40 and "uvx cogito-mem==" in listing
+    # the directory keeps each line break, so a paragraph or list item is one line
+    for text in (readme, listing):
+        prose = text.split("```")[::2]
+        assert not any(a and b and not b.startswith(("-", "|", "#", ">", "<", "!", "[")) and not b[0].isdigit()
+                       for part in prose for a, b in zip(part.splitlines(), part.splitlines()[1:]))
 
 def test_install_guides_use_pypi_not_a_piped_script():
     # the plugin directory flags a download piped into a shell anywhere in the plugin, docs included
