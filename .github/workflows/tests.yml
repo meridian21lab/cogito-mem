@@ -31,14 +31,16 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
           claude plugin validate . --strict
-      - name: Installer script
+      - uses: astral-sh/setup-uv@v6
+        if: matrix.python == '3.13'
+      - name: Install the way docs/install.md says (way A), from this checkout instead of PyPI
         if: matrix.python == '3.13'
         env:
           COGITO_MEM_NO_DOWNLOAD: "1"
-          COGITO_MEM_SOURCE: ${{ github.workspace }}
         run: |
           export HOME="$RUNNER_TEMP/home" && mkdir -p "$HOME/.claude"
-          sh install.sh claude-code
+          uv tool install .
+          "$(uv tool dir --bin)/cogito-mem" install claude-code
           "$HOME/.cogito-mem/bin/cogito-mem" query "install check" --json
           "$HOME/.cogito-mem/bin/cogito-mem" stop
 

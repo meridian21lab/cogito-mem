@@ -214,7 +214,7 @@ The comparison is in §1 of [`literature/memory_api_notation_and_digests.md`](li
 **Setup in one command.** For example:
 
 ```
-uvx cogito-mem install claude-code      # or: codex, claude-desktop
+cogito-mem install claude-code      # or: codex, claude-desktop
 ```
 
 This one command:
@@ -224,7 +224,8 @@ This one command:
 - creates the memory folder `~/.cogito-mem/` with one namespace, named `<username>-hollow` unless the user
   chooses another name (§15 item 23).
 
-`cogito-mem uninstall <client>` undoes it. The package runner (uvx, pipx or similar) is chosen when we build.
+`cogito-mem uninstall <client>` undoes it. The command itself comes from PyPI: `uv tool install cogito-mem` (§15
+item 14).
 
 **MCP tools.** They take the same bodies as §3.1 and §3.2, but each tool's schema shows only the keys an
 assistant needs. Every other key takes its default.
@@ -513,7 +514,7 @@ These are not part of v0:
 5. **The append call returns before embedding finishes,** with keyword search available at once.
 6. **Quality is measured with the same GGUF file that ships,** not with PyTorch weights.
 7. **`context` is joined to `text` before embedding** in v0.
-8. **The setup command and folder:** `uvx cogito-mem install <client>`, with every memory under
+8. **The setup command and folder:** `cogito-mem install <client>`, with every memory under
    `~/.cogito-mem/` (§3.5).
 9. **MCP fills in `author`** from the client's name and shows the assistant only the keys it needs (§3.5).
 
@@ -609,8 +610,8 @@ These fill gaps the sections above leave open. Each can change without touching 
 13. **MCP over HTTP.** The service also speaks MCP's Streamable HTTP transport at `/mcp` (JSON responses, a
     session per `initialize`, `?namespace=` to pick the memory), so a client can connect by URL, e.g. to the
     Docker image. It checks `Origin` as well as `Host`.
-14. **Distribution.** Four ways in, all ending in the same `~/.cogito-mem`: a one-line installer (`install.sh`,
-    `install.ps1`: uv, then `uv tool install`, then `cogito-mem install` for every client found), a Claude Code
+14. **Distribution.** Four ways in, all ending in the same `~/.cogito-mem`: PyPI (`uv tool install cogito-mem`,
+    then `cogito-mem install` for every client found; since v0.2.1, in place of the one-line installer scripts), a Claude Code
     plugin and marketplace in this repository, a Docker image (`Dockerfile`, `compose.yaml`; llama.cpp built
     portable, model downloaded to the volume or baked in), and plain `pip`/`uv`. `cogito-mem doctor` checks an
     install. The service downloads llama.cpp on first start when none is installed.

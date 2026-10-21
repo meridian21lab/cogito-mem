@@ -37,10 +37,12 @@
     <ol class="steps">
       <li>
         <h3>Get the helper, uv</h3>
-        <p>Cogi runs with <a href="https://docs.astral.sh/uv/">uv</a>. This installs only the helper, not Cogi yet.</p>
-<div class="cmd"><span class="label">Terminal</span><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre></div>
-        <p class="small muted">Already have it? If <code>uv --version</code> works, skip this. Otherwise open a
-          <strong>new</strong> terminal afterwards, so it can be found.</p>
+        <p>Cogi runs with <a href="https://docs.astral.sh/uv/">uv</a>. This installs only the helper, not Cogi yet. On a
+          Mac:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>brew install uv</code></pre></div>
+        <p class="small muted">On Linux or Windows, or without Homebrew, use <a href="https://docs.astral.sh/uv/getting-started/installation/">uv's own
+          installer</a>, then open a <strong>new</strong> terminal so it can be found. Already have it? If
+          <code>uv --version</code> works, skip this.</p>
       </li>
       <li>
         <h3>Install Cogi</h3>
@@ -85,8 +87,10 @@
       <summary>Bring in your earlier sessions</summary>
       <p>Cogi starts collecting from now on. To add every Claude Code session you had before, install the
         <code>cogito-mem</code> terminal command and run it once:</p>
-<div class="cmd"><span class="label">Terminal</span><pre><code>uv tool install git+https://github.com/meridian21lab/cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>uv tool install cogito-mem</code></pre></div>
 <div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem capture claude-code --all</code></pre></div>
+      <p class="small muted">If the terminal says <code>cogito-mem: command not found</code>, run
+        <code>uv tool update-shell</code>, open a new terminal and try again.</p>
     </details>
 
     <details>
@@ -108,12 +112,15 @@
 
     <details id="other-ways">
       <summary>Other ways: Codex, Claude Desktop, Docker, Python</summary>
-      <p><strong>One line for every app it finds</strong> (Claude Code, Codex, Claude Desktop):</p>
-<div class="cmd"><span class="label">Terminal</span><pre><code>curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh</code></pre></div>
+      <p><strong>Every app it finds</strong> (Claude Code, Codex, Claude Desktop), with uv:</p>
+<div class="cmd"><span class="label">Terminal</span><pre><code>uv tool install cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem install</code></pre></div>
+      <p class="small muted">If the terminal says <code>cogito-mem: command not found</code>, run
+        <code>uv tool update-shell</code>, open a new terminal and try again.</p>
       <p><strong>Docker</strong>, then connect Claude Code by URL:</p>
 <div class="cmd"><span class="label">Terminal</span><pre><code>docker run -d --name cogito-mem -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem</code></pre></div>
 <div class="cmd"><span class="label">Terminal</span><pre><code>claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp</code></pre></div>
-      <p><strong>Python</strong>: <code>pip install git+https://github.com/meridian21lab/cogito-mem</code>, then see
+      <p><strong>Python</strong>: <code>pip install cogito-mem</code>, then see
         <a href="api.html">API &amp; MCP</a>.</p>
     </details>
 
