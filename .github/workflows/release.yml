@@ -34,6 +34,9 @@ jobs:
           wrong = {k: v for k, v in versions.items() if f"v{v}" != tag}
           assert not wrong, f"tag {tag} does not match {wrong}"
           PY
+      - name: Point the README's bundled images at this tag on GitHub, for the PyPI page
+        # the plugin directory shows only images bundled in the plugin; PyPI only images on the web
+        run: sed -i "s#](site/assets/#](https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/site/assets/#g" README.md
       - name: Build
         run: uv build
       - name: Publish to PyPI
