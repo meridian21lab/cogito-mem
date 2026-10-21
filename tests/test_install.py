@@ -264,5 +264,6 @@ def test_install_guides_use_pypi_not_a_piped_script():
     repo = Path(__file__).resolve().parents[1]
     for page in ("docs/install.md", "site/start.html"):
         assert "uv tool install cogito-mem" in (repo / page).read_text()
+    piped = re.compile("|".join(rf"\|\s*{shell}\b" for shell in ("sh", "bash", "iex")))
     for path in [repo / "README.md", *repo.glob("docs/*.md"), *repo.glob("site/*.html")]:
-        assert not re.search(r"\|\s*(sh|bash|iex)\b", path.read_text()), path
+        assert not piped.search(path.read_text()), path
