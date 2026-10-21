@@ -65,6 +65,7 @@ h1, h2, h3 { font-family: var(--round); line-height: 1.2; letter-spacing: -0.01e
 h1 { font-size: clamp(2rem, 5vw, 3rem); margin: 0 0 .4em; }
 h2 { font-size: 1.6rem; margin: 2.4em 0 .6em; }
 h3 { font-size: 1.15rem; margin: 1.6em 0 .4em; }
+[id] { scroll-margin-top: 72px; } /* clear the sticky header when a link jumps here */
 p { margin: 0 0 1em; }
 code { font-family: var(--mono); font-size: .9em; background: var(--tint); padding: .1em .35em; border-radius: 6px; }
 strong { font-weight: 650; }
