@@ -16,7 +16,7 @@ Two protocols, with prompts taken word for word from Mem0's evaluation code (Apa
   use. The answering model reads the memories through the prompt Mem0 used for Zep (temperature 0);
   the full-context baseline uses the paper's RAG prompt; the judge uses the paper's ACCURACY_PROMPT.
   Both models are gpt-4o-mini. Published: full context 72.90, Mem0 66.88, Zep 65.99, LangMem 58.10.
-- ``mem0-2026``: github.com/mem0ai/memory-benchmarks: a step-by-step answer prompt over up to 200
+- ``mem0-2026``: mem0ai/memory-benchmarks on GitHub: a step-by-step answer prompt over up to 200
   memories in date order, and a lenient judge (one correct item of a list is enough; dates within
   14 days). Mem0 published 91.6-92.5 % with gpt-5 answering and judging.
 
@@ -300,8 +300,7 @@ class LLM:
                 self.providers[f"{hit.get('model')} via {hit.get('provider')}"] += 1
                 return hit
         data = json.dumps({**body, "usage": {"include": True}}).encode()
-        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}",
-                   "HTTP-Referer": "https://github.com/meridian21lab/cogito-mem", "X-Title": "cogito-mem eval"}  # fmt: skip
+        headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}", "X-Title": "cogito-mem eval"}
         delay = self.retry_delay
         for attempt in range(8):
             try:
