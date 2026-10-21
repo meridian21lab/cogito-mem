@@ -16,7 +16,7 @@ entries.
 
 | Test | What it measures | cogito-mem | Next to |
 |---|---|---|---|
-| LongMemEval-S, 500 questions | a session holding the answer is among the first 5 found; no LLM | **99.0 %** (95.0 % as of the question date) | other local memory plugins publish 95.2–98.0 % |
+| LongMemEval-S, 500 questions | a session holding the answer is among the first 5 found; no LLM | **99.0 %** (95.0 % as of the question date) | other local memory plugins published 95.2–98.0 % (20 Oct 2026) |
 | LoCoMo, 1,540 questions | gpt-4o-mini answers from 1,000 tokens of memory, gpt-4o-mini grades | **74.7 %**, 98 % of the whole-conversation score | Mem0 92 %, Mem0g 94 %, Zep 91 % of theirs (Mem0 paper) |
 | LoCoMo, 1,536 questions | every turn an answer needs is in 1,000 tokens of memory | **72.5 %** | the last 1,000 tokens of the conversation: 4.2 % |
 | Speed, 10M tokens | 95 % of searches finish within, laptop CPU only | **26 ms** | design target: 100 ms |
@@ -78,8 +78,9 @@ one.
 | iai-personal-memory-engine | 96.2 | 97.8 | whole sessions, user turns only; meaning (bge-small-en-v1.5) | [BENCHMARKS.md](https://github.com/CodeAbra/iai-personal-memory-engine/blob/main/BENCHMARKS.md), Sep 2026 |
 | agentmemory | 95.2 | | whole sessions, both roles; words, and meaning of the first 512 characters (all-MiniLM-L6-v2) | [LONGMEMEVAL.md](https://github.com/rohitg00/agentmemory/blob/main/benchmark/LONGMEMEVAL.md), 8 Apr 2026 |
 
-With 500 questions, hippo-memory's 98.0 lies inside cogito-mem's 95 % interval and deja-vu's 97.2 just below it. The
-honest reading: level with the best two, ahead of the rest.
+With 500 questions, a difference of a few misses is noise: hippo-memory's 98.0 lies inside cogito-mem's 95 % interval
+(97.7–99.6) and deja-vu's 97.2 just below it, so the first three are level. This is a snapshot of published scores on
+20 Oct 2026; these projects keep improving, so check their pages for newer numbers.
 
 **Where the picture changes.**
 
