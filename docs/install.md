@@ -28,7 +28,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/mer
 It installs [uv](https://docs.astral.sh/uv/) if you don't have it (uv brings its own Python), installs cogito-mem
 as a uv tool, and then runs `cogito-mem install`, which:
 
-1. creates `~/.cogito-mem` with one memory, named `<username>-hollow` (e.g. `ksirg-hollow`); pass `--name` to
+1. creates `~/.cogito-mem` with one memory, named `<username>-hollow` (e.g. `ksirg-hollow`); add `--name` to
    choose another (`curl … | sh -s -- --name work`);
 2. gets llama.cpp's `llama-server` (the one on your `PATH`, e.g. `brew install llama.cpp`, or the official
    prebuilt release) and the EmbeddingGemma 2 model (310 MB);
@@ -143,6 +143,6 @@ names (`memory/default`) is renamed to your memory's name by itself, once.
 | Search finds only exact words | The model isn't loaded: run `cogito-mem doctor`; logs are in `~/.cogito-mem/run/` |
 | Run on CPU only | `COGITO_MEM_GPU_LAYERS=0` |
 | Keep something out of the memory | Put it inside `<private>…</private>`; to pause capture, set `COGITO_MEM_CAPTURE=off` (for Claude Code under `"env"` in `~/.claude/settings.json`) |
-| Behind a TLS-inspecting proxy | Set `SSL_CERT_FILE` to your CA bundle; for Docker builds pass `--secret id=extra_ca,src=ca.pem` |
+| Behind a TLS-inspecting proxy | Set `SSL_CERT_FILE` to your CA bundle; for Docker builds add `--secret id=extra_ca,src=ca.pem` |
 
 Everything else has a working default; the full list of settings is in the [reference](reference.md#settings).

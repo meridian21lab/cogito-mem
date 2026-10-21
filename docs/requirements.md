@@ -144,7 +144,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
 | Key | Required | Meaning |
 |---|---|---|
 | `text` | yes | The question or search text. |
-| `context` | no | Extra text that steers the search: in v0 it is joined to `text` before embedding. It is never returned. The pass mark does not measure it (§13). |
+| `context` | no | Extra text that steers the search: in v0 it is joined to `text` before embedding. It is never returned. The minimum bar does not measure it (§13). |
 | `filter.*` | no | Exact filters. `null` means no filter. `kind` takes a list of kinds. `valid_after` is inclusive and `valid_before` exclusive; both apply to `valid_at`. |
 | `as_of` | no (default now) | The moment the memory is viewed from. Only items with `created_at` ≤ `as_of` are visible, and only retractions made by then apply. |
 | `top_k` | no (default 10, max 100) | The most items to return. |
@@ -308,7 +308,7 @@ message.
 - The exact format (SQLite or our own log files with indexes held in memory) is chosen in stage 0 by
   measurement.
 
-## 5. Quality test (the pass mark)
+## 5. Quality test (the minimum bar)
 
 **Dataset.** The long version of LongMemEval (`longmemeval_m`): 500 questions, each with about 1.5M tokens of
 user–assistant chat history across about 500 sessions. Use the latest official release and record its file
@@ -353,7 +353,7 @@ and the date and time in UTC.
 
 ## 6. Speed test
 
-| | Pass mark | Reference | Stretch |
+| | Minimum bar | Reference | Stretch |
 |---|---|---|---|
 | Machine | the author's M5 laptop, CPU only (llama.cpp with GPU layers = 0) | Polonez CPU, 8 threads | — |
 | Memory size | 10M tokens | 10M tokens | 100M tokens on both |
@@ -458,8 +458,8 @@ These are not part of v0:
 |---|---|---|
 | v1: digest | On append of a long text, and when a chat session ends, store the text's own sentences as `kind: "digest"`, with their source spans and with the title and author for context. The digest takes the sentences closest to the text's overall meaning (its main points) and those least like anything already in memory (the surprising ones). | **A planted-fact test** we build ourselves, since no public benchmark scores surprise. Long texts get planted main points that repeat across the text, and planted surprising facts that contradict what the memory already holds. The score is the share of planted facts kept within a fixed digest length, plus a set of broad questions ("main points of X"). |
 | v2: statements | A model under 3B writes short, checked statements. A terse, ungrammatical "caveman" style is fine, because the statements are for agent-to-agent use. Every statement is checked by a small fact-checker against its source span, and statements that fail are dropped. Stored as `kind: "statement"`. | It must beat v1 copying on the planted-fact test at the same token count, with a measured rate of invented content. For reference, small summarizers of 4B invent something in about 6 % of summaries. |
-| Later: media | Images, screenshots and files shared in chats, found by a text query. The model is open. | Its own pass mark before it ships. |
-| Later | Live connection to claude.ai and ChatGPT on the web; sync between machines (replicating the append-only log); a scheduled job that runs the v1 and v2 writers and appends their output; sentence-level trimming scored on questions whose answer appears word for word; fine-tuning EmbeddingGemma only if the stage-1 head stops improving. | Each gets its own pass mark before it ships. |
+| Later: media | Images, screenshots and files shared in chats, found by a text query. The model is open. | Its own minimum bar before it ships. |
+| Later | Live connection to claude.ai and ChatGPT on the web; sync between machines (replicating the append-only log); a scheduled job that runs the v1 and v2 writers and appends their output; sentence-level trimming scored on questions whose answer appears word for word; fine-tuning EmbeddingGemma only if the stage-1 head stops improving. | Each gets its own minimum bar before it ships. |
 
 ## 10. The original requirements (17 Oct) and where they stand
 
@@ -490,11 +490,11 @@ These are not part of v0:
 | 8 | Does training change EmbeddingGemma? | No, it stays frozen. | Stored vectors stay valid (re-embedding 100M tokens takes about 25 min on a GPU and about 18 h on a CPU), and only one thing changes. |
 | 8b | Should we train anything at all? | Only if the reranker gains 5 points or more and the memory must run on CPU. Then a small head is distilled from it. Fine-tuning the reranker does not help. | The only job training has is bringing reranker quality inside the CPU budget. |
 | 9 | CPU or GPU? | A local machine, CPU, with every memory kept local. A GPU only accelerates. llama.cpp or similar. The first version may be slower, but speed matters in the long run. | Memory that plugs into any agent runs beside it, often with no GPU. |
-| 10 | Where is the 100 ms measured? | Laptop CPU at 10M tokens (pass mark) and Polonez CPU at 10M tokens (reference), timing the slowest 1 in 20 queries; 100M tokens as the stretch mark. | Two machines make the comparison broader. An average would hide the slow queries agents actually wait on. |
+| 10 | Where is the 100 ms measured? | Laptop CPU at 10M tokens (minimum bar) and Polonez CPU at 10M tokens (reference), timing the slowest 1 in 20 queries; 100M tokens as the stretch mark. | Two machines make the comparison broader. An average would hide the slow queries agents actually wait on. |
 | — | Which model? | EmbeddingGemma 2. Decided from evidence, not asked. | llama.cpp's own team published a build on release day; Apache 2.0; 8k context; 60.4 against 59.7 at 256 numbers. |
 | 11 | What is one item? | One message, split at paragraphs when longer than 256 tokens. | The test labels whole messages, so scoring is exact, and a message keeps its own context. |
 | — | A message on its own, or with the message before it? | Measured in stage 0 (arm U3). | — |
-| 12 | Digest in v0? | No. v1, with a planted-fact test. | The pass mark cannot see a digest, so it would ship untested. |
+| 12 | Digest in v0? | No. v1, with a planted-fact test. | The minimum bar cannot see a digest, so it would ship untested. |
 | 13 | Stages and stop rules | As in §7. An unclear result means train nothing. | Stage 0 alone gives a working local memory and answers whether training is worth anything. |
 | 14 | Who is it for? | Developers and users of Claude, Codex and ChatGPT, keeping the facts of what they worked on as they go (§1.1). | The author, after the competitive review. The case: getting back an idea from a week ago that nobody wrote down. |
 | 15 | MCP in v0? | Yes, a must (§3.5). | It is how these clients connect to tools. |
@@ -521,7 +521,7 @@ These are not part of v0:
 
 - **Score and abstention.** Should the memory say "nothing relevant" (return no items) below some score?
   LongMemEval's 30 abstention questions could test this once the score is calibrated.
-- **`context`.** The pass mark gives no context, so this field is untested. It needs its own small test before
+- **`context`.** The minimum bar gives no context, so this field is untested. It needs its own small test before
   it can claim to help.
 - **Storage format.** Chosen in stage 0 by measurement (§4).
 - **Many agents appending at once.** Order is the server's arrival order. Is that enough?
@@ -675,7 +675,7 @@ These fill gaps the sections above leave open. Each can change without touching 
 21. **The default budget is 1,000 tokens, not 300** (author's decision, 19 Oct 2026). On LoCoMo answered by
     gpt-4o-mini and judged by an LLM, 300 tokens scored 8.7 points below the whole conversation (−12.5 to −4.7),
     while 1,000 was level with it (−1.8, −5.5 to +1.8), and 1,000 tokens is small next to a chat client's context.
-    The pass marks of §13 still name their own budgets.
+    The minimum bars of §13 still name their own budgets.
 22. **Recall filters by shared words, not by `similarity`.** On a copy of a real memory (470 messages,
     1,191 items, EmbeddingGemma 2 Q8_0), 18 prompts were run, 9 about the work stored in it and 9 unrelated, and
     each returned item was labelled on topic or not. The closest item scored a similarity of 0.78 to 0.88 for
