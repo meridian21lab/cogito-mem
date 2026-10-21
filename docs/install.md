@@ -8,35 +8,33 @@ needed. Pick **one** of the four ways below; they all give the same memory in `~
 
 | Way | Best for | Needs |
 |---|---|---|
-| [A. One line](#a-one-line-recommended) | Most people | `curl` |
+| [A. From PyPI](#a-from-pypi-recommended) | Most people | `uv` |
 | [B. Claude Code plugin](#b-claude-code-plugin) | Claude Code only | `uv` |
 | [C. Docker](#c-docker) | Servers, or keeping everything in a container | Docker |
-| [D. By hand](#d-by-hand) | Python developers | Python 3.10+ |
+| [D. With pip](#d-with-pip) | Python developers | Python 3.10+ |
 
-## A. One line (recommended)
+## A. From PyPI (recommended)
+
+You need [uv](https://docs.astral.sh/uv/), which brings its own Python: `brew install uv` on a Mac, or
+[uv's own installer](https://docs.astral.sh/uv/getting-started/installation/) on Linux and Windows (experimental). Then:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh
+uv tool install cogito-mem
+cogito-mem install
 ```
 
-On Windows (experimental):
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.ps1 | iex"
-```
-
-It installs [uv](https://docs.astral.sh/uv/) if you don't have it (uv brings its own Python), installs cogito-mem
-as a uv tool, and then runs `cogito-mem install`, which:
+The first command puts cogito-mem in uv's tool folder, outside any project (if the second then says
+`cogito-mem: command not found`, run `uv tool update-shell` and open a new terminal). The second:
 
 1. creates `~/.cogito-mem` with one memory, named `<username>-hollow` (e.g. `ksirg-hollow`); add `--name` to
-   choose another (`curl … | sh -s -- --name work`);
+   choose another (`cogito-mem install --name work`);
 2. gets llama.cpp's `llama-server` (the one on your `PATH`, e.g. `brew install llama.cpp`, or the official
    prebuilt release) and the EmbeddingGemma 2 model (310 MB);
 3. connects **every chat client it finds**: Claude Code (MCP server + capture and recall hooks), Codex (MCP server + capture
    after each turn), Claude Desktop (MCP server);
 4. starts the local service and checks it answers.
 
-To connect only some clients: `curl … | sh -s -- claude-code codex`. Then **restart your chat client**.
+To connect only some clients: `cogito-mem install claude-code codex`. Then **restart your chat client**.
 
 ## B. Claude Code plugin
 
@@ -92,11 +90,11 @@ the container instead of a local service.
 
 Keep the port bound to `127.0.0.1`: the memory has no accounts, so anyone who can reach the port can read it.
 
-## D. By hand
+## D. With pip
 
 ```sh
-uv tool install git+https://github.com/meridian21lab/cogito-mem     # or: pipx install … / pip install …
-cogito-mem install                                                  # every client found; or name them
+pipx install cogito-mem          # or: pip install cogito-mem
+cogito-mem install               # every client found; or name them
 ```
 
 ## Check it
@@ -123,7 +121,7 @@ Importing the same file twice adds nothing.
 ## Upgrade, stop, remove
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/meridian21lab/cogito-mem/main/install.sh | sh   # upgrade (way A)
+uv tool upgrade cogito-mem                       # upgrade (way A)
 cogito-mem stop                                  # stop the service (any request starts it again)
 cogito-mem uninstall claude-code                 # or codex, claude-desktop; the memory is kept
 rm -rf ~/.cogito-mem                             # erase the memory itself

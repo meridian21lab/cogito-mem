@@ -1,6 +1,6 @@
 {
   "name": "cogito-mem",
-  "description": "cogito-mem: a fast, simple, local long-term memory for Claude Code and other agents.",
+  "description": "Cogi: local long-term memory for Claude Code. Every message kept word for word; no API key, no cloud.",
   "owner": {
     "name": "meridian21lab",
     "url": "https://github.com/meridian21lab"

@@ -1,7 +1,7 @@
 {
   "name": "cogito-mem",
   "displayName": "cogito-mem (Cogi)",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Local long-term memory for Claude Code. Cogi saves every message you and Claude exchange, word for word, and brings back what matters with each prompt. No API key, no cloud: nothing leaves your machine.",
   "author": {
     "name": "meridian21lab",

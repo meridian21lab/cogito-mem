@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -258,9 +259,10 @@ def test_claude_code_plugin_files_are_consistent():
     assert not any(a and b and not b.startswith(("-", "|", "#", ">", "<", "!", "[")) and not b[0].isdigit()
                    for part in prose for a, b in zip(part.splitlines(), part.splitlines()[1:]))
 
-def test_installer_scripts_exist():
+def test_install_guides_use_pypi_not_a_piped_script():
+    # the plugin directory flags a download piped into a shell anywhere in the plugin, docs included
     repo = Path(__file__).resolve().parents[1]
-    assert os.access(repo / "install.sh", os.X_OK)
-    text = (repo / "install.sh").read_text()
-    assert "uv tool install" in text and 'cogito-mem install "$@"' in text
-    assert "cogito-mem install @args" in (repo / "install.ps1").read_text()
+    for page in ("docs/install.md", "site/start.html"):
+        assert "uv tool install cogito-mem" in (repo / page).read_text()
+    for path in [repo / "README.md", *repo.glob("docs/*.md"), *repo.glob("site/*.html")]:
+        assert not re.search(r"\|\s*(sh|bash|iex)\b", path.read_text()), path
