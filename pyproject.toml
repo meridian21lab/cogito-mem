@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cogito-mem"
-version = "0.2.0"
-description = "A fast, simple, local memory for agents: append text, query it within a token budget."
+version = "0.2.1"
+description = "Local long-term memory for Claude Code: keeps every message word for word and brings back what Claude forgot. No API key, no cloud."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

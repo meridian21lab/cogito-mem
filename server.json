@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.meridian21lab/cogito-mem",
   "title": "cogito-mem (Cogi)",
-  "description": "Local long-term memory for agents: every message kept word for word, found by words and meaning.",
-  "version": "0.2.0",
+  "description": "Local long-term memory for Claude Code and other agents: every message kept word for word, no cloud.",
+  "version": "0.2.1",
   "websiteUrl": "https://meridian21lab.github.io/cogito-mem/",
   "repository": {
     "url": "https://github.com/meridian21lab/cogito-mem",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "cogito-mem",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
