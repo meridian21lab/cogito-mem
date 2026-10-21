@@ -60,7 +60,7 @@ Keep your project's rules in `CLAUDE.md`, and let Cogi remember what happened.
 | [How it works](https://meridian21lab.github.io/cogito-mem/how.html) | Collect, keep, find: what Cogi stores and how it finds it |
 | [Results](https://meridian21lab.github.io/cogito-mem/results.html) · [Benchmarks](https://github.com/meridian21lab/cogito-mem/blob/main/docs/benchmarks.md) | The numbers, and how to reproduce them |
 | [API & MCP](https://meridian21lab.github.io/cogito-mem/api.html) · [Reference](https://github.com/meridian21lab/cogito-mem/blob/main/docs/reference.md) | HTTP, Python, terminal, settings, FAQ, roadmap |
-| [What you install](https://meridian21lab.github.io/cogito-mem/safety.html) · [Privacy](https://meridian21lab.github.io/cogito-mem/privacy.html) | Every file, download and connection |
+| [What you install](https://meridian21lab.github.io/cogito-mem/safety.html) · [Privacy](https://meridian21lab.github.io/cogito-mem/privacy.html) · [Terms](https://meridian21lab.github.io/cogito-mem/terms.html) | Every file, download and connection; privacy and terms |
 | [Development](https://github.com/meridian21lab/cogito-mem/blob/main/docs/development.md) | Running the tests and the evaluations |
 
 > **Early access.** v0.2 is new, built and tested (over 200 tests), and still being measured. Feedback and [issues](https://github.com/meridian21lab/cogito-mem/issues) are very welcome.

@@ -241,7 +241,7 @@ def test_claude_code_plugin_files_are_consistent():
     # the directory reads these listing fields; displayName must have no invisible characters
     assert plugin["displayName"].isprintable() and all(ord(c) < 0x2000 for c in plugin["displayName"])
     assert (repo / plugin["icon"]).is_file()
-    for key in ("documentationUrl", "supportUrl", "privacyPolicyUrl", "homepage"):
+    for key in ("documentationUrl", "supportUrl", "privacyPolicyUrl", "termsOfServiceUrl", "homepage"):
         assert plugin[key].startswith("https://")
     assert market["plugins"][0]["category"] == "productivity"
     # the MCP Registry entry ships with the same version, and the README carries its ownership line
