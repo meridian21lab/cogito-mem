@@ -722,3 +722,10 @@ These fill gaps the sections above leave open. Each can change without touching 
     installed `cogito-mem`, a `python3` with numpy) are gone: the plugin needs `uv`. The listing also gained `icon`,
     `documentationUrl`, `supportUrl`, `privacyPolicyUrl` and a `productivity` category, and `displayName` lost the
     emoji, whose invisible variation selector blocks review.
+25. **The plugin is its own folder, `plugin/`, and runs the released package** (21 Oct 2026). The directory scans the
+    whole plugin folder, and with the repository as the plugin it read the docs, tests, benchmarks and workflows too
+    (18 review holds, 14 warnings, most about text). `plugin/` holds only the manifest, the hooks, a README for the
+    listing, the license, two images and a lock. Every command is `uvx cogito-mem==<version>`, the form the directory's
+    locked launch reads (`uv run` is not), and `plugin/uv.lock` lists that release and numpy with their hashes. A
+    release now reaches plugin users in two steps: PyPI first, then `scripts/pin_plugin.py` (docs/development.md). A
+    warm hook start measured 119 ms with `uvx` against 97 ms with `uv run --frozen`.

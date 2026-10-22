@@ -19,6 +19,19 @@ cogito-mem eval compare results/u1.json results/u2.json --budget 300
 COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --data longmemeval_m.json --tokens 10M --out results/speed.json
 ```
 
+## Releasing
+
+1. Raise the version in `pyproject.toml`, `src/cogito_mem/__init__.py` and `server.json` (twice), run `uv lock`, and
+   merge to `main`.
+2. Create the GitHub release `v<version>` on `main`. The release workflow checks the versions, publishes to PyPI and
+   the MCP Registry, and attaches the files.
+3. Point the plugin at the new release: `python scripts/pin_plugin.py <version>`, then merge `plugin/` to `main`.
+   The plugin runs the released package (`uvx cogito-mem==<version>`), so this step needs the release on PyPI; the
+   plugin directory picks up the commit by itself.
+
+The plugin in `plugin/` always runs a release. To try unreleased code in Claude Code, install it from the checkout
+instead (`uv tool install -e .`, then `cogito-mem install claude-code`), and uninstall the plugin while you do.
+
 | Document | What is in it |
 |---|---|
 | [`docs/install.md`](install.md) | Every way to install, upgrade, remove and troubleshoot. |

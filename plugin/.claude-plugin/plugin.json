@@ -14,7 +14,7 @@
   "privacyPolicyUrl": "https://meridian21lab.github.io/cogito-mem/privacy.html",
   "termsOfServiceUrl": "https://meridian21lab.github.io/cogito-mem/terms.html",
   "license": "MIT",
-  "icon": "./site/assets/cogi-icon.png",
+  "icon": "./icon.png",
   "keywords": [
     "memory",
     "long-term-memory",
@@ -37,15 +37,9 @@
   },
   "mcpServers": {
     "cogi": {
-      "command": "uv",
+      "command": "uvx",
       "args": [
-        "run",
-        "--frozen",
-        "--quiet",
-        "--no-dev",
-        "--project",
-        "${CLAUDE_PLUGIN_ROOT}",
-        "cogito-mem",
+        "cogito-mem==0.2.1",
         "mcp"
       ],
       "env": {

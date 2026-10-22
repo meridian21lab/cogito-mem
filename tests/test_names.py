@@ -204,13 +204,13 @@ def test_install_names_the_memory(home):
 
 
 def test_the_plugin_asks_for_the_name():
-    plugin = json.loads((REPO / ".claude-plugin" / "plugin.json").read_text())
+    plugin = json.loads((REPO / "plugin" / ".claude-plugin" / "plugin.json").read_text())
     option = plugin["userConfig"]["memory_name"]
     assert option["type"] == "string" and not option.get("required") and "default" not in option
     assert option["title"] == "Name your memory" and "-hollow" in option["description"]
     assert plugin["mcpServers"]["cogi"]["env"] == {"CLAUDE_PLUGIN_OPTION_MEMORY_NAME": "${user_config.memory_name}"}
     # Claude Code refuses ${user_config.*} in shell-form hook commands; hooks get CLAUDE_PLUGIN_OPTION_MEMORY_NAME
-    assert "user_config" not in (REPO / "hooks" / "hooks.json").read_text()
+    assert "user_config" not in (REPO / "plugin" / "hooks" / "hooks.json").read_text()
 
 
 @pytest.mark.parametrize(

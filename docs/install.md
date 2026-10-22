@@ -51,7 +51,7 @@ run `/reload-plugins`.
 
 When you enable it, the plugin asks you to **name your memory**; leave it empty for `<username>-hollow`.
 The plugin registers the MCP server and the capture and recall hooks. Each of them runs
-`uv run --frozen … cogito-mem` from the plugin folder, with the exact versions in `uv.lock` (the first start takes a
+`uvx cogito-mem==<version>`: the released package from PyPI, at the exact version the plugin pins (the first start takes a
 few seconds while uv builds the environment). Turn on updates in `/plugin` → *Marketplaces* → *cogito-mem* →
 *Enable auto-update*.
 On its first start the service downloads llama.cpp (unless one is on your `PATH`) and the model (310 MB) into

@@ -1,0 +1,11 @@
+# Not a package: it pins the cogito-mem release the plugin runs (`uvx cogito-mem==0.2.1` in .claude-plugin/plugin.json
+# and hooks/hooks.json), so that uv.lock beside it records that release and its dependencies with their hashes.
+# scripts/pin_plugin.py moves all of them to a new release once it is on PyPI.
+[project]
+name = "cogito-mem-plugin"
+version = "0.2.1"
+requires-python = ">=3.10"
+dependencies = ["cogito-mem==0.2.1"]
+
+[tool.uv]
+package = false
