@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Results · Cogi</title>
-  <meta name="description" content="Cogi finds the right past conversation 99 times in 100 on LongMemEval and answers LoCoMo questions about as well as rereading everything. Local, free, in milliseconds.">
+  <meta name="description" content="Cogi finds the right past conversation 99 times in 100 on LongMemEval, and on LoCoMo gives 95% of the answer quality of rereading everything from 9 times fewer tokens. Local, free, in milliseconds.">
   <meta property="og:title" content="Results · Cogi">
-  <meta property="og:description" content="Cogi finds the right past conversation 99 times in 100 on LongMemEval and answers LoCoMo questions about as well as rereading everything. Local, free, in milliseconds.">
+  <meta property="og:description" content="Cogi finds the right past conversation 99 times in 100 on LongMemEval, and on LoCoMo gives 95% of the answer quality of rereading everything from 9 times fewer tokens. Local, free, in milliseconds.">
   <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
   <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/results.html">
   <meta name="twitter:card" content="summary_large_image">
@@ -33,12 +33,12 @@
     <p class="eyebrow">Results</p>
     <h1>It remembers. We measured.</h1>
     <p class="lead">We put Cogi through the benchmarks memory tools are judged by, on a laptop, with the exact model it
-      ships with. It finds the right past conversation 99 times in 100, and answers about as well as rereading the
-      whole chat. No account, no API key, no bill.</p>
+      ships with. It finds the right past conversation 99 times in 100, and from a ninth of the reading gives 95% of
+      the answers you'd get by rereading the whole chat. No account, no API key, no bill.</p>
 
     <div class="cards">
       <div class="card"><div class="big">99.0%</div><p>right past conversation found, on 500 LongMemEval questions</p></div>
-      <div class="card"><div class="big">98%</div><p>of the answer quality of rereading the whole chat (LoCoMo)</p></div>
+      <div class="card"><div class="big">95%</div><p>of the answer quality of rereading the whole chat, from 9× fewer tokens (LoCoMo)</p></div>
       <div class="card"><div class="big">26 ms</div><p>to search 10 million tokens on a laptop</p></div>
       <div class="card"><div class="big">$0</div><p>per message, and nothing leaves your computer</p></div>
     </div>
@@ -65,13 +65,29 @@
       <p class="note">Each project's own published score, October 2026. Over 500 questions, the first three are level.</p>
     </div>
 
-    <h2>1,000 tokens answer like the whole conversation</h2>
+    <h2>Most of the answers, a ninth of the reading</h2>
     <p>On <a href="https://github.com/snap-research/locomo">LoCoMo</a>, the test Mem0 and Zep were measured with, an AI
-      model answers each question from what the memory hands it. From just 1,000 tokens of Cogi's memory, it answers
-      about as well as from the entire conversation.</p>
+      model answers each question from what the memory hands it. With today's models, 1,000 tokens of Cogi's memory
+      give 95% of the score of rereading the entire conversation, while the model reads about 9 times fewer tokens.
+      Rereading everything still answers best, 3 to 5 points higher, but it stops being possible once your history
+      outgrows the context window.</p>
     <div class="chart">
-      <h3>How close each memory gets to rereading everything</h3>
-      <p class="sub">LoCoMo, 1,540 questions · score as a share of the whole-conversation score · higher is better</p>
+      <h3>Cogi's 1,000 tokens against rereading the whole conversation</h3>
+      <p class="sub">LoCoMo, 1,540 questions · answering model, judged by GPT-5 mini (Mem0's 2026 rules) · Cogi's score as a share of the whole-conversation score</p>
+      <div class="bars">
+        <span class="name me">GPT-5 mini</span><div class="track" title="89.4 of 94.1"><div class="fill me" style="width:95.0%"></div><span class="val" style="left:95.0%">95% · 89.4 of 94.1</span></div>
+        <span class="name me">Claude Haiku 5.5</span><div class="track" title="89.9 of 94.5"><div class="fill me" style="width:95.1%"></div><span class="val" style="left:95.1%">95% · 89.9 of 94.5</span></div>
+        <span class="name me">Qwen3 235B</span><div class="track" title="88.1 of 92.5"><div class="fill me" style="width:95.3%"></div><span class="val" style="left:95.3%">95% · 88.1 of 92.5</span></div>
+        <span class="name me">gpt-oss-120b</span><div class="track" title="85.6 of 89.0"><div class="fill me" style="width:96.2%"></div><span class="val" style="left:96.2%">96% · 85.6 of 89.0</span></div>
+      </div>
+      <p class="note">With GPT-5 mini: 300 tokens score 79.6 (the most Cogi adds to a prompt on its own), 2,500 tokens 92.1. Under the stricter 2025 rules each gap grows to 4–9 points.</p>
+    </div>
+    <p>Published memories were compared with an older model, gpt-4o-mini, which reads long contexts poorly, so
+      rereading everything scored lower there. In that setup, the one in the Mem0 paper, Cogi's 1,000 tokens matched
+      the whole conversation:</p>
+    <div class="chart">
+      <h3>How close each memory gets to rereading everything, 2025 protocol</h3>
+      <p class="sub">LoCoMo, 1,540 questions · gpt-4o-mini answers and judges · score as a share of the whole-conversation score · higher is better</p>
       <div class="bars">
         <span class="name me">Cogi, 1,000 tokens</span><div class="track" title="74.7 of 76.5"><div class="fill me" style="width:97.6%"></div><span class="val" style="left:97.6%">98%</span></div>
         <span class="name">Mem0 with graph</span><div class="track" title="68.4 of 72.9"><div class="fill" style="width:93.9%"></div><span class="val" style="left:93.9%">94%</span></div>
@@ -117,8 +133,8 @@
 
     <p class="small muted">Measured on a MacBook Pro (Apple M5 Max), 19–20 October 2026, with EmbeddingGemma 2, the model
       Cogi ships with. Other memories' scores are their own published results. Every number, method and command is in
-      <a href="https://github.com/meridian21lab/cogito-mem/blob/main/docs/benchmarks.md">Benchmarks</a>; the
-      <a href="reports/locomo-2026-10-19.html">LoCoMo report</a> has every chart.</p>
+      <a href="https://github.com/meridian21lab/cogito-mem/blob/main/docs/benchmarks.md">Benchmarks</a>, including what
+      is not measured yet; the <a href="reports/locomo-2026-10-19.html">LoCoMo report</a> has every 2025-protocol chart.</p>
 
     <div class="next"><a href="how.html">← How it works</a><a href="api.html">API &amp; MCP →</a></div>
   </main>
