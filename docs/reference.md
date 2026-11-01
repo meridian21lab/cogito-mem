@@ -72,7 +72,7 @@ Client().query("mascot")          # or through the local service, which starts o
 ```
 
 - **One warm service** holds the memory and the model. The MCP server, the hooks and the CLI are thin clients that
-  start it when needed; it stops after an idle hour.
+  start it when needed; it stops after 12 idle hours, and a prompt that finds it down starts it for the next one.
 - **Append:** long texts are split into pieces of at most 256 tokens at paragraph, then sentence, breaks; the text
   goes to the log and the keyword index and the call returns. Embedding follows in the background.
 - **Query:** the question is embedded, the memory is masked to what was known `as_of` the moment you ask about and
@@ -96,6 +96,10 @@ Everything has a working default. Environment variables, for when you need them:
 | `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL (reorders the top 30; GPU recommended). |
 | `COGITO_MEM_CAPTURE` | `off` pauses capture: the hooks store nothing (`capture … --all` still runs when you ask). |
 | `COGITO_MEM_CAPTURE_ACTIONS` | `off` stops the note of each Claude Code turn's commands and files (default on). |
+| `COGITO_MEM_CAPTURE_SUBAGENTS` | `off` stops keeping what each Claude Code sub-agent reports back (default on). |
+| `COGITO_MEM_CAPTURE_TOOL_OUTPUT` | `off` stops keeping the telling lines of command output (default on). |
+| `COGITO_MEM_BACKFILL` | `off` stops reading past Claude Code sessions, and Agent SDK runs, in the background from `SessionStart` (default on). |
+| `COGITO_MEM_KEEP_ALIVE` | `off` goes back to stopping the service after one idle hour, and to leaving it down when a prompt finds it down (default on). |
 | `COGITO_MEM_NO_DOWNLOAD` | Never download anything. |
 
 ## Privacy and security
@@ -105,12 +109,17 @@ Everything has a working default. Environment variables, for when you need them:
 - The service listens on `127.0.0.1` only. It refuses requests whose `Host` or `Origin` is not local and bodies
   that are not JSON, so a web page you visit can neither read nor write it. There are no accounts: anything that
   runs as you on your machine can use it, as with any local tool.
-- Capture skips tool output, file contents, thinking, system text and the summary Claude Code writes when it
-  compacts a session; of a command it keeps only the command line. API keys, tokens, private keys and
-  `password=…` values become `[redacted]` before anything is stored.
+- Capture skips file contents, thinking, system text and the summary Claude Code writes when it compacts a
+  session. Of a command it keeps the command line and, by rule, at most 800 characters of its output: the end of
+  a failed command, lines with an error or a metric, the last lines of a long run. Of a sub-agent it keeps only
+  what the sub-agent reports back. API keys, tokens, private keys and `password=…` values become `[redacted]`
+  before anything is stored.
+- The first `SessionStart` reads past Claude Code sessions in the background, and later ones look again at most
+  hourly, for Agent SDK runs and whatever else no hook saw. Old sessions may hold secrets the redaction misses;
+  `COGITO_MEM_BACKFILL=off` leaves them alone.
 - Text inside `<private>…</private>` is not stored; the rest of the message is. `COGITO_MEM_CAPTURE=off` (for
-  example under `"env"` in `~/.claude/settings.json`) pauses capture; `COGITO_MEM_CAPTURE_ACTIONS=off` keeps
-  messages only.
+  example under `"env"` in `~/.claude/settings.json`) pauses capture; `COGITO_MEM_CAPTURE_ACTIONS=off`,
+  `COGITO_MEM_CAPTURE_SUBAGENTS=off` and `COGITO_MEM_CAPTURE_TOOL_OUTPUT=off` together keep messages only.
 - Nothing leaves your machine. The only network traffic is the one-time download of llama.cpp and the model.
 
 ## FAQ
