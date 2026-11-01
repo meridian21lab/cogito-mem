@@ -573,5 +573,20 @@ def test_with_a_reranker_its_score_is_the_gate(mem):
     pointer_memory(mem)
     mem.reranker = FakeReranker()
     shot = recall.pointers(MemClient(mem), prompt_hook("what did we settle about attempts?"), "n")
-    mem.reranker = None
     assert [("seven attempts" in it["text"]) for it in shot.items] == [True]
+    assert recall.pointers(MemClient(mem), prompt_hook("anything else entirely unrelated here?"), "n").text is None  # one shared word stays
+    mem.reranker = None
+
+
+def test_sibling_lines_keep_their_word_gate_under_a_reranker(mem):
+    pointer_memory(mem)
+    mem.append(
+        [{"thread_id": "parallel", "author": "user", "title": "/work/app", "text": "Lunch on the balcony, seven attempts at parking.",
+          "valid_at": timeutil.format(timeutil.now_ms() - 60_000)}],
+        namespace="n",
+    )
+    mem.flush()
+    mem.reranker = FakeReranker()
+    shot = recall.pointers(MemClient(mem), prompt_hook("what is the retry budget for the uploader, in attempts?"), "n")
+    mem.reranker = None
+    assert "other sessions of this project" not in (shot.text or "")

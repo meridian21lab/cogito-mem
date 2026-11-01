@@ -216,11 +216,11 @@ def pointers(
     need = min(len(words), min_words)
     kwargs: dict = {"filter": dict(hook["filter"])} if hook.get("filter") else {}
     resp = client.query(prompt, namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, rerank=RERANK_CANDIDATES, **kwargs)
-    if resp.get("reranked"):
-        min_score, need = RERANK_MIN_SCORE, 0
+    # One shared word stays even so: the model's score should not be all that lets stored text into a prompt.
+    gate, gate_words = (RERANK_MIN_SCORE, min(len(words), 1)) if resp.get("reranked") else (min_score, need)
     found: dict[str, dict] = {}
     for it in resp["items"]:
-        if it["score"] < min_score or len(words & set(terms(it["text"]))) < need:
+        if it["score"] < gate or len(words & set(terms(it["text"]))) < gate_words:
             continue
         if not it["text"].strip() or it["author"] in SIDE_AUTHORS or _machine(it):
             continue

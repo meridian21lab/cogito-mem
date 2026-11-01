@@ -25,6 +25,7 @@ import math
 import logging
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
@@ -183,6 +184,7 @@ _YES_NO_PROMPT = (
     "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
 )
 _YES_NO_DOCUMENT_CHARS = 6000
+_CONTROL_TOKEN = re.compile(r"<\|[^|<>\s]{1,40}\|>|</?think>|</?(?:Query|Document|Instruct)>", re.I)  # stored text may hold these
 _YES_NO_FLOOR = 1e-6
 
 
@@ -194,7 +196,7 @@ class YesNoReranker:
         self.name = name
 
     def _one(self, query: str, text: str) -> float:
-        prompt = _YES_NO_PROMPT.format(query=query, document=text[:_YES_NO_DOCUMENT_CHARS])
+        prompt = _YES_NO_PROMPT.format(query=_CONTROL_TOKEN.sub(" ", query), document=_CONTROL_TOKEN.sub(" ", text[:_YES_NO_DOCUMENT_CHARS]))
         res = _post(self.base, "/completion", {"prompt": prompt, "n_predict": 1, "n_probs": 20, "temperature": 0, "cache_prompt": False})
         yes = no = _YES_NO_FLOOR
         for entry in res["completion_probabilities"][0]["top_logprobs"]:  # type: ignore[index]
