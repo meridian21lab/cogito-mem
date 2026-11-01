@@ -53,7 +53,7 @@ from ..mcp_server import INSTRUCTIONS as MCP_INSTRUCTIONS
 from ..mcp_server import _tools as mcp_tools
 from ..memory import Config, Memory
 from ..tokenizer import count
-from .common import query_past_top_k_limit, record, sha256_file, utc_now
+from .common import add_system1_args, make_system1, query_past_top_k_limit, record, sha256_file, system1_settings, utc_now
 from .longmemeval import NO_BUDGET, load, load_question, make_embedder, paired_bootstrap, parse_date
 from .longmemeval_recall import distinct, read_log, score
 
@@ -69,7 +69,7 @@ VARIANTS: dict[str, dict] = {
     "exact": {"exact_lane": True},
     "session": {"session_boost": 0.5},
     "exact+session": {"exact_lane": True, "session_boost": 0.5},
-    "rerank": {},  # with --reranker, the only variant that uses it
+    "rerank": {},  # with --reranker or --system1, the only variant that uses it
 }
 
 
@@ -213,7 +213,12 @@ def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None, r
     for name, cfg in variants.items():
         mem.config = cfg
         mem.reranker = reranker if name == "rerank" else None
+        stats = getattr(mem.reranker, "stats", None)
+        before = dict(stats) if stats else None
         row["search"][name] = {c: search_arm(mem, q, want_turns, want_sessions, as_of) for c, as_of in cutoffs.items()}
+        if stats:
+            row["system1"] = {"scored": stats["scored"] - before["scored"], "cached": stats["cached"] - before["cached"],
+                              "model_ms": round(1000 * (stats["model_s"] - before["model_s"]), 1)}  # fmt: skip
     mem.config = shipped
     mem.reranker = None
     for design in recall.DESIGNS:
@@ -367,7 +372,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.limit:
         questions = questions[: args.limit]
     names = [v.strip() for v in args.variants.split(",") if v.strip()]
-    cfg = Config(search=args.search)
+    if args.reranker and args.system1:
+        print("give --reranker or --system1, not both", file=sys.stderr)
+        return 2
+    if (args.reranker or args.system1) and "rerank" not in names:
+        names.append("rerank")
+    cfg = Config(search=args.search, candidates=args.candidates, rerank_context=args.rerank_context,
+                 rerank_fusion=args.rerank_fusion)  # fmt: skip
     variants = {name: dataclasses.replace(cfg, **VARIANTS[name]) for name in names}
     embedder, rt = (None, None) if args.search == "keyword" else make_embedder(args.embedder, None)
     reranker, rr_server = None, None
@@ -376,12 +387,18 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         inner, rr_server = start_reranker(args.reranker, None)
         reranker = MemoReranker(inner)
+    elif args.system1:
+        reranker, rr_server = make_system1(args)  # keeps its scores, so the budgets and cutoffs reuse them
     meta = record(embedder.name if embedder is not None else None)
+    rerank_settings = system1_settings(args) if args.system1 else (
+        {"reranker": Path(args.reranker).name, "candidates": args.candidates, "rerank_context": args.rerank_context,
+         "rerank_fusion": args.rerank_fusion} if args.reranker else {})  # fmt: skip
     meta.update({"reranker": getattr(reranker, "name", None), "dataset": str(data_path), "dataset_sha256": sha256_file(data_path), "search": args.search,
                  "variants": {n: VARIANTS[n] for n in names}, "designs": list(recall.DESIGNS),
-                 "sessions": args.sessions, "split": args.split, "seed": args.seed})  # fmt: skip
+                 "sessions": args.sessions, "split": args.split, "seed": args.seed, "rerank": rerank_settings})  # fmt: skip
     settings = {"dataset_sha256": meta["dataset_sha256"], "model": meta["model"], "search": args.search,
-                "variants": meta["variants"], "designs": meta["designs"], "sessions": args.sessions, "seed": args.seed}  # fmt: skip
+                "variants": meta["variants"], "designs": meta["designs"], "sessions": args.sessions, "seed": args.seed,
+                **({"rerank": rerank_settings} if rerank_settings else {})}  # fmt: skip
     log_path = Path(args.questions_out) if args.questions_out else None
     done: dict[str, dict] = {}
     if log_path is not None:
@@ -417,6 +434,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             rr_server.stop()
     meta["finished_utc"] = utc_now()
     meta["wall_s"] = round(time.perf_counter() - t0, 1)
+    if getattr(reranker, "stats", None):
+        meta["system1_stats"] = {k: round(v, 2) for k, v in reranker.stats.items()}
     summary = summarize(rows)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -759,6 +778,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--contexts-out", help="each question's arm texts (JSON lines), for `answer`")
     r.add_argument("--out")
     r.add_argument("--verbose", action="store_true")
+    add_system1_args(r)
     r.set_defaults(func=cmd_run)
     c = sub.add_parser("compare", help="paired difference (b - a) with a 95 %% bootstrap interval")
     c.add_argument("a")

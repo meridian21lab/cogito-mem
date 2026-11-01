@@ -159,3 +159,26 @@ def test_stratified_sample_keeps_the_type_mix_and_nests():
     assert order[:20] == stratified_order(qs, seed=0)[:20]  # deterministic
     assert [q["question_id"] for q in order[:10]] == [q["question_id"] for q in order[:20][:10]]
     assert order != stratified_order(qs, seed=1)
+
+
+def test_long_history_runs_a_system1_rerank_variant(tmp_path):
+    from test_evals import long_history_question
+
+    from cogito_mem.evals import long_history
+
+    data = tmp_path / "m.json"
+    data.write_text(json.dumps([long_history_question(sessions=30)]))
+    out = tmp_path / "r.json"
+    log = tmp_path / "q.jsonl"
+    with fake_systemone() as base:
+        args = ["run", "--data", str(data), "--search", "keyword", "--variants", "base", "--system1", base,
+                "--system1-kind", "noul", "--candidates", "10", "--questions-out", str(log), "--out", str(out)]
+        assert long_history.main(args) == 0
+    result = json.loads(out.read_text())
+    row = result["per_question"][0]
+    assert set(row["search"]) == {"base", "rerank"}  # --system1 adds the rerank variant
+    assert row["search"]["rerank"]["none"]["budgets"]["1000"]["all"] is True
+    assert row["system1"]["scored"] > 0
+    assert result["meta"]["rerank"] == {"system1": base, "system1_kind": "noul", "candidates": 10,
+                                        "rerank_context": "own", "rerank_fusion": "rrf"}
+    assert json.loads(log.read_text().splitlines()[0])["settings"]["rerank"]["system1_kind"] == "noul"
