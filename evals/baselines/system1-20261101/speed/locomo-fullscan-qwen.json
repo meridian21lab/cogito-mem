@@ -1,0 +1,217 @@
+{
+  "meta": {
+    "cogito_mem": "0.2.1",
+    "commit": "b3e47012841ea71a6af7aac181109082a898aa87-dirty",
+    "model": null,
+    "quantization": null,
+    "machine": {
+      "hostname": "vm",
+      "platform": "Linux-6.18.44-fc-v185-x86_64-with-glibc2.39",
+      "processor": "x86_64",
+      "cpus": 4,
+      "python": "3.13.18",
+      "gpu_layers": null,
+      "threads": "4"
+    },
+    "started_utc": "2026-11-01T23:36:57Z",
+    "argv": [
+      "/home/user/cogito-mem/.venv/bin/cogito-mem",
+      "eval",
+      "locomo",
+      "--data",
+      "/tmp/claude-0/-home-user-cogito-mem/8b474772-30d3-5a41-98d3-bbe6433a1bc5/scratchpad/data/locomo10.json",
+      "--conversations",
+      "0",
+      "--question-stride",
+      "8",
+      "--max-questions",
+      "3",
+      "--search",
+      "keyword",
+      "--system1",
+      "/tmp/claude-0/-home-user-cogito-mem/8b474772-30d3-5a41-98d3-bbe6433a1bc5/scratchpad/models/qwen3-reranker-0.6b-q8_0.gguf",
+      "--system1-threads",
+      "4",
+      "--rerank-context",
+      "own",
+      "--candidates",
+      "0",
+      "--out",
+      "/tmp/claude-0/-home-user-cogito-mem/8b474772-30d3-5a41-98d3-bbe6433a1bc5/scratchpad/results/speed/locomo-fullscan-qwen.json"
+    ],
+    "dataset": "/tmp/claude-0/-home-user-cogito-mem/8b474772-30d3-5a41-98d3-bbe6433a1bc5/scratchpad/data/locomo10.json",
+    "dataset_sha256": "79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4",
+    "config": {
+      "search": "keyword",
+      "doc_context": "previous",
+      "doc_author": true,
+      "system1": "qwen3-reranker-0.6b-q8_0.gguf",
+      "system1_kind": "rerank",
+      "candidates": 0,
+      "rerank_context": "own",
+      "rerank_fusion": "rrf"
+    },
+    "reranker": "qwen3-reranker-0.6b-q8_0.gguf",
+    "conversations": "0",
+    "max_questions": 3,
+    "question_stride": 8,
+    "finished_utc": "2026-11-01T23:42:44Z",
+    "wall_s": 347.5,
+    "system1_stats": {
+      "calls": 12,
+      "scored": 1257,
+      "cached": 3771,
+      "model_s": 347.25
+    }
+  },
+  "summary": {
+    "questions": 3,
+    "skipped_no_evidence": 0,
+    "mean_conversation_tokens": 16336,
+    "coverage": {
+      "100": 1.0,
+      "300": 1.0,
+      "1000": 1.0
+    },
+    "baseline_recent": {
+      "100": 0.0,
+      "300": 0.0,
+      "1000": 0.0
+    },
+    "baseline_random": {
+      "100": 0.0,
+      "300": 0.0,
+      "1000": 0.0
+    },
+    "recall_all@1": 1.0,
+    "recall_any@1": 1.0,
+    "recall_all@5": 1.0,
+    "recall_any@5": 1.0,
+    "recall_all@10": 1.0,
+    "recall_any@10": 1.0,
+    "by_category@300": {
+      "temporal": {
+        "n": 3,
+        "coverage": 1.0,
+        "recent": 0.0,
+        "recall_all@10": 1.0
+      }
+    },
+    "query_ms": {
+      "median": 116980.23,
+      "p95": 116980.23
+    },
+    "system1": {
+      "queries_scored": 3,
+      "candidates_per_query": 419.0,
+      "model_ms": {
+        "median": 116973.4,
+        "p95": 116973.4
+      }
+    }
+  },
+  "per_question": [
+    {
+      "sample_id": "conv-26",
+      "q": 0,
+      "category": "temporal",
+      "evidence": 1,
+      "conversation_tokens": 16336,
+      "query_ms": 116980.23,
+      "system1": {
+        "scored": 419,
+        "cached": 0,
+        "model_ms": 116973.4
+      },
+      "recall_all@1": true,
+      "recall_any@1": true,
+      "recall_all@5": true,
+      "recall_any@5": true,
+      "recall_all@10": true,
+      "recall_any@10": true,
+      "covered": {
+        "100": true,
+        "300": true,
+        "1000": true
+      },
+      "recent": {
+        "100": false,
+        "300": false,
+        "1000": false
+      },
+      "random": {
+        "100": false,
+        "300": false,
+        "1000": false
+      }
+    },
+    {
+      "sample_id": "conv-26",
+      "q": 8,
+      "category": "temporal",
+      "evidence": 1,
+      "conversation_tokens": 16336,
+      "query_ms": 113211.13,
+      "system1": {
+        "scored": 419,
+        "cached": 0,
+        "model_ms": 113206.4
+      },
+      "recall_all@1": true,
+      "recall_any@1": true,
+      "recall_all@5": true,
+      "recall_any@5": true,
+      "recall_all@10": true,
+      "recall_any@10": true,
+      "covered": {
+        "100": true,
+        "300": true,
+        "1000": true
+      },
+      "recent": {
+        "100": false,
+        "300": false,
+        "1000": false
+      },
+      "random": {
+        "100": false,
+        "300": false,
+        "1000": false
+      }
+    },
+    {
+      "sample_id": "conv-26",
+      "q": 16,
+      "category": "temporal",
+      "evidence": 1,
+      "conversation_tokens": 16336,
+      "query_ms": 117076.23,
+      "system1": {
+        "scored": 419,
+        "cached": 0,
+        "model_ms": 117071.2
+      },
+      "recall_all@1": true,
+      "recall_any@1": true,
+      "recall_all@5": true,
+      "recall_any@5": true,
+      "recall_all@10": true,
+      "recall_any@10": true,
+      "covered": {
+        "100": true,
+        "300": true,
+        "1000": true
+      },
+      "recent": {
+        "100": false,
+        "300": false,
+        "1000": false
+      },
+      "random": {
+        "100": false,
+        "300": false,
+        "1000": false
+      }
+    }
+  ]
+}

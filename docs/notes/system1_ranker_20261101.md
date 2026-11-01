@@ -456,6 +456,9 @@ What to do next, in order:
 
 ## 11. Reproduce
 
+Every run behind this note, with per-question rows to pair against, is in
+[`evals/baselines/system1-20261101/`](../../evals/baselines/system1-20261101/README.md).
+
 llama.cpp at commit `785322d` or later (for `/v1/systemone`), built for the CPU; the models from Hugging Face
 (`ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF`, which carries the rerank template, and `ggml-org/vllm-d3-lite-GGUF`):
 
