@@ -615,7 +615,7 @@ def run_agent(llm, args: argparse.Namespace, mem: Memory, q: dict, as_of: str, c
                 else:
                     queries += 1
                     body = {"op": "query", "namespace": NS, "text": params["text"], "as_of": as_of,
-                            "max_tokens": params.get("max_tokens", 1000)}  # fmt: skip
+                            "max_tokens": params.get("max_tokens", args.query_tokens)}  # fmt: skip
                     flt = {k: params[k] for k in ("valid_after", "valid_before") if params.get(k)}
                     if flt:
                         body["filter"] = flt
@@ -770,6 +770,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))
     g.add_argument("--batch", type=int, default=32)
     g.add_argument("--max-steps", type=int, default=6)
+    g.add_argument("--query-tokens", type=int, default=1000, help="memory_query's budget when the model gives none")
     g.add_argument("--workers", type=int, default=4)
     g.add_argument("--split", choices=["tuning", "heldout"])
     g.add_argument("--limit", type=int)
