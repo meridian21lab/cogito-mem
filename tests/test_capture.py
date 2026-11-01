@@ -9,6 +9,7 @@ import zipfile
 from conftest import query
 from fixtures import (
     chatgpt_export,
+    claude_code_subagent,
     claude_code_tool_work,
     claude_code_transcript,
     claude_export,
@@ -174,6 +175,79 @@ def test_claude_code_actions_can_be_turned_off(tmp_path, mem, monkeypatch):
     path = write_jsonl(tmp_path / "proj" / "sess-t.jsonl", claude_code_tool_work())
     assert claude_code.capture_transcript(mem, path, tmp_path / "state", "sess-t") == {"added": 5, "duplicate": 0}
     assert query(mem, "ran edited wrote read", filter={"author": "actions"}, max_tokens=1000)["items"] == []
+
+
+# --------------------------------------------------------------------------- what sub-agents handed back
+
+
+def subagent_session(tmp_path) -> tuple:
+    project = tmp_path / "projects" / "-work-app"
+    main = write_jsonl(project / "sess-1.jsonl", claude_code_transcript())
+    agents = project / "sess-1" / "subagents"
+    write_jsonl(agents / "agent-a1.jsonl", claude_code_subagent("a1"))
+    write_jsonl(agents / "agent-a2.jsonl", claude_code_subagent("a2", handback=True))
+    write_jsonl(agents / "agent-acompact-1.jsonl", claude_code_subagent("compaction"))
+    return main, agents
+
+
+def test_subagent_reports_from_their_own_files(tmp_path, mem):
+    main, agents = subagent_session(tmp_path)
+    counts = claude_code.capture_transcript(mem, main, tmp_path / "state", "sess-1")
+    assert counts == {"added": 6, "duplicate": 0}  # the 4 of the session, one report per sub-agent
+    found = query(mem, "report parser slow long lines", filter={"author": "subagent"}, max_tokens=1000)["items"]
+    assert sorted(i["text"] for i in found) == [
+        "Report of a1: the parser is slow on long lines.",
+        "Report of a2: the parser is slow on long lines.",
+    ]
+    assert {i["thread_id"] for i in found} == {"sess-1"}  # the parent session's
+    assert {i["source"]["title"] for i in found} == {"/work/app"}  # a worktree counts as its repository
+    # reading again adds nothing, and a sub-agent that finishes later is picked up
+    assert claude_code.capture_transcript(mem, main, tmp_path / "state", "sess-1") == {"added": 0, "duplicate": 0}
+    write_jsonl(agents / "agent-a3.jsonl", claude_code_subagent("a3"))
+    assert claude_code.capture_transcript(mem, main, tmp_path / "state", "sess-1") == {"added": 1, "duplicate": 0}
+    # a lost cursor only costs duplicates
+    assert claude_code.capture_transcript(mem, main, tmp_path / "lost", "sess-1") == {"added": 0, "duplicate": 7}
+
+
+def test_subagent_keeps_only_its_report():
+    for handback in (False, True):
+        records = claude_code_subagent("a1", handback=handback)
+        items = claude_code.items_from_lines(enumerate(records), "sess-1", actions=True, subagents=True)
+        assert [(it["author"], it["text"]) for it in items] == [("subagent", "Report of a1: the parser is slow on long lines.")]
+        assert items[0]["client_ref"] == "claude-code:a1-a3" and items[0]["thread_id"] == "sess-1"
+        assert items[0]["valid_at"] == "2026-10-11T09:30:04.000Z"
+    assert claude_code.items_from_lines(enumerate(claude_code_subagent("a1"))) == []  # as recall reads them
+
+
+def test_subagent_turns_in_the_session_transcript(tmp_path, mem):
+    records = claude_code_transcript() + claude_code_subagent("a1")
+    path = write_jsonl(tmp_path / "proj" / "sess-1.jsonl", records)
+    assert claude_code.capture_transcript(mem, path, tmp_path / "state", "sess-1") == {"added": 5, "duplicate": 0}
+    found = query(mem, "report parser", filter={"author": "subagent"}, max_tokens=1000)["items"]
+    assert [i["text"] for i in found] == ["Report of a1: the parser is slow on long lines."]
+
+
+def test_subagent_still_at_work_has_no_report_yet(tmp_path, mem):
+    main, agents = subagent_session(tmp_path)
+    records = claude_code_subagent("a1")
+    write_jsonl(agents / "agent-a1.jsonl", records[:-1])
+    assert claude_code.capture_transcript(mem, main, tmp_path / "state", "sess-1") == {"added": 5, "duplicate": 0}
+    with open(agents / "agent-a1.jsonl", "a") as fh:
+        fh.write(json.dumps(records[-1]) + "\n")
+    assert claude_code.capture_transcript(mem, main, tmp_path / "state", "sess-1") == {"added": 1, "duplicate": 0}
+
+
+def test_subagent_report_is_redacted(tmp_path):
+    records = claude_code_subagent("a1")
+    records[-1]["message"]["content"][0]["text"] = "Done. <private>pin 1234</private>Key: sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxx"
+    (item,) = claude_code.items_from_lines(enumerate(records), subagents=True)
+    assert item["text"] == "Done. Key: [redacted]"
+
+
+def test_subagent_reports_can_be_turned_off(tmp_path, mem, monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_CAPTURE_SUBAGENTS", "off")
+    main, _ = subagent_session(tmp_path)
+    assert claude_code.capture_transcript(mem, main, tmp_path / "state", "sess-1") == {"added": 4, "duplicate": 0}
 
 
 def test_private_text_is_not_stored():

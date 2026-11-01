@@ -9,10 +9,16 @@ marked ``<private>…</private>``, and what the session did: one ``actions`` ite
 each run of tool calls between two prompts, with the commands it ran (and which
 failed or did not run) and the files it read, edited or wrote, such as
 "Ran `pytest -q` (failed), `pytest -q`. Edited src/x.py. Read README.md."
-(``COGITO_MEM_CAPTURE_ACTIONS=off`` leaves these out). Left out: tool output and
-file contents, thinking, sub-agent (sidechain) turns, slash-command output,
-injected system reminders and the summary Claude Code writes when it compacts a
-session.
+(``COGITO_MEM_CAPTURE_ACTIONS=off`` leaves these out).
+
+Also kept: what each sub-agent handed back, as one ``subagent`` item, whether its
+turns are in the session's transcript (``isSidechain``) or, as now, in files of their
+own at ``<session>/subagents/agent-<id>.jsonl`` (``COGITO_MEM_CAPTURE_SUBAGENTS=off``
+leaves these out).
+
+Left out: tool output and file contents, thinking, the sub-agents' other turns,
+slash-command output, injected system reminders and the summary Claude Code writes
+when it compacts a session.
 
 ``client_ref`` is the transcript line's ``uuid`` (for an ``actions`` item, that of its
 first tool call, so reading a turn again, whole or from its middle, adds no second
@@ -26,13 +32,15 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Callable, Iterable
 
 from . import Cursor, Sink, enabled, jsonl, read_new_lines, redact, send, without_private
 
 ACTIONS = "actions"  # the author of what a turn did (store.SIDE_AUTHOR)
+SUBAGENT = "subagent"  # the author of what a sub-agent handed back
 ACTION_CHARS = 800  # about one piece (``split.PIECE_TOKENS``), so a busy turn cannot fill a reply
 COMMAND_CHARS = 80
+HANDBACK = "SubagentHandback"  # the tool some sub-agents hand their report back with, instead of a last reply
 
 _SKIP_PREFIXES = (
     "<command-name>",
@@ -55,6 +63,7 @@ _VERBS = {"Read": "Read", "NotebookRead": "Read", "Edit": "Edited", "MultiEdit":
           "Write": "Wrote"}  # fmt: skip
 _NOT_RUN = ("<tool_use_error>", "The user doesn't want to", "[Request interrupted")
 _EXIT_CODE = re.compile(r"Exit code (\d+)")
+
 
 
 def projects_dir() -> Path:
@@ -85,14 +94,22 @@ def _text_of(content: object) -> str:
 
 
 def items_from_lines(
-    lines: Iterable[tuple[int, dict]], session_id: str | None = None, actions: bool = False
+    lines: Iterable[tuple[int, dict]],
+    session_id: str | None = None,
+    actions: bool = False,
+    subagents: bool = False,
 ) -> list[dict]:
-    """The messages as items, in order; with ``actions``, also one item per turn for its tool calls."""
+    """The messages as items, in order; with ``actions``, also one item per turn for its tool calls;
+    with ``subagents``, what the sub-agents in these lines handed back."""
     items = []
     turns: list[tuple[dict, dict]] = []  # (actions item, its tool calls by id)
     calls: dict | None = None  # the tool calls of the turn under way
     for _, rec in lines:
         kind = rec.get("type")
+        if subagents and kind == "assistant" and rec.get("isSidechain"):
+            report = _report(rec, session_id)
+            if report:
+                items.append(report)
         if kind not in ("user", "assistant") or any(rec.get(k) for k in ("isSidechain", "isMeta", "isCompactSummary")):
             continue
         message = rec.get("message")
@@ -138,6 +155,25 @@ def _item(rec: dict, author: str, text: str, client_ref: str, session_id: str | 
     if isinstance(rec.get("timestamp"), str):
         item["valid_at"] = rec["timestamp"]
     return item
+
+
+def _report(rec: dict, session_id: str | None) -> dict | None:
+    """What a sub-agent handed back on this line, if it did: its last reply, or the call it hands back with.
+
+    A reply that ends the sub-agent's turn says so (``stop_reason``), which holds however little of its
+    transcript has been read, and whichever replies it wrote on the way there are left out.
+    """
+    message = rec.get("message")
+    if not isinstance(message, dict) or not rec.get("uuid"):
+        return None
+    content = message.get("content")
+    text = _text_of(content) if message.get("stop_reason") == "end_turn" else ""
+    for block in content if isinstance(content, list) else []:
+        if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == HANDBACK:
+            handed = block.get("input")
+            text = handed.get("message") if isinstance(handed, dict) else None
+    text = without_private(_REMINDER.sub("", text)).strip() if isinstance(text, str) else ""
+    return _item(rec, SUBAGENT, redact(text), f"claude-code:{rec['uuid']}", session_id) if text else None
 
 
 def _outcome(result: dict) -> str | None:
@@ -225,14 +261,41 @@ def capture_transcript(
 ) -> dict:
     """Append the new messages of one transcript. Returns counts of added and duplicate items."""
     session = session_id or transcript.stem
-    cursor = Cursor(state_dir / "claude-code" / f"{_safe(session)}.json")
-    lines, offset, line = read_new_lines(transcript, cursor.offset, cursor.line)
-    items = items_from_lines(jsonl(lines), session, actions=enabled("COGITO_MEM_CAPTURE_ACTIONS"))
+    subagents = enabled("COGITO_MEM_CAPTURE_SUBAGENTS")
+
+    def read(lines: Iterable[tuple[int, dict]]) -> list[dict]:
+        return items_from_lines(lines, session, actions=enabled("COGITO_MEM_CAPTURE_ACTIONS"), subagents=subagents)
+
+    def read_reports(lines: Iterable[tuple[int, dict]]) -> list[dict]:
+        found = (_report(rec, session) for _, rec in lines if rec.get("type") == "assistant")
+        return [it for it in found if it]
+
+    cursors = state_dir / "claude-code"
+    counts = _capture_file(sink, transcript, cursors / f"{_safe(session)}.json", read, namespace, import_)
+    for path in subagent_files(transcript) if subagents else []:
+        cursor = cursors / f"{_safe(session)}.{_safe(path.stem)}.json"
+        more = _capture_file(sink, path, cursor, read_reports, namespace, import_)
+        counts = {key: counts[key] + more[key] for key in counts}
+    return counts
+
+
+def _capture_file(
+    sink: Sink, path: Path, cursor_file: Path, read: Callable[[Iterable[tuple[int, dict]]], list[dict]], namespace: str, import_: bool
+) -> dict:
+    cursor = Cursor(cursor_file)
+    lines, offset, line = read_new_lines(path, cursor.offset, cursor.line)
+    items = read(jsonl(lines))
     if import_:
         items = [it for it in items if "valid_at" in it]
     counts = send(sink, items, namespace, import_) if items else {"added": 0, "duplicate": 0}
     cursor.save(offset, line)
     return counts
+
+
+def subagent_files(transcript: Path) -> list[Path]:
+    """The transcripts of a session's sub-agents, but not of the one that writes its compaction summary."""
+    found = (transcript.parent / transcript.stem / "subagents").rglob("*.jsonl")
+    return sorted(path for path in found if not path.name.startswith("agent-acompact"))
 
 
 def capture_all(sink: Sink, state_dir: Path, namespace: str = "default", root: Path | None = None) -> dict:
