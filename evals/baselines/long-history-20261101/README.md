@@ -8,7 +8,7 @@ here has run on the held-out split yet.
 
 | | |
 |---|---|
-| Code | `dev`; retrieval on M ran at `b904848`, the S arms at `a3b534b` |
+| Code | `dev`; session retrieval on M ran at `b904848`, the arms on M at `59ce22d`, the S arms at `a3b534b` |
 | Embedding model | EmbeddingGemma 2 Q8_0 in llama.cpp |
 | LongMemEval-S | `longmemeval_s_cleaned.json`, sha256 `d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442`, 114k-128k tokens per question (chars/4) |
 | LongMemEval_M | `longmemeval_m_cleaned.json`, sha256 `9d79e5524794a2e6900a3aa9cb7d9152c5a3e8319c9a87c25494ba1eacee495f`, 1.13M-1.30M tokens, about 480 sessions per question |
@@ -38,6 +38,40 @@ all@k: every answer session is. The paper's best on M is 0.762 at R@5, but with 
 Turn level on the 470 answerable: R@1 43.2, R@5 74.5, R@10 85.3, all@10 61.3. Query median 12.7 ms, load from a filled cache 4.6 s.
 **The same search on S gives R@5 98.9 on 470 answerable, so going from about 120k to about 1.2M tokens costs about 5.5 points at
 R@5 and about 9 at all@10.** Preference questions are the weakest.
+
+## Search, hook and recency on 1M+ tokens (`m-final.json`)
+
+470 answerable questions, no date cutoff. Reached: at least one evidence turn is in the reply. Coverage: every evidence turn is.
+The split is by a hash of the question id; no setting here was chosen on M's held-out questions.
+
+| Budget | 300 | 1,000 | 2,500 | 5,000 |
+|---|---|---|---|---|
+| Search, reached | 63.2 | 80.9 | 90.0 | 93.8 |
+| Search, coverage | 38.3 | 56.4 | 70.0 | 81.1 |
+| Coverage on the 312 held-out answerable | 39.4 | 56.4 | 70.8 | 81.7 |
+| Coverage as of the question date | 35.7 | 52.1 | 64.9 | 74.9 |
+| Last N tokens, no memory | 0.0 | 0.0 | 0.0 | 0.0 |
+
+| Hook design | Fired | Evidence turn in its items | All | Answer session | Tokens when fired |
+|---|---|---|---|---|---|
+| Shipped | 74.9 | 43.4 | 25.3 | 62.8 | 264 |
+| Pointers (8 lines) | 84.0 | 59.2 | 40.6 | 73.2 | 331 |
+| Hybrid (3 longer lines, 5 short) | 84.0 | 59.2 | 40.6 | 73.2 | 476 |
+
+Hybrid minus shipped: +15.7 points on an evidence turn (95 % CI 12.1 to 19.6), +10.4 on the session (7.0 to 14.0). Pointers and
+hybrid have the same items and differ in how much of each arrives without opening. In these rows "in its items" is not "in the text".
+
+Other search settings, paired against plain search on M (`m-full.jsonl` logic, commit `0542ef4`): session boost changes coverage at 1,000 by
+−1.9 (−3.6 to −0.2) and at 5,000 by −0.2 (−1.7 to +1.1). The exact-identifier lane changes it by −0.2 (−1.1 to +0.4). Both stay off.
+
+**The same 158 questions as the history grows** (`m-scale-*.json`, tuning split, sessions kept at random plus the evidence sessions):
+
+| Sessions | Tokens (chars/4) | R@5 | all@10 | Coverage 1,000 | 2,500 | 5,000 |
+|---|---|---|---|---|---|---|
+| 50 | 129k | 98.7 | 93.7 | 69.6 | 82.3 | 89.2 |
+| 100 | 256k | 96.2 | 91.1 | 69.0 | 80.4 | 88.6 |
+| 250 | 634k | 94.3 | 88.6 | 62.7 | 74.7 | 84.2 |
+| about 480 | 1.2M | 90.5 | 82.9 | 56.3 | 68.4 | 79.8 |
 
 ## Search, delivery and recency on S (`s-full.json`, `s-keyword.json`)
 
@@ -81,6 +115,9 @@ carries the MCP instructions, so the model searches far more than Claude was see
 | Tools only | 74.1 | 87.7 | 99 | 0 | 12,970 |
 | Shipped hook + tools | 72.3 | 82.7 | 73 | 0 | 10,310 |
 
+With `memory_query` reading 2,500 tokens by default (`s-agent-tuning-q2500.json`): tools only 78.3, pointers 78.9, at 19,312 and 17,059 prompt tokens.
+Pointers here are the earlier gate (`a3b534b`). The 5,000-token run stopped at OpenRouter's budget, so it is not here.
+
 ## Whole conversation past the limit (`full-context-*.json`)
 
 Real history text sent to each model, with compression off. Every M history is over 1M tokens by chars/4; no S history is.
@@ -107,7 +144,7 @@ This removes one baseline and says nothing about Cogi's quality. Long histories 
 
 ## Not here yet
 
-- **Search, hook and recency arms on M, and answers on M.** That run was still going when this was committed.
+- **Answers on M.** The contexts are ready but OpenRouter's monthly budget ran out before they could be graded.
 - Rival memories on M, and whole-context tests under the limit.
 - Real-session results: the private probes stay out of this public repo.
 - The reranker arm.
@@ -120,8 +157,11 @@ cogito-mem eval long-history run --data longmemeval_s_cleaned.json --variants ba
 cogito-mem eval long-history run --data longmemeval_s_cleaned.json --search keyword --variants base,exact --out s-keyword.json
 cogito-mem eval long-history answer --contexts s-contexts.jsonl --arm search-5000 --split tuning --env-file .env --out a.json
 cogito-mem eval long-history agent --data longmemeval_s_cleaned.json --split tuning --env-file .env --arms tools-only,shipped,pointers --out g.json
-cogito-mem eval long-history compare m-recall-a.json m-recall-b.json --metric search.base.coverage.1000
+cogito-mem eval long-history run --data longmemeval_m_cleaned.json --variants base --contexts-out m-contexts.jsonl --out m-final.json
+cogito-mem eval long-history run --data longmemeval_m_cleaned.json --split tuning --sessions 250 --variants base --out m-scale-250.json
+cogito-mem eval long-history compare m-final.json new.json --metric search.base.coverage.1000
+cogito-mem eval long-history compare m-final.json --metric delivery.shipped.any --metric-b delivery.hybrid.any
 ```
 
 Embedding M from nothing took about 90 minutes on this Mac and leaves a 537 MB cache; `--cache` keeps it apart from a live one.
-A machine without a GPU will take far longer. Hooks stay on the shipped design unless `COGITO_MEM_RECALL_DESIGN=pointers` is set.
+A machine without a GPU will take far longer. Hooks stay on the shipped design unless `COGITO_MEM_RECALL_DESIGN` is `pointers` or `hybrid`.
