@@ -561,15 +561,26 @@ class Namespace:
                 idx = ends[0] if ends else None
             return None if idx is None else self.messages[idx]
 
-    def around(self, msg: Message, before: int, after: int, max_tokens: int, tokenizer: Tokenizer) -> list[dict]:
+    def _visible_text(self, msg: Message, now: int) -> str | None:
+        """What a query could see of this message now: None if nothing, and only the pieces not retracted."""
+        rows = [r for r in msg.rows if self._row_created.data[r] <= now and self._row_retracted.data[r] > now]
+        if len(rows) == len(msg.rows):
+            return msg.text
+        return "\n".join(self.row_text(r) for r in rows) if rows else None
+
+    def around(self, msg: Message, before: int, after: int, max_tokens: int, tokenizer: Tokenizer, now: int) -> list[dict] | None:
         """The message whole, then as many of its neighbours in the thread as fit, in thread order.
 
         ``max_tokens`` keeps a neighbour from crowding it out: the message itself is cut only if it alone is over.
+        What a query at ``now`` would hide stays hidden, and None means that is all of the message.
         """
         with self.lock:
             thread = self.threads[msg.thread_id]
             at = thread.index(self.msg_by_id[msg.id])
-            text = msg.text
+            text = self._visible_text(msg, now)
+            if text is None:
+                return None
+            full = {at: text}
             used = count(tokenizer, text)
             if used > max_tokens:
                 text, used = cut(tokenizer, text, max_tokens)
@@ -579,7 +590,10 @@ class Namespace:
                 for i in ([at - step] if step <= before else []) + ([at + step] if step <= after else []):
                     if not 0 <= i < len(thread):
                         continue
-                    other = self.messages[thread[i]].text
+                    other = self._visible_text(self.messages[thread[i]], now)
+                    if other is None:
+                        continue
+                    full[i] = other
                     n = count(tokenizer, other)
                     if used + n <= max_tokens:
                         kept[i] = other
@@ -592,7 +606,7 @@ class Namespace:
                     "thread_id": msg.thread_id,
                     "valid_at": timeutil.format(self.messages[thread[i]].valid),
                     "opened": i == at,
-                    "truncated": len(kept[i]) < len(self.messages[thread[i]].text),
+                    "truncated": len(kept[i]) < len(full[i]),
                     "source": {"title": self.messages[thread[i]].title},
                 }
                 for i in sorted(kept)

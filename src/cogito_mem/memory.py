@@ -262,7 +262,9 @@ class Memory:
         msg = ns.find_message(req.id)
         if msg is None:
             raise ApiError("not_found", f"no message {req.id} in namespace {req.namespace!r}")
-        items = ns.around(msg, req.before, req.after, req.max_tokens, self._tokenizer)
+        items = ns.around(msg, req.before, req.after, req.max_tokens, self._tokenizer, max(timeutil.now_ms(), ns.last_live_created))
+        if items is None:
+            raise ApiError("not_found", f"no message {req.id} in namespace {req.namespace!r}")
         return {"items": items, "took_ms": _ms_since(t0)}
 
     def candidates(self, ns: Namespace, req: QueryIn, as_of: int) -> list[Candidate]:

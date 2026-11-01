@@ -444,3 +444,16 @@ def test_a_holdout_session_gets_nothing_but_is_logged(mem, tmp_path, monkeypatch
     from cogito_mem import ledger
 
     assert ledger.read(tmp_path / "run")[0]["withheld"] is True
+
+
+def test_open_hides_what_a_query_hides(mem):
+    first, gone, last = mem.append(
+        [real_items("Keep this opening line about the gateway."), real_items("A secret that was retracted later."), real_items("Keep this closing line.")],
+        namespace="n",
+    )["items"]
+    mem.append([{"author": "user", "text": "take that back", "thread_id": "other", "retracts": [gone["id"]]}], namespace="n")
+    with pytest.raises(ApiError):
+        mem.handle({"op": "open", "namespace": "n", "id": gone["id"]})
+    opened = mem.handle({"op": "open", "namespace": "n", "id": first["id"], "after": 5})
+    texts = " ".join(it["text"] for it in opened["items"])
+    assert "Keep this closing line" in texts and "secret" not in texts
