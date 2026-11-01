@@ -173,8 +173,9 @@ def test_query_past_top_k_limit(tmp_path):
     n = MAX_TOP_K + 20
     items = [{"author": "ana", "text": f"note {i} about the beach"} for i in range(n)]
     with Memory(None, config=Config(search="keyword")) as mem:
-        mem.append(items, namespace="c")
-        body = {"op": "query", "namespace": "c", "text": "beach", "top_k": n, "max_tokens": 5000}
+        for i in range(0, n, 500):
+            mem.append(items[i : i + 500], namespace="c")
+        body = {"op": "query", "namespace": "c", "text": "beach", "top_k": n, "max_tokens": 50000}
         assert len(query_past_top_k_limit(mem, body)["items"]) == n
         with pytest.raises(ApiError):
             mem.handle(body)  # the API itself keeps its limit
