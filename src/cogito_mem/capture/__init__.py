@@ -35,9 +35,11 @@ _SECRETS = [
 ]
 # ``password=…``, also inside a longer name (``OPENROUTER_API_KEY=…``), and the password in a URL.
 _ASSIGNED = re.compile(
-    r"(?i)(?<![A-Za-z0-9])((?:api[_-]?key|secret(?:[_-]?key)?|access[_-]?token|auth[_-]?token|password|passwd"
-    r"|client[_-]?secret)[\"']?\s*[:=]\s*[\"']?)([^\s\"']{8,})"
+    r"(?i)(?<![A-Za-z0-9])((?:[a-z0-9]+[_-]key|api[_-]?key|\w*secret\w*|\w*token|password|passwd|\w*_pass(?:word)?|\w*_pwd"
+    r"|\w*credentials?)[\"']?\s*[:=]\s*[\"']?)([^\s\"'&]{8,})"
 )
+_HEADER = re.compile(r"(?i)\b((?:proxy-)?authorization|cookie|set-cookie|x-api-key)(\"?\s*:\s*(?:bearer\s+|basic\s+)?)[^\n'\"]+")
+_URL_PARAM = re.compile(r"(?i)([?&](?:[a-z0-9_-]*(?:token|key|secret|password|signature|sig))=)[^&\s\"']+")
 _URL_PASSWORD = re.compile(r"(://[^/\s:@]+:)[^/\s@]+(?=@)")
 _PRIVATE = re.compile(r"<private>.*?(?:</private>|\Z)", re.S | re.I)
 
@@ -48,6 +50,8 @@ def redact(text: str) -> str:
     for pattern in _SECRETS:
         text = pattern.sub(REDACTED, text)
     text = _URL_PASSWORD.sub(lambda m: m.group(1) + REDACTED, text)
+    text = _URL_PARAM.sub(lambda m: m.group(1) + REDACTED, text)
+    text = _HEADER.sub(lambda m: m.group(1) + m.group(2) + REDACTED, text)
     return _ASSIGNED.sub(lambda m: m.group(1) + REDACTED, text)
 
 
@@ -90,7 +94,7 @@ class Cursor:
 
     def save(self, offset: int, line: int) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
+        tmp = self.path.with_suffix(f".{os.getpid()}.tmp")  # a hook and a sweep may read the same file at once
         tmp.write_text(json.dumps({"offset": offset, "line": line}))
         tmp.replace(self.path)
         self.offset, self.line = offset, line

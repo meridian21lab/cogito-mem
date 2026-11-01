@@ -18,7 +18,7 @@ from typing import Any, Protocol, Sequence
 import numpy as np
 
 from . import __version__, timeutil
-from .api import DEFAULT_NAMESPACE, AppendIn, QueryIn, parse_append, parse_query
+from .api import DEFAULT_NAMESPACE, AppendIn, OpenIn, QueryIn, parse_append, parse_open, parse_query
 from .embedding import EmbeddingCache, Embedder, HashEmbedder, cache_key, query_prompt
 from .errors import ApiError, invalid
 from .split import PIECE_TOKENS
@@ -56,6 +56,8 @@ class Config:
       (docs/notes/system1_ranker_20261101.md).
     - ``doc_author``: write the author's name before the text for embedding and keyword
       search ("Caroline: …"), so "what did Caroline say about…" finds her messages.
+    - ``exact_lane``: also rank the items holding an identifier from the query word for word.
+    - ``session_boost``: lift items whose thread has other good matches.
 
     The defaults are the best arm measured so far (LoCoMo, docs/requirements.md §15):
     hybrid search over items embedded with their author and the message before them.
@@ -69,6 +71,8 @@ class Config:
     piece_tokens: int = PIECE_TOKENS
     rerank_context: str = "own"
     rerank_fusion: str = "rrf"
+    exact_lane: bool = False
+    session_boost: float = 0.0
 
     def __post_init__(self) -> None:
         if self.search not in ("hybrid", "vector", "keyword"):
@@ -221,13 +225,15 @@ class Memory:
         if not isinstance(body, dict):
             raise invalid("the request must be a JSON object")
         op = body.get("op")
-        if body.get("namespace") is None and op in ("append", "query"):
+        if body.get("namespace") is None and op in ("append", "query", "open"):
             body = {**body, "namespace": self.default_namespace()}
         if op == "append":
             return self._append(parse_append(body))
         if op == "query":
             return self._query(parse_query(body))
-        raise invalid('op must be "append" or "query"')
+        if op == "open":
+            return self._open(parse_open(body))
+        raise invalid('op must be "append", "query" or "open"')
 
     def append(self, items: list[dict], namespace: str | None = None, import_: bool = False) -> dict:
         return self.handle({"op": "append", "namespace": namespace, "import": import_, "items": items})
@@ -265,6 +271,17 @@ class Memory:
         )
         return {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
 
+    def _open(self, req: OpenIn) -> dict:
+        t0 = time.perf_counter()
+        ns = self.namespace(req.namespace)
+        msg = ns.find_message(req.id)
+        if msg is None:
+            raise ApiError("not_found", f"no message {req.id} in namespace {req.namespace!r}")
+        items = ns.around(msg, req.before, req.after, req.max_tokens, self._tokenizer, max(timeutil.now_ms(), ns.last_live_created))
+        if items is None:
+            raise ApiError("not_found", f"no message {req.id} in namespace {req.namespace!r}")
+        return {"items": items, "took_ms": _ms_since(t0)}
+
     def candidates(self, ns: Namespace, req: QueryIn, as_of: int) -> list[Candidate]:
         cfg = self.config
         pool = max(cfg.candidates, 3 * req.top_k)
@@ -272,7 +289,7 @@ class Memory:
         if cfg.search in ("hybrid", "vector") and self._embedder is not None:
             qvec = self._embed_query(req.text, req.context)
         use_keywords = cfg.search in ("hybrid", "keyword") or qvec is None
-        cands = ns.search(req.text, qvec, req.filter, as_of, pool, use_keywords, cfg.rrf_k)
+        cands = ns.search(req.text, qvec, req.filter, as_of, pool, use_keywords, cfg.rrf_k, cfg.exact_lane, cfg.session_boost)
         if self.reranker is None:
             return cands
         if cfg.candidates <= 0:  # full scan: the reranker reads every visible item

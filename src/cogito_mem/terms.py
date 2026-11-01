@@ -27,6 +27,23 @@ STOPWORDS = frozenset(
 )
 
 
+# What looks typed rather than said: a path, flag, commit, snake_case, CamelCase or a word with digits. Such
+# a token names one thing, so where it appears matters more than how well the rest of the text matches.
+_WORDISH = re.compile(r"[^\s\"'`()\[\]{}<>,;]+")
+_MARKED = re.compile(r"[a-z][A-Z]|[A-Za-z0-9][_/.:#-]+[A-Za-z0-9]|\d[A-Za-z]|[A-Za-z]\d|^--?[a-z]")
+MIN_IDENTIFIER_CHARS = 4
+
+
+def identifiers(text: str) -> set[str]:
+    """The tokens of ``text`` that look like identifiers, lower-cased, without trailing punctuation."""
+    found = set()
+    for word in _WORDISH.findall(text):
+        word = word.strip(".:?!*")
+        if len(word) >= MIN_IDENTIFIER_CHARS and _MARKED.search(word) and terms(word):
+            found.add(word.lower())
+    return found
+
+
 def query_terms(text: str) -> set[str]:
     """The query's terms without function words, unless nothing else is left."""
     all_terms = set(terms(text))

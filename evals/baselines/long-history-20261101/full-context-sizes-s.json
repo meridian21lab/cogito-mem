@@ -1,0 +1,46 @@
+{
+  "meta": {
+    "cogito_mem": "0.2.1",
+    "commit": "5bba30aaf05379f621f06afe6d0def9df0d93dbc-dirty",
+    "model": null,
+    "quantization": null,
+    "machine": {
+      "hostname": "Mac",
+      "platform": "macOS-26.5.1-arm64-arm-64bit",
+      "processor": "arm",
+      "cpus": 18,
+      "python": "3.12.13",
+      "gpu_layers": null,
+      "threads": null
+    },
+    "started_utc": "2026-11-01T12:10:27Z",
+    "argv": [
+      ".venv/bin/cogito-mem",
+      "eval",
+      "full-context",
+      "sizes",
+      "--data",
+      "data/longmemeval_s_cleaned.json",
+      "--out",
+      "results/full-context/sizes-s.json"
+    ],
+    "dataset": "data/longmemeval_s_cleaned.json",
+    "dataset_sha256": "d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442",
+    "tokens_are": "characters / 4",
+    "finished_utc": "2026-11-01T12:10:27Z"
+  },
+  "summary": {
+    "questions": 500,
+    "tokens": {
+      "min": 113745,
+      "median": 122440,
+      "p95": 125849,
+      "max": 128488
+    },
+    "share_over": {
+      "200000": 0.0,
+      "400000": 0.0,
+      "1000000": 0.0
+    }
+  }
+}

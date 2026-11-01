@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as _dt
 import hashlib
 import os
@@ -12,6 +13,17 @@ import sys
 from pathlib import Path
 
 from .. import __version__
+from ..api import MAX_TOP_K, parse_query
+
+
+def query_past_top_k_limit(mem, body: dict) -> dict:
+    """The normal query, except ``top_k`` may pass the API's limit.
+
+    100 LoCoMo turns hold about 2,750 tokens, so at larger budgets the limit, not the budget,
+    would decide how much comes back.
+    """
+    req = parse_query({**body, "top_k": min(body["top_k"], MAX_TOP_K)})
+    return mem._query(dataclasses.replace(req, top_k=body["top_k"]))
 
 
 def sha256_file(path: Path) -> str:

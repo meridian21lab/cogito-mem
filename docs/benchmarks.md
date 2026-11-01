@@ -4,7 +4,7 @@ The short version, with charts, is on the [Results page](https://meridian21lab.g
 This page has every number, how it was measured and the commands to reproduce it. Everything was measured on the
 author's laptop (MacBook Pro, Apple M5 Max, 18 cores) with the model that ships, EmbeddingGemma 2 (Q8_0) in
 llama.cpp: LoCoMo with gpt-4o-mini and speed on 19 Oct 2026, LoCoMo with current models and LongMemEval-S on 20 Oct
-2026. These are our own runs, not leaderboard entries.
+2026, the 5,000-token budgets on 1 Nov 2026. These are our own runs, not leaderboard entries.
 
 - [At a glance](#at-a-glance)
 - [Setup](#setup)
@@ -37,7 +37,7 @@ difference).
 | | |
 |---|---|
 | Machine | MacBook Pro, Apple M5 Max (18 cores), macOS 26.5, Python 3.12 |
-| Software | cogito-mem 0.2.0 for LongMemEval, 0.1.0 for LoCoMo and speed; llama.cpp as `cogito-mem setup` installs it |
+| Software | cogito-mem 0.2.0 for LongMemEval, 0.1.0 for LoCoMo and speed, 0.2.1 for the 1 Nov 2026 runs (they match the 0.1.0 retrieval scores at 100, 300 and 1,000 tokens to within one question); llama.cpp as `cogito-mem setup` installs it |
 | Model | EmbeddingGemma 2 (308M parameters), Q8_0 GGUF; Metal unless a row says CPU only |
 | Memory | a fresh one per LongMemEval question and per LoCoMo conversation; one item per message, embedded with its author and the message it replies to |
 | LongMemEval data | `longmemeval_s_cleaned.json`, sha256 `d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442` |
@@ -97,6 +97,13 @@ date cutoff only moves temporal reasoning, the type whose answers come later the
 
 Search by meaning matters most for preference questions ("what would I like…"), where the words of the question
 rarely appear in the answer: 100 against 73.3 for keywords alone.
+
+**Within a token budget.** `eval run` asks for something stricter than R@k: every turn holding the answer, inside the
+reply (470 answerable questions, as of the question date, 1 Nov 2026). The share of questions covered is 20.6 % within
+100 tokens, 41.1 % within 300, 63.8 % within 1,000, 74.0 % within 2,500 and 80.6 % within 5,000. These turns average
+about 240 tokens, so 5,000 tokens hold only about 20 of them, well inside `top_k` 100. The session scores above have no
+budget, so they do not change. Reproduce with `cogito-mem eval run --data longmemeval_s_cleaned.json --arm custom
+--search hybrid --doc-context previous --doc-author --budgets 100,300,1000,2500,5000`.
 
 **Turn level.** The same runs also score the individual messages LongMemEval marks as holding the answer (479
 questions have them). With no cutoff, hybrid search puts one of them among the first five messages it returns for 85.0 %
@@ -190,6 +197,15 @@ weights (gpt-oss-120b in bf16, Qwen3 in fp8). One run per row, all 1,540 questio
 | gpt-oss-120b | **85.6** | 89.0 | −3.4 (−5.1 to −1.6) | 96 % | 78.4 / 82.5 |
 | Qwen3 235B A22B | **88.1** | 92.5 | −4.4 (−6.0 to −2.8) | 95 % | 80.1 / 87.3 |
 
+**At 5,000 tokens** the same four models are level with the whole conversation (`--top-k 300`, 1 Nov 2026):
+
+| Answering model | Cogi, 5,000 tokens | Whole conversation | Difference (95 % CI) | Stricter 2025 rules: Cogi / whole |
+|---|---|---|---|---|
+| GPT-5 mini | **93.5** | 94.1 | −0.6 (−1.7 to +0.5) | 89.9 / 90.8 |
+| Claude Haiku 5.5 | **94.2** | 94.5 | −0.3 (−1.2 to +0.7) | 91.2 / 92.3 |
+| gpt-oss-120b | **89.4** | 89.0 | +0.4 (−1.0 to +1.8) | 83.6 / 82.5 |
+| Qwen3 235B A22B | **93.3** | 92.5 | +0.8 (−0.4 to +2.0) | 88.4 / 87.3 |
+
 **By budget**, with GPT-5 mini answering:
 
 | What GPT-5 mini reads | Prompt tokens per question | 2026 rules | 2025 rules |
@@ -197,20 +213,26 @@ weights (gpt-oss-120b in bf16, Qwen3 in fp8). One run per row, all 1,540 questio
 | Cogi, 300 tokens | 1,963 | 79.6 | 72.0 |
 | Cogi, 1,000 tokens | 2,966 | 89.4 | 83.1 |
 | Cogi, 2,500 tokens | 4,911 | 92.1 | 88.0 |
+| Cogi, 5,000 tokens | 8,405 | 93.5 | 89.9 |
 | The whole conversation | 27,602 | 94.1 | 90.8 |
 
 What it means:
 
-- **With today's models, reading everything still answers better.** At 1,000 tokens Cogi is 3.4 to 4.7 points below
+- **At 1,000 tokens, reading everything still answers better.** At that budget Cogi is 3.4 to 4.7 points below
   the whole conversation (4 to 9 under the stricter rules), and every interval excludes zero. In exchange the model
   reads about 9 times fewer tokens: about 3,400 prompt tokens per question against 31,700, averaged over the four
   models. That is the trade Cogi offers, and it grows with every session that no longer fits in a context window.
-- **More budget closes most of the gap.** At 2,500 tokens Cogi is 2.0 points below the whole conversation (95 % CI −3.2
-  to −0.8) while the model reads a sixth of the tokens. The gain flattens: +9.8 points from 300 to 1,000 tokens, +2.7
-  from 1,000 to 2,500.
-- **The automatic recall uses the smallest budget.** The plugin's prompt hook adds at most 300 tokens to each prompt,
-  so what Claude gets without asking scores like the 300-token row (79.6 against 94.1). Searches Claude makes itself
-  use 1,000 tokens unless it asks for another budget.
+- **More budget closes the gap.** At 2,500 tokens Cogi is 2.0 points below the whole conversation (95 % CI −3.2
+  to −0.8) while the model reads a sixth of the tokens. At 5,000 the interval includes zero for all four models. The
+  gain flattens: +9.8 points from 300 to 1,000 tokens, +2.7 from 1,000 to 2,500, +1.4 from 2,500 to 5,000 (0.4 to 2.5).
+- **LoCoMo is small, so this is an easy case.** A conversation averages about 19,400 tokens, so 5,000 tokens is about
+  a quarter of it. Longer histories have not been measured at this budget.
+- **The 200-memory limit trims the largest replies.** Up to 200 best-ranked memories are read, so on 454 questions the
+  model reads a little under 5,000 tokens, and every needed turn is read for 89.1 % of questions against 89.5 % returned.
+- **The automatic recall reads little.** The prompt hook adds about 400 tokens to a prompt, in short lines Claude can
+  open, so what Claude gets without asking and without opening is closer to the 300-token row (79.6 against 94.1) than
+  to the larger ones. Searches Claude makes itself
+  use 2,500 tokens unless it asks for another budget.
 - **The judge matters as much as the memory.** The same answers score 6 to 8 points higher under the 2026 rules than
   under the 2025 ones. Re-judging the 2025 protocol's gpt-4o-mini answers (1,000 tokens) with the 2026 judge lifts
   them from 74.7 to 86.3.
@@ -235,6 +257,7 @@ One run per row.
 | cogito-mem, 300 tokens | 65.3 % | 67.8 % |
 | cogito-mem, 1,000 tokens | **74.7 %** | 74.7 % |
 | cogito-mem, 2,500 tokens | 76.9 % | 78.1 % |
+| cogito-mem, 5,000 tokens (`--top-k 300`) | 76.4 % | 77.2 % |
 | The whole conversation (no memory) | not run | 76.5 % |
 
 What it means:
@@ -242,7 +265,12 @@ What it means:
 - **With gpt-4o-mini, 1,000 tokens is level with the whole conversation.** On the same 762 questions the
   difference is −1.8 points (95 % CI −5.5 to +1.8), too small to tell apart on 762 questions. 300 tokens is 8.7 points
   below it (−12.5 to −4.7). gpt-4o-mini reads long contexts poorly, which keeps the whole-conversation score low; the
-  current models above do not have that weakness, and there the gap is clear.
+  current models above do not have that weakness, and there the gap at 1,000 tokens is clear.
+- **For gpt-4o-mini, more than 2,500 tokens adds nothing.** 2,500 is 2.3 points above 1,000 (0.5 to 4.0), and 5,000 is
+  0.5 below 2,500 (−2.1 to +1.0). The memory does hand back more: every needed turn is there for 89.5 % of questions
+  at 5,000 against 82.4 % at 2,500. But when they are all there, gpt-4o-mini gets fewer right, 79.4 % against 82.7 %,
+  so the extra text costs what the extra turns gain. By category from 1,000 to 5,000 tokens, open-domain rises from
+  44.8 to 53.1 and multi-hop from 61.7 to 67.4, while temporal falls from 69.2 to 64.5.
 - **Next to the Mem0 paper.** Under the same protocol it reports 66.9 for Mem0, 68.4 for Mem0g and 66.0 for Zep (as
   Mem0 ran it), against 72.9 for the whole conversation. That is 3.6 points below our own whole-conversation run, so
   absolute scores from different harnesses are not directly comparable. The Results page therefore shows each score
@@ -278,13 +306,17 @@ once are weaker, because a fixed budget runs out first. When every evidence turn
 of questions), 85.6 % of answers were right; when one was missing, 45.7 % were. The memory's reply averaged 999
 tokens, retrieval took a median of 9.4 ms, and the whole run cost $0.53 in LLM calls.
 
+### Reproduce
+
 Reproduce with an [OpenRouter](https://openrouter.ai) key in `.env` (`OPENROUTER_API_KEY=…`). Every LLM call is
-cached, and the 1,000-token run cost about $0.53:
+cached, and the 1,000-token run cost about $0.53; the 5,000-token runs with current models cost $1.29 to $3.99 each:
 
 ```sh
 cogito-mem eval locomo-qa --data locomo10.json --env-file .env --context memory --budget 1000 --out results/locomo-qa/mem1000.json
+cogito-mem eval locomo-qa --data locomo10.json --env-file .env --context memory --budget 5000 --top-k 300 --out results/locomo-qa/mem5000.json
 cogito-mem eval locomo-qa --data locomo10.json --env-file .env --context full --conversations 0,1,2,3,4 --out results/locomo-qa/full.json
 cogito-mem eval locomo-qa compare results/locomo-qa/full.json results/locomo-qa/mem1000.json
+cogito-mem eval locomo-qa --data locomo10.json --env-file .env --protocol mem0-2026 --context memory --budget 5000 --top-k 300 --answer-model openai/gpt-5-mini --answer-reasoning low --answer-max-tokens 8000 --judge-model openai/gpt-5-mini --judge-reasoning minimal --judge-max-tokens 1500 --judges mem0-2026,mem0-2025 --out results/locomo-qa-modern/gpt-5-mini-memory5000.json
 ```
 
 ## LoCoMo: finding the right messages
@@ -292,25 +324,58 @@ cogito-mem eval locomo-qa compare results/locomo-qa/full.json results/locomo-qa/
 LoCoMo labels the turns that hold each of its 1,536 answerable questions' answers. A question counts when every one of
 those turns is inside the memory's reply. The baselines get the same token budget without a memory.
 
-| What the assistant gets | Within 100 tokens | Within 300 tokens | Within 1,000 tokens |
-|---|---|---|---|
-| **cogito-mem** (default: hybrid) | 39.0 % | **56.5 %** | **72.5 %** |
-| cogito-mem, keyword only | 36.0 % | 49.5 % | 59.8 % |
-| The most recent N tokens of the conversation (no memory) | 0.1 % | 0.6 % | 4.2 % |
-| N tokens of randomly chosen turns | 0.3 % | 1.0 % | 3.5 % |
+| What the assistant gets | 100 tokens | 300 tokens | 1,000 tokens | 2,500 tokens | 5,000 tokens |
+|---|---|---|---|---|---|
+| **cogito-mem** (hybrid, `top_k` 100, the API's maximum) | 39.1 % | **56.5 %** | **72.5 %** | 81.3 % | 82.5 % |
+| **cogito-mem** (hybrid, `--top-k 300`, past the API's maximum) | 39.1 % | 56.6 % | 74.1 % | 82.4 % | **89.5 %** |
+| cogito-mem, keyword only (`top_k` 100) | 36.0 % | 49.5 % | 59.8 % | 63.6 % | 65.0 % |
+| cogito-mem, keyword only (`--top-k 300`) | 36.0 % | 49.5 % | 59.8 % | 64.1 % | 70.2 % |
+| The most recent N tokens of the conversation (no memory) | 0.1 % | 0.6 % | 4.2 % | 11.1 % | 22.2 % |
+| N tokens of randomly chosen turns | 0.4 % | 1.3 % | 5.1 % | 10.0 % | 19.5 % |
+
+The random row is one draw per question and moves by a point or so with the seed; the 19 Oct run scored 0.3, 1.0 and
+3.5 for the first three budgets.
+
+**`top_k` limits the reply as well as the budget.** A LoCoMo turn averages about 28 tokens, so 100 turns hold about
+2,750 tokens. With `top_k` 100, a 5,000-token budget stops there, which is why the first row barely moves after 2,500.
+Reaching a real 5,000 tokens takes about 184 turns, so those runs pass the API's limit from inside the eval. The API
+itself still stops at 100.
+
+The default is `top_k` 10, and small values cut much sooner. At a 1,000-token budget on these short turns:
+
+| `top_k` | 10 | 20 | 100 | 300 |
+|---|---|---|---|---|
+| Every needed turn in the reply | 63.1 % | 68.4 % | 72.5 % | 74.1 % |
+
+The scores on this page use `top_k` 100 or more unless a row says otherwise. Going from 100 to 300 helps at 1,000 tokens
+even though no reply reaches 100 turns there (+1.6 points, 0.9 to 2.3), because the search also considers more
+candidates.
+
+**What is still missing at 5,000 tokens**, by question type (`--top-k 300`):
+
+| Category | Questions | 300 tokens | 1,000 tokens | 2,500 tokens | 5,000 tokens |
+|---|---|---|---|---|---|
+| single-hop | 841 | 71.1 % | 89.8 % | 95.4 % | 98.3 % |
+| temporal | 321 | 68.8 % | 81.3 % | 89.7 % | 95.6 % |
+| open-domain | 92 | 25.0 % | 46.7 % | 57.6 % | 68.5 % |
+| multi-hop | 282 | 9.9 % | 28.0 % | 43.3 % | 63.1 % |
 
 What it means:
 
 - **A small budget goes far.** A conversation averages about 19,400 tokens. With 300 tokens (1.5 % of that),
   cogito-mem hands back every turn a question needs for 56.5 % of questions: single-hop 71 %, temporal 68 %,
   multi-hop 10 %. Multi-hop questions need several turns at once. A context window of the same size almost never does.
-- **Meaning and words together beat words alone** by 7.0 points at 300 tokens (95 % CI 5.3 to 8.8) and 12.7 at 1,000
-  (11.0 to 14.5).
+- **The gap closes slowly, and multi-hop questions are most of it.** Each step up in budget gets less: 15.4 points from
+  1,000 tokens to 5,000 even though 5,000 is about a quarter of a whole conversation. Of the 161 questions still missing
+  a turn at 5,000, 104 are multi-hop.
+- **Meaning and words together beat words alone** by 7.0 points at 300 tokens (95 % CI 5.3 to 8.8), 12.7 at 1,000
+  (11.0 to 14.5) and 19.3 at 5,000 (17.3 to 21.4).
 - **Context makes the vectors useful.** Each message is embedded together with its author and the message it replies
   to. In an earlier run with a stand-in model (Qwen3-Embedding-0.6B), embedding each turn alone scored 18 points lower
   ([the ablation](requirements.md#15-choices-made-while-building-v0-author-to-confirm)).
 
-Reproduce with `cogito-mem eval locomo --data locomo10.json` (add `--search keyword` for the second row).
+Reproduce with `cogito-mem eval locomo --data locomo10.json`. It runs all five budgets at `top_k` 100; add
+`--top-k 300` for the rows past the API's maximum and `--search keyword` for keyword only.
 
 ## Speed
 
@@ -323,6 +388,8 @@ CPU alone.
 | 1M tokens (10.7k items) | CPU only | 14.5 ms | 22.8 ms |
 | 10M tokens (106k items) | CPU only | 17.8 ms | **26.0 ms** |
 | 10M tokens (106k items) | GPU (Metal) | 13.0 ms | 14.2 ms |
+| 10M tokens, `top_k` 100, a budget of 5,000 | CPU only | 20.7 ms | 29.4 ms |
+| 10M tokens, `top_k` 100, a budget of 5,000 | GPU (Metal) | 14.2 ms | 15.3 ms |
 
 Saving is fast because embedding happens in the background. Medians at 10M tokens:
 
@@ -347,7 +414,7 @@ include the network and their own AI calls.
 | Mem0 platform, April 2026 run | 6.0 s |
 
 Reproduce with `COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --tokens 10M --random-vectors` (leave out the variable
-for Metal).
+for Metal; add `--top-k 100 --budget 5000` for the larger replies).
 
 ## Not measured yet
 
@@ -355,5 +422,4 @@ for Metal).
   sessions and 115k tokens in the -S split above. It is the quality test `requirements.md` §5 sets for v0, as coverage
   at 300 tokens (every answer turn inside the first 300 returned tokens), and stage 0 has not run it. The -S numbers
   above are an easier task: one right session among about 50, with no token budget.
-- **3,000 tokens and more on LoCoMo.** The largest budget run is 2,500 tokens.
 - **Answer accuracy on LongMemEval-S** (the QA number memory services publish).

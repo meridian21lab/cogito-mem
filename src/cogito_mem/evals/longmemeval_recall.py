@@ -13,7 +13,7 @@ turns (``has_answer``). That makes retrieval scorable with no judging model.
 Each question gets a fresh memory, loaded as ``eval run`` loads it
 (``longmemeval.load_question``: one item per turn of either role, ``thread_id`` = session
 id, ``author`` = role, ``valid_at`` = session date + turn index in ms, ``import: true``).
-The question is asked through the normal query path with ``top_k`` = 100 and no token
+The question is asked through the normal query path with the default ``top_k`` and no token
 budget. The returned items, in order, rank the turns; the sessions of those turns, in the
 order they first appear, rank the sessions.
 
@@ -58,7 +58,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .. import timeutil
-from ..api import MAX_TOP_K
+from ..api import DEFAULT_TOP_K
 from ..memory import Config, Memory
 from .common import add_system1_args, make_system1, record, sha256_file, system1_settings, utc_now
 from .longmemeval import NO_BUDGET, load, load_question, make_embedder, paired_bootstrap, parse_date
@@ -130,7 +130,7 @@ def evaluate(mem: Memory, q: dict, as_of: str = "question") -> dict:
     mem.embed_pending(ns, limit=10**9)
     mem.flush()
     load_s = time.perf_counter() - t0
-    body = {"op": "query", "namespace": "q", "text": q["question"], "top_k": MAX_TOP_K, "max_tokens": NO_BUDGET}
+    body = {"op": "query", "namespace": "q", "text": q["question"], "top_k": DEFAULT_TOP_K, "max_tokens": NO_BUDGET}
     if as_of == "question":
         body["as_of"] = timeutil.format(parse_date(q["question_date"]) + 59_999)
     stats = getattr(mem.reranker, "stats", None)
@@ -289,7 +289,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     config = {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author,
               **system1_settings(args)}  # fmt: skip
     meta.update({"dataset": str(data_path), "dataset_sha256": sha256_file(data_path), "config": config,
-                 "top_k": MAX_TOP_K, "as_of": args.as_of})  # fmt: skip
+                 "top_k": DEFAULT_TOP_K, "as_of": args.as_of})  # fmt: skip
     if args.sample:
         meta["sample"] = {"n": args.sample, "offset": args.sample_offset, "seed": args.seed,
                           "question_ids": [str(q["question_id"]) for q in questions]}  # fmt: skip

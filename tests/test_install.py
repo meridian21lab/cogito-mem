@@ -56,7 +56,7 @@ def test_install_claude_code_without_cli(isolated_env, monkeypatch):
         {"hooks": [{"type": "command", "command": f"{launcher} recall claude-code", "timeout": 5}]}
     ]
     assert data["hooks"]["SessionStart"] == [
-        {"matcher": "startup|resume", "hooks": [{"type": "command", "command": f"{launcher} recall claude-code", "timeout": 10}]}
+        {"matcher": "startup|resume|compact", "hooks": [{"type": "command", "command": f"{launcher} recall claude-code", "timeout": 10}]}
     ]
     assert (settings.parent / "settings.json.cogito-mem.bak").exists()
 
@@ -244,7 +244,7 @@ def test_claude_code_plugin_files_are_consistent():
         assert hooks[event][0]["hooks"][0]["command"] == f"uvx {pin} capture claude-code"
     for event in ("UserPromptSubmit", "SessionStart"):
         assert hooks[event][0]["hooks"][0]["command"] == f"uvx {pin} recall claude-code"
-    assert hooks["SessionStart"][0]["matcher"] == "startup|resume"
+    assert hooks["SessionStart"][0]["matcher"] == "startup|resume|compact"
     # uv.lock beside it records that release, from PyPI, and its dependencies with their hashes
     assert f'dependencies = ["{pin}"]' in (folder / "pyproject.toml").read_text()
     lock = (folder / "uv.lock").read_text()

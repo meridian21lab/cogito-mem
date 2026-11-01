@@ -132,7 +132,7 @@ def _mcp_entry(launcher: Path) -> dict:
 # Claude Code hooks: (event, matcher, subcommand, timeout in seconds). Capture works in the
 # background; recall answers within about a second or says nothing.
 CAPTURE_HOOKS = [("Stop", None, "capture", 30), ("SessionEnd", None, "capture", 30)]
-RECALL_HOOKS = [("UserPromptSubmit", None, "recall", 5), ("SessionStart", "startup|resume", "recall", 10)]
+RECALL_HOOKS = [("UserPromptSubmit", None, "recall", 5), ("SessionStart", "startup|resume|compact", "recall", 10)]
 
 
 def install_claude_code(launcher: Path, say: Say, recall: bool = True) -> None:

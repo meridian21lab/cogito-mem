@@ -27,7 +27,8 @@ from .errors import ApiError
 from .ids import Uuid7Generator
 from .keyword import BM25Index
 from .split import PIECE_TOKENS, split
-from .tokenizer import Tokenizer, cut
+from .terms import identifiers, terms
+from .tokenizer import Tokenizer, count, cut
 
 SCHEMA_VERSION = "1"
 
@@ -66,6 +67,12 @@ RANK_PREVIOUS_CHARS = 300
 # The author of the notes capture writes about what a turn did (commands, files). Such a note follows on from
 # the turn's prompt, but the reply after it still follows on from the prompt, as it did before notes existed.
 SIDE_AUTHOR = "actions"
+# The same goes for the lines capture keeps from tool output.
+SIDE_AUTHORS = (SIDE_AUTHOR, "tool")
+# The exact-identifier list: a token found in few items names what the query is about, so it counts double.
+RARE_IDENTIFIER_ITEMS = 20
+EXACT_CHECKED = 500
+MIN_OPEN_ID_CHARS = 8
 
 
 class _Column:
@@ -133,6 +140,7 @@ class Namespace:
         self.msg_by_id: dict[str, int] = {}
         self.refs: dict[tuple[str, str], int] = {}
         self.last_in_thread: dict[str, int] = {}
+        self.threads: dict[str, list[int]] = {}
         self.row_ids: list[str] = []
         self.row_by_id: dict[str, int] = {}
         self._row_msg = _Column(np.int32)
@@ -186,8 +194,9 @@ class Namespace:
         idx = len(self.messages)
         msg = Message(id_, created, valid, thread_id, author, title, text, client_ref, bool(imported))
         msg.prev = self.last_in_thread.get(thread_id, -1)
-        if author != SIDE_AUTHOR:  # what a turn did never becomes what the reply follows on from
+        if author not in SIDE_AUTHORS:  # what a turn did never becomes what the reply follows on from
             self.last_in_thread[thread_id] = idx
+        self.threads.setdefault(thread_id, []).append(idx)
         self.messages.append(msg)
         self.msg_by_id[id_] = idx
         if client_ref is not None:
@@ -480,12 +489,18 @@ class Namespace:
         pool: int,
         use_keywords: bool,
         rrf_k: int = 60,
+        exact_lane: bool = False,
+        session_boost: float = 0.0,
     ) -> list[Candidate]:
         """Rank visible items by reciprocal rank fusion of the vector and keyword lists.
 
         Scores are normalised so that an item ranked first in every list scores 1. Each
         candidate with a vector also carries its cosine similarity to ``qvec``, whichever
         list found it.
+
+        ``exact_lane`` adds the items holding an identifier from the query, word for word, as one
+        more list on top of that scale. ``session_boost`` lifts items whose thread has other good
+        matches, for questions whose answer is spread over one session.
         """
         with self.lock:
             self._refresh_locked()
@@ -508,7 +523,8 @@ class Namespace:
                 rows, scores = self.bm25.scores(text, n)
                 keep = mask[rows]
                 ranked.append(self._top(rows[keep], scores[keep], pool))
-        if not ranked:
+            exact = self._exact_rows(text, mask, n) if exact_lane else None
+        if not ranked and exact is None:
             return []
         fused: dict[int, float] = {}
         first_rank: dict[int, int] = {}
@@ -516,7 +532,14 @@ class Namespace:
             for rank, row in enumerate(lst.tolist(), start=1):
                 fused[row] = fused.get(row, 0.0) + 1.0 / (rrf_k + rank)
                 first_rank[row] = min(first_rank.get(row, rank), rank)
-        best = len(ranked) / (rrf_k + 1)
+        best = max(len(ranked), 1) / (rrf_k + 1)
+        if exact is not None and len(exact):
+            weight = 2.0 if len(exact) <= RARE_IDENTIFIER_ITEMS else 1.0
+            for rank, row in enumerate(exact[:pool].tolist(), start=1):
+                fused[row] = fused.get(row, 0.0) + weight / (rrf_k + rank)
+                first_rank[row] = min(first_rank.get(row, rank), rank)
+        if session_boost:
+            self._boost_sessions(fused, session_boost)
         order = sorted(fused, key=lambda r: (-fused[r], first_rank[r], -r))[:pool]
         sims: dict[int, float] = {}
         if qvec is not None and order:
@@ -525,7 +548,101 @@ class Namespace:
                 rows = rows[self._has_vec.data[rows]]
                 # Vectors are normalised, so the dot product is the cosine (float16 rounding aside).
                 sims = dict(zip(rows.tolist(), np.clip(self._vectors[rows] @ qvec, -1.0, 1.0).tolist()))
-        return [Candidate(r, fused[r] / best, sims.get(r)) for r in order]
+        return [Candidate(r, min(fused[r] / best, 1.0), sims.get(r)) for r in order]
+
+    def _exact_rows(self, text: str, mask: np.ndarray, n: int) -> np.ndarray | None:
+        """The visible rows holding an identifier from the query word for word, those with most of them first.
+
+        None if the query has no identifier. Newer rows come first among equals.
+        """
+        wanted = identifiers(text)
+        if not wanted:
+            return None
+        hits: dict[int, int] = {}
+        for word in wanted:
+            rows = self.bm25.rows_with(terms(word), n)
+            rows = rows[mask[rows]][::-1][:EXACT_CHECKED]
+            for row in rows.tolist():
+                if word in self.row_text(row).lower():
+                    hits[row] = hits.get(row, 0) + 1
+        return np.asarray(sorted(hits, key=lambda r: (-hits[r], -r)), dtype=np.int64)
+
+    def _boost_sessions(self, fused: dict[int, float], boost: float) -> None:
+        by_thread: dict[int, list[float]] = {}
+        codes = self._row_thread.data
+        for row, value in fused.items():
+            by_thread.setdefault(int(codes[row]), []).append(value)
+        weight = {t: sum(sorted(v, reverse=True)[:3]) for t, v in by_thread.items()}
+        top = max(weight.values(), default=0.0) or 1.0
+        for row in fused:
+            fused[row] *= 1.0 + boost * weight[int(codes[row])] / top
+
+    # ------------------------------------------------------------------ open
+
+    def find_message(self, item_id: str) -> Message | None:
+        """A message by its id, the id of one of its pieces, or the end of either (at least ``MIN_OPEN_ID_CHARS``)."""
+        with self.lock:
+            self._refresh_locked()
+            idx = self.msg_by_id.get(item_id)
+            if idx is None and item_id in self.row_by_id:
+                idx = int(self._row_msg.data[self.row_by_id[item_id]])
+            if idx is None and len(item_id) >= MIN_OPEN_ID_CHARS:
+                ends = [i for i, m in enumerate(self.messages) if m.id.endswith(item_id)]
+                if len(ends) > 1:
+                    raise ApiError("invalid_argument", f"{item_id} matches {len(ends)} messages; give more of the id")
+                idx = ends[0] if ends else None
+            return None if idx is None else self.messages[idx]
+
+    def _visible_text(self, msg: Message, now: int) -> str | None:
+        """What a query could see of this message now: None if nothing, and only the pieces not retracted."""
+        rows = [r for r in msg.rows if self._row_created.data[r] <= now and self._row_retracted.data[r] > now]
+        if len(rows) == len(msg.rows):
+            return msg.text
+        return "\n".join(self.row_text(r) for r in rows) if rows else None
+
+    def around(self, msg: Message, before: int, after: int, max_tokens: int, tokenizer: Tokenizer, now: int) -> list[dict] | None:
+        """The message whole, then as many of its neighbours in the thread as fit, in thread order.
+
+        ``max_tokens`` keeps a neighbour from crowding it out: the message itself is cut only if it alone is over.
+        What a query at ``now`` would hide stays hidden, and None means that is all of the message.
+        """
+        with self.lock:
+            thread = self.threads[msg.thread_id]
+            at = thread.index(self.msg_by_id[msg.id])
+            text = self._visible_text(msg, now)
+            if text is None:
+                return None
+            full = {at: text}
+            used = count(tokenizer, text)
+            if used > max_tokens:
+                text, used = cut(tokenizer, text, max_tokens)
+            kept = {at: text}
+            # Nearest first, so a tight budget keeps what is closest to the message.
+            for step in range(1, max(before, after) + 1):
+                for i in ([at - step] if step <= before else []) + ([at + step] if step <= after else []):
+                    if not 0 <= i < len(thread):
+                        continue
+                    other = self._visible_text(self.messages[thread[i]], now)
+                    if other is None:
+                        continue
+                    full[i] = other
+                    n = count(tokenizer, other)
+                    if used + n <= max_tokens:
+                        kept[i] = other
+                        used += n
+            return [
+                {
+                    "id": self.messages[thread[i]].id,
+                    "text": kept[i],
+                    "author": self.messages[thread[i]].author,
+                    "thread_id": msg.thread_id,
+                    "valid_at": timeutil.format(self.messages[thread[i]].valid),
+                    "opened": i == at,
+                    "truncated": len(kept[i]) < len(full[i]),
+                    "source": {"title": self.messages[thread[i]].title},
+                }
+                for i in sorted(kept)
+            ]
 
     def fill(
         self,
