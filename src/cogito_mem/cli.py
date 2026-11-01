@@ -19,6 +19,10 @@ BACKFILL_NOTICE = (
     "cogito-mem is reading the user's past Claude Code sessions into the memory, in the background, for the first "
     "time. Tell the user so in one line (COGITO_MEM_BACKFILL=off leaves past sessions alone)."
 )
+# Long enough to span a working day and most nights: over 125 days of one author's 2,392 prompts, 170 waits between
+# prompts were longer than an hour and 18 longer than 12 hours, and each such wait costs the next prompt its recall.
+IDLE_TIMEOUT = 12 * 3600.0
+SHORT_IDLE_TIMEOUT = 3600.0  # with COGITO_MEM_KEEP_ALIVE=off
 
 
 def _root(args: argparse.Namespace) -> Path:
@@ -69,7 +73,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     )
     port = args.port if args.port is not None else default_port()
     try:
-        server = MemoryServer(memory, host=args.host, port=port, idle_timeout=args.idle_timeout)
+        server = MemoryServer(memory, host=args.host, port=port, idle_timeout=_idle_timeout(args))
     except OSError as exc:
         from .client import Client
 
@@ -104,6 +108,14 @@ def cmd_serve(args: argparse.Namespace) -> int:
         if rerank_server is not None:
             rerank_server.stop()
     return 0
+
+
+def _idle_timeout(args: argparse.Namespace) -> float:
+    from .capture import enabled
+
+    if args.idle_timeout is not None:
+        return args.idle_timeout
+    return IDLE_TIMEOUT if enabled("COGITO_MEM_KEEP_ALIVE") else SHORT_IDLE_TIMEOUT
 
 
 def _migrate_before_serving(root: Path) -> None:
@@ -407,7 +419,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("serve", cmd_serve, "run the local service (POST /v1/memory)")
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=None, help="default: $COGITO_MEM_PORT or 7327")
-    sp.add_argument("--idle-timeout", type=float, default=3600.0, help="stop after this many idle seconds (0: never)")
+    sp.add_argument("--idle-timeout", type=float, help="stop after this many idle seconds (default: 12 hours; 0: never)")
     sp.add_argument("--embedder", default="auto", choices=["auto", "hash", "none"])
     sp.add_argument("--search", default="hybrid", choices=["hybrid", "vector", "keyword"])
     sp.add_argument("--doc-context", default="previous", choices=["own", "previous"])

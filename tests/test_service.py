@@ -151,6 +151,17 @@ def test_service_stops_when_idle(tmp_path):
             pytest.fail("serve did not stop when idle:\n" + log.read_text())
 
 
+def test_the_service_waits_out_a_working_day_unless_told_otherwise(monkeypatch):
+    from cogito_mem.cli import _idle_timeout, build_parser
+
+    serve = build_parser().parse_args(["serve"])
+    assert _idle_timeout(serve) == 12 * 3600
+    assert _idle_timeout(build_parser().parse_args(["serve", "--idle-timeout", "0"])) == 0  # never
+    monkeypatch.setenv("COGITO_MEM_KEEP_ALIVE", "off")
+    assert _idle_timeout(serve) == 3600
+    assert _idle_timeout(build_parser().parse_args(["serve", "--idle-timeout", "5"])) == 5
+
+
 # --------------------------------------------------------------------------- MCP
 
 

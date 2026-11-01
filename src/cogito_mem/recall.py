@@ -62,8 +62,8 @@ _PATH = re.compile(r"^(?:[/~]|[A-Za-z]:[\\/])")
 _tokenizer = ApproxTokenizer()
 
 
-def enabled() -> bool:
-    return os.environ.get("COGITO_MEM_RECALL", "on").strip().lower() not in ("0", "off", "false", "no")
+def enabled(setting: str = "COGITO_MEM_RECALL") -> bool:
+    return os.environ.get(setting, "on").strip().lower() not in ("0", "off", "false", "no")
 
 
 def default_min_score() -> float:
@@ -230,6 +230,7 @@ def claude_code_hook(
         return None
 
     out = None
+    down = False  # the service idled out: this prompt goes without, the next one finds it up
     try:
         text = within(timeout, context)
         if text:
@@ -239,11 +240,12 @@ def claude_code_hook(
             )
     except Exception as exc:  # recall is a hint: say nothing rather than get in the way
         _log(log, hook.get("hook_event_name"), exc)
-    if hook.get("hook_event_name") == "SessionStart":
+        down = getattr(exc, "code", None) == "unavailable" and enabled("COGITO_MEM_KEEP_ALIVE")
+    if down or hook.get("hook_event_name") == "SessionStart":
         try:
             within(timeout, lambda: make_client().start_in_background())
         except Exception as exc:
-            _log(log, "SessionStart (starting the service)", exc)
+            _log(log, f"{hook.get('hook_event_name')} (starting the service)", exc)
     return out
 
 

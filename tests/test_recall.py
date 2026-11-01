@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -190,6 +191,56 @@ def test_prompt_recall_errors_and_timeouts_print_nothing(tmp_path):
     lines = log.read_text().splitlines()
     assert "UserPromptSubmit: ApiError" in lines[0] and "UserPromptSubmit: TimeoutError" in lines[1]
     assert len(lines) == 4
+
+
+def test_prompt_starts_a_service_that_idled_out():
+    hook = prompt_hook("what did we decide about the parser?")
+    client = FakeClient(error=ApiError("unavailable", "not running"))
+    assert run_hook(hook, client) is None  # this prompt goes without, and is not held up
+    assert client.started == 1
+    up = FakeClient([item("we decide the parser", 0.9)])
+    assert run_hook(hook, up) is not None and up.started == 0
+    for other in (FakeClient(error=ApiError("internal", "bug")), FakeClient([item("x", 0.9)], delay=3.0)):
+        assert run_hook(hook, other, timeout=0.2) is None and other.started == 0  # it runs, or something else is wrong
+
+
+def test_prompt_never_fails_on_starting_the_service(tmp_path):
+    class CannotStart(FakeClient):
+        def start_in_background(self) -> bool:
+            raise OSError("no room")
+
+    log = tmp_path / "recall.log"
+    client = CannotStart(error=ApiError("unavailable", "not running"))
+    assert run_hook(prompt_hook("what did we decide about the parser?"), client, log=log) is None
+    assert "UserPromptSubmit (starting the service): OSError: no room" in log.read_text()
+
+
+def test_starting_the_service_from_a_prompt_can_be_turned_off(monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_KEEP_ALIVE", "off")
+    client = FakeClient(error=ApiError("unavailable", "not running"))
+    assert run_hook(prompt_hook("what did we decide about the parser?"), client) is None
+    assert client.started == 0
+
+
+@pytest.mark.slow
+def test_prompt_brings_the_real_service_back(tmp_path, monkeypatch):
+    from cogito_mem.client import Client
+
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    monkeypatch.setenv("COGITO_MEM_PORT", str(port))
+    monkeypatch.delenv("COGITO_MEM_URL", raising=False)
+    monkeypatch.setenv("PYTHONPATH", SRC + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    client = Client(root=tmp_path / "h", autostart=False, timeout=recall.TIMEOUT, serve_args=["--embedder", "hash", "--idle-timeout", "60"])
+    assert run_hook(prompt_hook("what did we decide about the parser?"), client) is None
+    try:
+        deadline = time.monotonic() + 30
+        while client.status() is None and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert client.status() is not None
+    finally:
+        assert client.stop_server()
 
 
 def test_recall_can_be_turned_off(monkeypatch):
