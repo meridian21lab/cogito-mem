@@ -3,22 +3,26 @@
 The short version, with charts, is on the [Results page](https://meridian21lab.github.io/cogito-mem/results.html).
 This page has every number, how it was measured and the commands to reproduce it. Everything was measured on the
 author's laptop (MacBook Pro, Apple M5 Max, 18 cores) with the model that ships, EmbeddingGemma 2 (Q8_0) in
-llama.cpp: LoCoMo and speed on 19 Oct 2026, LongMemEval-S on 20 Oct 2026, the 2,500 and 5,000-token budgets on
-1 Nov 2026. These are our own runs, not leaderboard entries.
+llama.cpp: LoCoMo with gpt-4o-mini and speed on 19 Oct 2026, LoCoMo with current models and LongMemEval-S on 20 Oct
+2026, the 5,000-token budgets on 1 Nov 2026. These are our own runs, not leaderboard entries.
 
 - [At a glance](#at-a-glance)
 - [Setup](#setup)
 - [LongMemEval-S: finding the right session](#longmemeval-s-finding-the-right-session)
 - [LoCoMo: answering from the memory](#locomo-answering-from-the-memory)
+  - [With current answering models](#with-current-answering-models)
+  - [The 2025 protocol: gpt-4o-mini, as in the Mem0 paper](#the-2025-protocol-gpt-4o-mini-as-in-the-mem0-paper)
 - [LoCoMo: finding the right messages](#locomo-finding-the-right-messages)
 - [Speed](#speed)
+- [Not measured yet](#not-measured-yet)
 
 ## At a glance
 
 | Test | What it measures | cogito-mem | Next to |
 |---|---|---|---|
 | LongMemEval-S, 500 questions | a session holding the answer is among the first 5 found; no LLM | **99.0 %** (95.0 % as of the question date) | other local memory plugins published 95.2–98.0 % (20 Oct 2026) |
-| LoCoMo, 1,540 questions | gpt-4o-mini answers from 1,000 tokens of memory, gpt-4o-mini grades | **74.7 %**, 98 % of the whole-conversation score | Mem0 92 %, Mem0g 94 %, Zep 91 % of theirs (Mem0 paper) |
+| LoCoMo, 1,540 questions | current models (GPT-5 mini, Claude Haiku 5.5, gpt-oss-120b, Qwen3) answer from 1,000 tokens of memory, GPT-5 mini grades | **85.6–89.9 %**, 95–96 % of the whole-conversation score, from 9 times fewer tokens | the whole conversation: 89.0–94.5 %, 3.4–4.7 points higher |
+| LoCoMo, 1,540 questions | gpt-4o-mini answers from 1,000 tokens of memory, gpt-4o-mini grades (2025 protocol) | **74.7 %**, 98 % of the whole-conversation score | Mem0 92 %, Mem0g 94 %, Zep 91 % of theirs (Mem0 paper) |
 | LoCoMo, 1,536 questions | every turn an answer needs is in 1,000 tokens of memory | **72.5 %** | the last 1,000 tokens of the conversation: 4.2 % |
 | Speed, 10M tokens | 95 % of searches finish within, laptop CPU only | **26 ms** | design target: 100 ms |
 
@@ -171,11 +175,81 @@ and a rerun about 3. Rerunning with the same `--questions-out` file resumes an i
 
 ## LoCoMo: answering from the memory
 
-This is the protocol of the [Mem0 paper](https://arxiv.org/abs/2504.19413), the one published memory systems report.
-[LoCoMo](https://github.com/snap-research/locomo) has 10 long conversations. gpt-4o-mini answers each of the 1,540
-questions of categories 1–4 from what the memory returns, and gpt-4o-mini then marks the answer right or wrong
-against LoCoMo's gold answer. As a check on the harness, the whole conversation is scored the same way. One run per
-row.
+[LoCoMo](https://github.com/snap-research/locomo) has 10 long conversations, about 19,400 tokens each. An LLM answers
+each of the 1,540 questions of categories 1–4 from what the memory returns, and a judge marks the answer right or
+wrong against LoCoMo's gold answer. The same questions are also answered from the whole conversation, with no memory,
+which is the number to beat. We ran it twice: with current answering models, and with the 2025 protocol of the
+[Mem0 paper](https://arxiv.org/abs/2504.19413), the one most published tables reuse. They paint different pictures,
+so both are here.
+
+### With current answering models
+
+Four answering models, each reading either Cogi's reply to the question (a 1,000-token budget) or the whole
+conversation. The answer prompt is the one in Mem0's open benchmark (memory-benchmarks, 2026). GPT-5 mini judged every
+answer twice: with Mem0's 2026 rules, which most current vendor numbers resemble, and with the stricter 2025 rules.
+GPT-5 mini and gpt-oss-120b ran with low reasoning effort; the open models were pinned to hosts serving full-precision
+weights (gpt-oss-120b in bf16, Qwen3 in fp8). One run per row, all 1,540 questions, 20 Oct 2026.
+
+| Answering model | Cogi, 1,000 tokens | Whole conversation | Difference (95 % CI) | Share | Stricter 2025 rules: Cogi / whole |
+|---|---|---|---|---|---|
+| GPT-5 mini | **89.4** | 94.1 | −4.7 (−6.2 to −3.3) | 95 % | 83.1 / 90.8 |
+| Claude Haiku 5.5 | **89.9** | 94.5 | −4.6 (−6.0 to −3.2) | 95 % | 83.3 / 92.3 |
+| gpt-oss-120b | **85.6** | 89.0 | −3.4 (−5.1 to −1.6) | 96 % | 78.4 / 82.5 |
+| Qwen3 235B A22B | **88.1** | 92.5 | −4.4 (−6.0 to −2.8) | 95 % | 80.1 / 87.3 |
+
+**At 5,000 tokens** the same four models are level with the whole conversation (`--top-k 300`, 1 Nov 2026):
+
+| Answering model | Cogi, 5,000 tokens | Whole conversation | Difference (95 % CI) | Stricter 2025 rules: Cogi / whole |
+|---|---|---|---|---|
+| GPT-5 mini | **93.5** | 94.1 | −0.6 (−1.7 to +0.5) | 89.9 / 90.8 |
+| Claude Haiku 5.5 | **94.2** | 94.5 | −0.3 (−1.2 to +0.7) | 91.2 / 92.3 |
+| gpt-oss-120b | **89.4** | 89.0 | +0.4 (−1.0 to +1.8) | 83.6 / 82.5 |
+| Qwen3 235B A22B | **93.3** | 92.5 | +0.8 (−0.4 to +2.0) | 88.4 / 87.3 |
+
+**By budget**, with GPT-5 mini answering:
+
+| What GPT-5 mini reads | Prompt tokens per question | 2026 rules | 2025 rules |
+|---|---|---|---|
+| Cogi, 300 tokens | 1,963 | 79.6 | 72.0 |
+| Cogi, 1,000 tokens | 2,966 | 89.4 | 83.1 |
+| Cogi, 2,500 tokens | 4,911 | 92.1 | 88.0 |
+| Cogi, 5,000 tokens | 8,405 | 93.5 | 89.9 |
+| The whole conversation | 27,602 | 94.1 | 90.8 |
+
+What it means:
+
+- **At 1,000 tokens, reading everything still answers better.** At that budget Cogi is 3.4 to 4.7 points below
+  the whole conversation (4 to 9 under the stricter rules), and every interval excludes zero. In exchange the model
+  reads about 9 times fewer tokens: about 3,400 prompt tokens per question against 31,700, averaged over the four
+  models. That is the trade Cogi offers, and it grows with every session that no longer fits in a context window.
+- **More budget closes the gap.** At 2,500 tokens Cogi is 2.0 points below the whole conversation (95 % CI −3.2
+  to −0.8) while the model reads a sixth of the tokens. At 5,000 the interval includes zero for all four models. The
+  gain flattens: +9.8 points from 300 to 1,000 tokens, +2.7 from 1,000 to 2,500, +1.4 from 2,500 to 5,000 (0.4 to 2.5).
+- **LoCoMo is small, so this is an easy case.** A conversation averages about 19,400 tokens, so 5,000 tokens is about
+  a quarter of it. Longer histories have not been measured at this budget.
+- **The 200-memory limit trims the largest replies.** Up to 200 best-ranked memories are read, so on 454 questions the
+  model reads a little under 5,000 tokens, and every needed turn is read for 89.1 % of questions against 89.5 % returned.
+- **The automatic recall uses the smallest budget.** The plugin's prompt hook adds at most 300 tokens to each prompt,
+  so what Claude gets without asking scores like the 300-token row (79.6 against 94.1). Searches Claude makes itself
+  use 1,000 tokens unless it asks for another budget.
+- **The judge matters as much as the memory.** The same answers score 6 to 8 points higher under the 2026 rules than
+  under the 2025 ones. Re-judging the 2025 protocol's gpt-4o-mini answers (1,000 tokens) with the 2026 judge lifts
+  them from 74.7 to 86.3.
+- **Next to published numbers.** Mem0 reports 91.6 for its platform (its README says 92.5) with this answer prompt and
+  these rules, but with the larger GPT-5 answering and judging and 200 memories per question, so it is not a like
+  for like comparison. Other vendors use their own prompts, judges and models. An audit of LoCoMo found 99 of the
+  1,540 gold answers wrong, so a perfect system scores about 93.6 %, and some published scores sit at or above it.
+
+The full report with charts is in [`notes/locomo_comparison_20261019.html`](notes/locomo_comparison_20261019.html).
+Reproduce with `cogito-mem eval locomo-qa --protocol mem0-2026 --judges mem0-2026,mem0-2025` and the answering and
+judge models above (`--answer-model`, `--judge-model`, `--answer-reasoning low`, `--no-temperature` for reasoning
+models); each run's result file records the exact settings in its `meta`.
+
+### The 2025 protocol: gpt-4o-mini, as in the Mem0 paper
+
+gpt-4o-mini answers each question from what the memory returns, through the Mem0 paper's prompts word for word, and
+gpt-4o-mini marks the answer right or wrong. As a check on the harness, the whole conversation is scored the same way.
+One run per row.
 
 | What gpt-4o-mini reads | All 10 conversations (1,540 questions) | First 5 conversations (762 questions) |
 |---|---|---|
@@ -187,8 +261,10 @@ row.
 
 What it means:
 
-- **1,000 tokens is level with the whole conversation.** On the same 762 questions the difference is −1.8 points
-  (95 % CI −5.5 to +1.8). 300 tokens is 8.7 points below it (−12.5 to −4.7).
+- **With gpt-4o-mini, 1,000 tokens is level with the whole conversation.** On the same 762 questions the
+  difference is −1.8 points (95 % CI −5.5 to +1.8), too small to tell apart on 762 questions. 300 tokens is 8.7 points
+  below it (−12.5 to −4.7). gpt-4o-mini reads long contexts poorly, which keeps the whole-conversation score low; the
+  current models above do not have that weakness, and there the gap at 1,000 tokens is clear.
 - **For gpt-4o-mini, more than 2,500 tokens adds nothing.** 2,500 is 2.3 points above 1,000 (0.5 to 4.0), and 5,000 is
   0.5 below 2,500 (−2.1 to +1.0). The memory does hand back more: every needed turn is there for 89.5 % of questions
   at 5,000 against 82.4 % at 2,500. But when they are all there, gpt-4o-mini gets fewer right, 79.4 % against 82.7 %,
@@ -199,7 +275,7 @@ What it means:
   absolute scores from different harnesses are not directly comparable. The Results page therefore shows each score
   as a share of its own harness's whole-conversation score.
 
-**As a share of the whole conversation**, the comparison the Results page shows:
+**As a share of the whole conversation**, the comparison the Mem0 paper's numbers allow:
 
 | Memory | Score | Whole conversation, same harness | Share | Source |
 |---|---|---|---|---|
@@ -229,28 +305,7 @@ once are weaker, because a fixed budget runs out first. When every evidence turn
 of questions), 85.6 % of answers were right; when one was missing, 45.7 % were. The memory's reply averaged 999
 tokens, retrieval took a median of 9.4 ms, and the whole run cost $0.53 in LLM calls.
 
-### With current models
-
-The same 1,540 questions under `--protocol mem0-2026`, the setup in [mem0ai/memory-benchmarks](https://github.com/mem0ai/memory-benchmarks):
-a step-by-step answer prompt that reads at most 200 memories, and a more lenient judge. GPT-5 mini judges every run.
-Each model is also scored on the whole conversation, so its memory score can be read as a share of its own baseline.
-
-| Answering model | 1,000 tokens | 5,000 tokens (`--top-k 300`) | Whole conversation | 5,000 minus whole conversation (95 % CI) |
-|---|---|---|---|---|
-| Claude Haiku 5.5 | 89.9 % | **94.2 %** | 94.5 % | −0.3 (−1.2 to +0.7) |
-| GPT-5 mini | 89.4 % | **93.5 %** | 94.1 % | −0.6 (−1.7 to +0.5) |
-| Qwen3-235B | 88.1 % | **93.3 %** | 92.5 % | +0.8 (−0.4 to +2.0) |
-| gpt-oss-120b | 85.7 % | **89.4 %** | 89.0 % | +0.4 (−1.0 to +1.8) |
-
-What it means:
-
-- **These models keep gaining past 2,500 tokens.** GPT-5 mini scores 79.6 % at 300 tokens, 89.4 % at 1,000, 92.1 % at
-  2,500 and 93.5 % at 5,000 (+1.4 over 2,500, 0.4 to 2.5). gpt-4o-mini stops gaining at 2,500.
-- **5,000 tokens is level with the whole conversation for all four.** Going from 1,000 to 5,000 adds 3.8 to 5.1 points.
-- **LoCoMo is small, so this is an easy case.** A conversation averages about 19,400 tokens, so 5,000 tokens is about a
-  quarter of it. Longer histories have not been measured at this budget.
-- **The 200-memory limit trims the largest replies.** Up to 200 best-ranked memories are read, so on 454 questions the
-  model reads a little under 5,000 tokens, and every needed turn is read for 89.1 % of questions against 89.5 % returned.
+### Reproduce
 
 Reproduce with an [OpenRouter](https://openrouter.ai) key in `.env` (`OPENROUTER_API_KEY=…`). Every LLM call is
 cached, and the 1,000-token run cost about $0.53; the 5,000-token runs with current models cost $1.29 to $3.99 each:
@@ -359,3 +414,11 @@ include the network and their own AI calls.
 
 Reproduce with `COGITO_MEM_GPU_LAYERS=0 cogito-mem bench speed --tokens 10M --random-vectors` (leave out the variable
 for Metal; add `--top-k 100 --budget 5000` for the larger replies).
+
+## Not measured yet
+
+- **The long LongMemEval (`longmemeval_m`).** About 500 sessions and 1.5M tokens per question, against about 50
+  sessions and 115k tokens in the -S split above. It is the quality test `requirements.md` §5 sets for v0, as coverage
+  at 300 tokens (every answer turn inside the first 300 returned tokens), and stage 0 has not run it. The -S numbers
+  above are an easier task: one right session among about 50, with no token budget.
+- **Answer accuracy on LongMemEval-S** (the QA number memory services publish).

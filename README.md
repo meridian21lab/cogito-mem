@@ -11,7 +11,7 @@
 - **Claude stops forgetting.** Every message and reply is kept word for word, with its date. When something has dropped out of the context window, or happened last week, the relevant part comes back with your next prompt.
 - **It remembers what you did, too.** The commands you ran (and whether they failed) and the files you touched, without their output.
 - **Private and free.** One folder on your computer. No account, no API key, no AI calls to save a message. Nothing leaves your machine.
-- **Tested.** On LongMemEval-S, the past session holding the answer is among the first five Cogi finds for 99.0% of 500 questions, with no AI model involved; other local memory plugins published 95.2–98.0% as of October 2026. On LoCoMo, the 1,000 tokens Cogi hands back answer 74.7% of questions right, level with rereading the whole conversation (76.5%). A search over 10 million tokens takes 26 ms on a laptop CPU. [See the results](https://meridian21lab.github.io/cogito-mem/results.html).
+- **Tested.** On LongMemEval-S, the past session holding the answer is among the first five Cogi finds for 99.0% of 500 questions, with no AI model involved; other local memory plugins published 95.2–98.0% as of October 2026. On LoCoMo, with GPT-5 mini answering, the 1,000 tokens Cogi hands back answer 89.4% of questions right, against 94.1% from rereading the whole conversation: 95% of the quality while the model reads about 9 times fewer tokens. A search over 10 million tokens takes 26 ms on a laptop CPU. [See the results](https://meridian21lab.github.io/cogito-mem/results.html).
 
 ## Install
 
