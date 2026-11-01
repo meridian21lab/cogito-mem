@@ -5,18 +5,19 @@ prints to the conversation, so Claude sees earlier work even when it never calls
 ``memory_query`` (with many MCP servers its tools wait behind tool search):
 
 - ``UserPromptSubmit``: the memory is queried with the prompt. ``COGITO_MEM_RECALL_DESIGN``
-  picks what comes back. ``shipped``: items that score at least ``MIN_SCORE``, share enough
+  picks what comes back, ``hybrid`` unless set. ``shipped``: items that score at least ``MIN_SCORE``, share enough
   of the prompt's words and are not from this session, within ``MAX_TOKENS``, the current
   project's first, each with its date and author. Messages come before the notes of what a
   turn did (author ``actions``), which only fill the room left. ``pointers``: up to
   ``POINTERS`` one-line pointers Claude can open with ``memory_open``, so more of the earlier
   work fits, from other sessions, from this session's own text that compaction removed, and,
-  on their own lines, from sessions still running in this project.
+  on their own lines, from sessions still running in this project. ``hybrid``: the same lines,
+  with the best ``HYBRID_WHOLE_ITEMS`` at more length, so something arrives even if nothing is opened.
 - ``SessionStart`` (startup, resume): the last exchanges (each prompt with the final
   reply to it) of the most recent earlier session in the same project, read from its
   transcript. It also starts the local
   service if it is down, so the first prompt can be looked up.
-- ``SessionStart`` (compact), with the ``pointers`` design: what of this session the
+- ``SessionStart`` (compact), unless the design is ``shipped``: what of this session the
   summary may have lost, as pointers.
 - ``PostToolUse`` (edits), with ``COGITO_MEM_RECALL_TOOLS=on``: earlier messages naming the
   file, once per file per session, because tool calls far outnumber prompts.
@@ -389,7 +390,7 @@ def _write_seen(path: Path | None, keys: set[str]) -> None:
         pass
 
 
-DEFAULT_DESIGN = "shipped"
+DEFAULT_DESIGN = "hybrid"
 # On the same real probes, the source's text arrives unopened for 30.6 % at 420 tokens a prompt, against 17.6 % for the
 # shipped hook's 175 and 38.8 % for 1,000 tokens of whole messages at 874; what opening adds stays at 36.5 %.
 HYBRID_WHOLE_TOKENS = 120

@@ -69,6 +69,7 @@ VARIANTS: dict[str, dict] = {
     "exact": {"exact_lane": True},
     "session": {"session_boost": 0.5},
     "exact+session": {"exact_lane": True, "session_boost": 0.5},
+    "rerank": {},  # with --reranker, the only variant that uses it
 }
 
 
@@ -165,7 +166,24 @@ def delivery_arm(mem: Memory, q: dict, want_turns: set[str], want_sessions: set[
     }
 
 
-def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None) -> dict:
+class MemoReranker:
+    """A reranker that scores each query and candidate list once, since each budget's reply asks again."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.name = inner.name
+        self.memo: dict = {}
+
+    def score(self, query: str, texts) -> list[float]:
+        key = (query, tuple(texts))
+        if key not in self.memo:
+            if len(self.memo) > 8:
+                self.memo.clear()
+            self.memo[key] = self.inner.score(query, list(texts))
+        return self.memo[key]
+
+
+def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None, reranker=None) -> dict:
     t0 = time.perf_counter()
     present = {str(s) for s in q["haystack_session_ids"]}
     want_sessions = {str(s) for s in q.get("answer_session_ids") or []} & present
@@ -194,8 +212,10 @@ def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None) -
     shipped = mem.config
     for name, cfg in variants.items():
         mem.config = cfg
+        mem.reranker = reranker if name == "rerank" else None
         row["search"][name] = {c: search_arm(mem, q, want_turns, want_sessions, as_of) for c, as_of in cutoffs.items()}
     mem.config = shipped
+    mem.reranker = None
     for design in recall.DESIGNS:
         row["delivery"][design] = {c: delivery_arm(mem, q, want_turns, want_sessions, as_of, design)
                                    for c, as_of in cutoffs.items()}  # fmt: skip
@@ -350,8 +370,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     cfg = Config(search=args.search)
     variants = {name: dataclasses.replace(cfg, **VARIANTS[name]) for name in names}
     embedder, rt = (None, None) if args.search == "keyword" else make_embedder(args.embedder, None)
+    reranker, rr_server = None, None
+    if args.reranker:
+        from ..runtime import start_reranker
+
+        inner, rr_server = start_reranker(args.reranker, None)
+        reranker = MemoReranker(inner)
     meta = record(embedder.name if embedder is not None else None)
-    meta.update({"dataset": str(data_path), "dataset_sha256": sha256_file(data_path), "search": args.search,
+    meta.update({"reranker": getattr(reranker, "name", None), "dataset": str(data_path), "dataset_sha256": sha256_file(data_path), "search": args.search,
                  "variants": {n: VARIANTS[n] for n in names}, "designs": list(recall.DESIGNS),
                  "sessions": args.sessions, "split": args.split, "seed": args.seed})  # fmt: skip
     settings = {"dataset_sha256": meta["dataset_sha256"], "model": meta["model"], "search": args.search,
@@ -377,7 +403,7 @@ def cmd_run(args: argparse.Namespace) -> int:
                 row = done.get(str(q["question_id"]))
                 if row is None:
                     with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache, embed_batch=args.batch) as mem:
-                        row = evaluate(mem, subset(q, args.sessions, args.seed), variants, contexts)
+                        row = evaluate(mem, subset(q, args.sessions, args.seed), variants, contexts, reranker)
                     if log is not None:
                         log.write(json.dumps(row) + "\n")
                         log.flush()
@@ -387,6 +413,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     finally:
         if rt is not None:
             rt.stop()
+        if rr_server is not None:
+            rr_server.stop()
     meta["finished_utc"] = utc_now()
     meta["wall_s"] = round(time.perf_counter() - t0, 1)
     summary = summarize(rows)
@@ -719,6 +747,7 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--data", required=True)
     r.add_argument("--search", default="hybrid", choices=["hybrid", "vector", "keyword"])
     r.add_argument("--variants", default="base", help=f"comma-separated, of {', '.join(VARIANTS)}")
+    r.add_argument("--reranker", help="reranker GGUF path or llama-server URL, for the rerank variant")
     r.add_argument("--sessions", type=int, help="keep the evidence sessions and random others up to this many")
     r.add_argument("--split", choices=["tuning", "heldout"])
     r.add_argument("--seed", type=int, default=0)

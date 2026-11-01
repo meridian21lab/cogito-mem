@@ -22,6 +22,18 @@ from cogito_mem.errors import ApiError
 SRC = str(Path(__file__).resolve().parents[1] / "src")
 
 
+@pytest.fixture(autouse=True)
+def shipped_design_unless_a_test_says_otherwise(monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "shipped")
+
+
+def test_hybrid_is_the_default(monkeypatch):
+    monkeypatch.delenv("COGITO_MEM_RECALL_DESIGN")
+    assert recall.design_name() == "hybrid"
+    monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "nonsense")
+    assert recall.design_name() == "hybrid"
+
+
 def prompt_hook(prompt: str, session: str = "now", cwd: str = "/work/app") -> dict:
     return {"hook_event_name": "UserPromptSubmit", "session_id": session, "cwd": cwd, "prompt": prompt,
             "transcript_path": f"/x/projects/-work-app/{session}.jsonl"}  # fmt: skip

@@ -69,7 +69,7 @@ ago? I'd like to revisit it"*, and the assistant finds it with one memory query.
 **Transport:**
 - `POST /v1/memory` on localhost, with a JSON body that names the operation in `op`.
 - The Python library takes the same dictionary.
-- MCP (v0) exposes the same two bodies as the tools `memory_append` and `memory_query` (§3.5).
+- MCP (v0) exposes the same two bodies as the tools `memory_append` and `memory_query` (§3.5), and later `memory_open`, which reads one message whole with its neighbours.
 
 ### 3.1 append
 

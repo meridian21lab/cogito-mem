@@ -229,8 +229,9 @@ What it means:
   a quarter of it. Longer histories have not been measured at this budget.
 - **The 200-memory limit trims the largest replies.** Up to 200 best-ranked memories are read, so on 454 questions the
   model reads a little under 5,000 tokens, and every needed turn is read for 89.1 % of questions against 89.5 % returned.
-- **The automatic recall uses the smallest budget.** The plugin's prompt hook adds at most 300 tokens to each prompt,
-  so what Claude gets without asking scores like the 300-token row (79.6 against 94.1). Searches Claude makes itself
+- **The automatic recall reads little.** The prompt hook adds about 400 tokens to a prompt, in short lines Claude can
+  open, so what Claude gets without asking and without opening is closer to the 300-token row (79.6 against 94.1) than
+  to the larger ones. Searches Claude makes itself
   use 2,500 tokens unless it asks for another budget.
 - **The judge matters as much as the memory.** The same answers score 6 to 8 points higher under the 2026 rules than
   under the 2025 ones. Re-judging the 2025 protocol's gpt-4o-mini answers (1,000 tokens) with the 2026 judge lifts

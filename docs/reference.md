@@ -11,18 +11,22 @@ The friendly version is on the [docs site](https://meridian21lab.github.io/cogit
 
 ## Use it
 
-**In a chat.** Your assistant decides when to use the two tools; you can also ask directly:
+**In a chat.** Your assistant decides when to use the tools; you can also ask directly:
 
 - *"Remember that we ship the beta to ten design partners first."* → `memory_append`
 - *"What did we decide about the beta?"*, *"What was that idea from last week?"* → `memory_query`
 
-**Without asking, in Claude Code.** Each prompt is looked up before Claude sees it, and up to 300 tokens of what
-earlier sessions said about it come along: items from the current project first, each with its date and author,
-nothing from the session you are in, and nothing at all when no match is strong enough. A new session also starts
-with how the last session in the same project ended. Recall never holds up a prompt by more than about a second.
+**Without asking, in Claude Code.** Each prompt is looked up before Claude sees it, and up to 8 lines of what was said
+about it come along, about 400 tokens: the three best matches at more length and five short excerpts, each with its date,
+author and an id that `memory_open` reads in full. A line appears once in a session. The session you are in counts only
+for what compaction has removed, and compacting also adds lines about what the summary may have lost. Recent messages from other
+sessions of the project get their own lines. Nothing comes when no match is strong enough. A new session also starts with
+how the last session in the same project ended. Recall never holds up a prompt by more than about a second.
+`COGITO_MEM_RECALL_DESIGN=shipped` goes back to at most 300 tokens of whole messages from other sessions, and `pointers`
+gives short lines only. `cogito-mem report` shows what recall added, what it cost and what Claude opened.
 To turn it off, set `COGITO_MEM_RECALL=off` (for example under `"env"` in `~/.claude/settings.json`, which also
 works for the plugin) or run `cogito-mem install claude-code --no-recall`; `COGITO_MEM_RECALL_MIN_SCORE` (default
-0.6) sets how strong a match must be.
+0.6) sets how strong a match must be in the `shipped` design.
 
 **From a terminal:**
 
