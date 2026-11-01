@@ -468,7 +468,7 @@ def test_the_hook_shows_a_line_once_and_keeps_a_ledger(mem, tmp_path, monkeypatc
     pointer_memory(mem)
     monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "pointers")
     monkeypatch.setattr(recall, "POINTER_MIN_SCORE", 0.0)
-    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0))
+    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0, True))
     log = tmp_path / "run" / "recall.log"
     body = json.dumps({**prompt_hook("what is the retry budget for the uploader?"), "hook_event_name": "UserPromptSubmit"})
     run = lambda: recall.claude_code_hook(lambda: body, lambda: MemClient(mem), namespace="n", log=log)  # noqa: E731
@@ -488,7 +488,7 @@ def test_a_holdout_session_gets_nothing_but_is_logged(mem, tmp_path, monkeypatch
     pointer_memory(mem)
     monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "pointers")
     monkeypatch.setenv("COGITO_MEM_RECALL_HOLDOUT", "100")
-    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0))
+    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0, True))
     log = tmp_path / "run" / "recall.log"
     body = json.dumps({**prompt_hook("what is the retry budget for the uploader?"), "hook_event_name": "UserPromptSubmit"})
     assert recall.claude_code_hook(lambda: body, lambda: MemClient(mem), namespace="n", log=log) is None
@@ -512,4 +512,9 @@ def test_open_hides_what_a_query_hides(mem):
 
 def test_tool_output_never_arrives_unasked():
     client = FakeClient([item("The uploader retry budget failed with seven attempts", 0.9, author="tool")])
+    assert run_hook(prompt_hook("what about the uploader retry budget?"), client) is None
+
+
+def test_machine_text_stored_by_older_versions_never_comes_back():
+    client = FakeClient([item("<task-notification>the uploader retry budget finished</task-notification>", 0.9)])
     assert run_hook(prompt_hook("what about the uploader retry budget?"), client) is None

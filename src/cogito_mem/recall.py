@@ -45,7 +45,7 @@ from typing import Any, Callable
 
 from . import ledger, timeutil
 from .capture import jsonl
-from .capture.claude_code import ACTIONS, items_from_lines, project_folder, project_of, projects_dir
+from .capture.claude_code import _SKIP_PREFIXES, ACTIONS, items_from_lines, project_folder, project_of, projects_dir
 from .terms import identifiers, query_terms, terms
 from .tokenizer import ApproxTokenizer, count, cut
 
@@ -159,7 +159,7 @@ def shipped(
     found = [
         it
         for it in resp["items"]
-        if it["score"] >= min_score and it["thread_id"] != session and it["author"] != TOOL
+        if it["score"] >= min_score and it["thread_id"] != session and it["author"] != TOOL and not _machine(it)
         and len(words & set(terms(it["text"]))) >= need
     ]
     # Stable: this project's items first, and in each, messages before ``actions`` items (what a
@@ -190,7 +190,9 @@ def shipped(
     )
 
 
-def pointers(client: Any, hook: dict, namespace: str = "default", min_score: float = POINTER_MIN_SCORE) -> Shot:
+def pointers(
+    client: Any, hook: dict, namespace: str = "default", min_score: float = POINTER_MIN_SCORE, word_gate: bool = True
+) -> Shot:
     """One line per earlier message, for Claude to open if it matters.
 
     A long message costs what its line costs, so eight places cover more of the history than 300 tokens of whole
@@ -201,16 +203,16 @@ def pointers(client: Any, hook: dict, namespace: str = "default", min_score: flo
         return Shot()
     session = hook.get("session_id")
     project = project_of(hook.get("cwd"))
-    compacted = compacted_at(hook.get("transcript_path"))
+    compacted = hook.get("compacted_ms") or compacted_at(hook.get("transcript_path"))
     words = query_terms(prompt)
-    need = min(len(words), MAX_SHARED_WORDS, max(1, math.ceil(len(words) / 2) - 1))
+    need = min(len(words), MAX_SHARED_WORDS, max(1, math.ceil(len(words) / 2) - 1)) if word_gate else 0
     kwargs: dict = {"filter": dict(hook["filter"])} if hook.get("filter") else {}
     resp = client.query(prompt, namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, **kwargs)
     found: dict[str, dict] = {}
     for it in resp["items"]:
         if it["score"] < min_score or len(words & set(terms(it["text"]))) < need:
             continue
-        if not it["text"].strip() or it["author"] in SIDE_AUTHORS:
+        if not it["text"].strip() or it["author"] in SIDE_AUTHORS or _machine(it):
             continue
         if it["thread_id"] == session and not _before(it, compacted):
             continue
@@ -378,6 +380,11 @@ def _write_seen(path: Path | None, keys: set[str]) -> None:
 
 DEFAULT_DESIGN = "shipped"
 DESIGNS: dict[str, Callable[..., Shot]] = {"shipped": shipped, "pointers": pointers}
+
+
+def _machine(item: dict) -> bool:
+    """Text the client wrote rather than a person: capture leaves it out now, older memories still hold it."""
+    return item["text"].lstrip().startswith(_SKIP_PREFIXES)
 
 
 def _title(item: dict) -> str | None:

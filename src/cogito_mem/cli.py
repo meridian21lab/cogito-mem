@@ -68,7 +68,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     memory = Memory(
         root,
         embedder=args.embedder,
-        config=Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author),
+        config=Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author, exact_lane=args.exact_lane),
         reranker=reranker,
     )
     port = args.port if args.port is not None else default_port()
@@ -442,6 +442,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--doc-context", default="previous", choices=["own", "previous"])
     sp.add_argument("--doc-author", action=argparse.BooleanOptionalAction, default=True,
                     help="put each author's name before their text for search (default: on)")  # fmt: skip
+    sp.add_argument("--exact-lane", action=argparse.BooleanOptionalAction, default=False,
+                    help="also rank items holding an identifier from the query word for word")  # fmt: skip
     sp.add_argument("--reranker", help="reranker GGUF path or llama-server URL (stage-0 arm R)")
 
     sp = add("mcp", cmd_mcp, "run the MCP server on stdio")
