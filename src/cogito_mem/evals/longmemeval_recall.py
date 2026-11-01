@@ -51,6 +51,7 @@ import argparse
 import contextlib
 import json
 import math
+import random
 import sys
 import time
 from collections import defaultdict
@@ -59,7 +60,7 @@ from pathlib import Path
 from .. import timeutil
 from ..api import MAX_TOP_K
 from ..memory import Config, Memory
-from .common import record, sha256_file, utc_now
+from .common import add_system1_args, make_system1, record, sha256_file, system1_settings, utc_now
 from .longmemeval import NO_BUDGET, load, load_question, make_embedder, paired_bootstrap, parse_date
 
 KS = (1, 3, 5, 10)
@@ -69,6 +70,26 @@ TYPES = ("single-session-user", "single-session-assistant", "single-session-pref
          "temporal-reasoning", "knowledge-update")  # fmt: skip
 SETS = ("all", "answerable", "abstention")
 COMPARE_METRICS = "session_recall_any@5,session_recall_any@10,session_recall_all@5,session_ndcg@10"
+
+
+def stratified_order(questions: list[dict], seed: int = 0) -> list[dict]:
+    """The questions in a seeded order whose every prefix keeps the mix of question types.
+
+    Each type is shuffled on its own; a question at position i of a type with n questions gets
+    the key (i + 0.5) / n, and the questions are sorted by key. The first N then hold each type
+    in proportion (within one question), and the first 60 are the first 60 of the first 100, so
+    a sample can grow without changing the questions already run. Abstention questions count as
+    their base type, so they are sampled in proportion too.
+    """
+    by_type: dict[str, list[dict]] = defaultdict(list)
+    for q in questions:
+        by_type[str(q.get("question_type"))].append(q)
+    keyed = []
+    for t in sorted(by_type):
+        group = sorted(by_type[t], key=lambda q: str(q["question_id"]))
+        random.Random(f"{seed}:{t}").shuffle(group)
+        keyed += [((i + 0.5) / len(group), t, q) for i, q in enumerate(group)]
+    return [q for _, _, q in sorted(keyed, key=lambda x: (x[0], x[1]))]
 
 
 def is_abstention(question_id: str) -> bool:
@@ -112,6 +133,8 @@ def evaluate(mem: Memory, q: dict, as_of: str = "question") -> dict:
     body = {"op": "query", "namespace": "q", "text": q["question"], "top_k": MAX_TOP_K, "max_tokens": NO_BUDGET}
     if as_of == "question":
         body["as_of"] = timeutil.format(parse_date(q["question_date"]) + 59_999)
+    stats = getattr(mem.reranker, "stats", None)
+    before = dict(stats) if stats else None
     t1 = time.perf_counter()
     resp = mem.handle(body)
     query_ms = (time.perf_counter() - t1) * 1000
@@ -132,6 +155,9 @@ def evaluate(mem: Memory, q: dict, as_of: str = "question") -> dict:
         "ranked_sessions": sessions[:KEEP_RANKED],
         "load_s": round(load_s, 3),
         "query_ms": round(query_ms, 2),
+        **({"system1": {"scored": stats["scored"] - before["scored"], "cached": stats["cached"] - before["cached"],
+                        "model_ms": round(1000 * (stats["model_s"] - before["model_s"]), 1)}}
+           if stats else {}),
     }
 
 
@@ -172,6 +198,11 @@ def summarize(rows: list[dict]) -> dict:
     order = [t for t in TYPES if t in by_type] + sorted(t for t in by_type if t not in TYPES)
     summary["by_type"] = {t: {"session": level_metrics(by_type[t], "session"), "turn": level_metrics(by_type[t], "turn")}
                           for t in order}  # fmt: skip
+    s1 = [r["system1"] for r in rows if r.get("system1") and r["system1"]["scored"]]
+    if s1:
+        ms = sorted(x["model_ms"] for x in s1)
+        summary["system1"] = {"queries_scored": len(s1), "candidates_per_query": round(sum(x["scored"] for x in s1) / len(s1), 1),
+                              "model_ms": {"median": ms[len(ms) // 2], "p95": ms[int(0.95 * (len(ms) - 1))]}}  # fmt: skip
     loads = sorted(r["load_s"] for r in rows)
     times = sorted(r["query_ms"] for r in rows)
     if rows:
@@ -186,6 +217,9 @@ def table(summary: dict, meta: dict) -> str:
     heads = [f"R@{k}" for k in KS] + ["all@5", "all@10", f"NDCG@{NDCG_K}", "MRR"]
     config = meta.get("config", {})
     seen = "no date cutoff" if meta.get("as_of") == "none" else "as of the question date"
+    if config.get("system1"):
+        seen += (f", System-1 {config['system1']} ({config['system1_kind']}, {config['candidates'] or 'all'} candidates, "
+                 f"{config['rerank_context']}, {config['rerank_fusion']})")  # fmt: skip
     title = (f"LongMemEval retrieval: search {config.get('search')}, model {meta.get('model') or 'none'}, {seen}, "
              f"{summary['questions']} questions, {meta.get('wall_s', 0):.0f} s")  # fmt: skip
     lines = [title]
@@ -207,6 +241,10 @@ def table(summary: dict, meta: dict) -> str:
     timing = ""
     if "query_ms" in summary:
         timing = f"load median {summary['load_s']['median']:.2f} s, query median {summary['query_ms']['median']:.1f} ms; "
+    if "system1" in summary:
+        s1 = summary["system1"]
+        timing += (f"System-1 {s1['candidates_per_query']} candidates/query in a median {s1['model_ms']['median']:.0f} ms "
+                   f"(p95 {s1['model_ms']['p95']:.0f}) when not cached; ")  # fmt: skip
     lines.append(f"{timing}{summary['skipped_no_evidence']} questions without an evidence session; "
                  f"{short} with fewer than {max(KS)} sessions ranked")  # fmt: skip
     return "\n".join(lines)
@@ -237,16 +275,24 @@ def read_log(path: Path, settings: dict) -> tuple[dict[str, dict], str | None]:
 def cmd_run(args: argparse.Namespace) -> int:
     data_path = Path(args.data)
     questions = load(data_path)
+    if args.sample:
+        questions = stratified_order(questions, args.seed)[args.sample_offset : args.sample_offset + args.sample]
     if args.limit:
         questions = questions[: args.limit]
-    cfg = Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author)
+    cfg = Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author,
+                 candidates=args.candidates, rerank_context=args.rerank_context, rerank_fusion=args.rerank_fusion)  # fmt: skip
     embedder, rt = (None, None) if args.search == "keyword" else make_embedder(
         args.embedder, Path(args.root).expanduser() if args.root else None
     )
+    ranker, s1_server = make_system1(args)
     meta = record(embedder.name if embedder is not None else None)
-    config = {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author}
+    config = {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author,
+              **system1_settings(args)}  # fmt: skip
     meta.update({"dataset": str(data_path), "dataset_sha256": sha256_file(data_path), "config": config,
                  "top_k": MAX_TOP_K, "as_of": args.as_of})  # fmt: skip
+    if args.sample:
+        meta["sample"] = {"n": args.sample, "offset": args.sample_offset, "seed": args.seed,
+                          "question_ids": [str(q["question_id"]) for q in questions]}  # fmt: skip
     settings = {"dataset_sha256": meta["dataset_sha256"], "model": meta["model"], **config, "as_of": args.as_of}
     log_path = Path(args.questions_out) if args.questions_out else None
     done: dict[str, dict] = {}
@@ -256,6 +302,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(error, file=sys.stderr)
             if rt is not None:
                 rt.stop()
+            if s1_server is not None:
+                s1_server.stop()
             return 2
         log_path.parent.mkdir(parents=True, exist_ok=True)
         if not log_path.exists() or not log_path.stat().st_size:
@@ -270,7 +318,8 @@ def cmd_run(args: argparse.Namespace) -> int:
                 if row is not None:
                     resumed += 1
                 else:
-                    with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache, embed_batch=args.batch) as mem:
+                    with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache, embed_batch=args.batch,
+                                reranker=ranker) as mem:  # fmt: skip
                         row = evaluate(mem, q, args.as_of)
                     if log is not None:
                         log.write(json.dumps(row) + "\n")
@@ -283,8 +332,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     finally:
         if rt is not None:
             rt.stop()
+        if s1_server is not None:
+            s1_server.stop()
     meta["finished_utc"] = utc_now()
     meta["wall_s"] = round(time.perf_counter() - t0, 1)
+    if ranker is not None:
+        meta["system1_stats"] = {k: round(v, 2) for k, v in ranker.stats.items()}
     meta["resumed_questions"] = resumed
     summary = summarize(rows)
     if args.out:
@@ -358,10 +411,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--root", help="where llama.cpp and the model live (default ~/.cogito-mem)")
     p.add_argument("--batch", type=int, default=32, help="inputs per embedding request")
     p.add_argument("--limit", type=int, help="first N questions only")
+    p.add_argument("--sample", type=int, help="N questions in a seeded order that keeps the mix of question "
+                   "types (see stratified_order); prefixes nest, so a larger N keeps the smaller sample")  # fmt: skip
+    p.add_argument("--sample-offset", type=int, default=0,
+                   help="skip this many questions of that order first (a disjoint development set)")  # fmt: skip
+    p.add_argument("--seed", type=int, default=0, help="seed of --sample's order (default: 0)")
     p.add_argument("--questions-out", help="write each question's outcome here as it finishes (JSON lines); "
                    "rerun with the same file to resume")  # fmt: skip
     p.add_argument("--out", help="write the summary and every per-question outcome here (JSON)")
     p.add_argument("--verbose", action="store_true")
+    add_system1_args(p)
     p.set_defaults(func=cmd_run)
     return p
 

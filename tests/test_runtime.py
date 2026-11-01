@@ -167,7 +167,7 @@ def test_reranker_reorders_the_top_candidates():
         reranker = runtime.LlamaServerReranker(f"http://127.0.0.1:{srv.server_address[1]}", "fake-reranker")
         scores = reranker.score("dog name", ["a beagle called Biscuit", "a cat"])
         assert scores[0] > 0.99 and scores[1] < 0.01  # logits are mapped to [0, 1]
-        with Memory(None, embedder="hash", reranker=reranker) as m:
+        with Memory(None, embedder="hash", reranker=reranker, config=Config(rerank_fusion="replace")) as m:
             append(m, {"author": "u", "text": "dog name ideas: Rex, Max"}, {"author": "u", "text": "My dog is called Biscuit"})
             m.flush(10)
             items = query(m, "dog name")["items"]
