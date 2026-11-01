@@ -69,7 +69,8 @@ VARIANTS: dict[str, dict] = {
     "exact": {"exact_lane": True},
     "session": {"session_boost": 0.5},
     "exact+session": {"exact_lane": True, "session_boost": 0.5},
-    "rerank": {},  # with --reranker, the only variant that uses it
+    "rerank": {},  # with --reranker, these two are the only variants that use it
+    "rerank100": {"candidates": 100},
 }
 
 
@@ -212,7 +213,7 @@ def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None, r
     shipped = mem.config
     for name, cfg in variants.items():
         mem.config = cfg
-        mem.reranker = reranker if name == "rerank" else None
+        mem.reranker = reranker if name.startswith("rerank") else None
         row["search"][name] = {c: search_arm(mem, q, want_turns, want_sessions, as_of) for c, as_of in cutoffs.items()}
     mem.config = shipped
     mem.reranker = None
@@ -225,18 +226,23 @@ def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None, r
     row["query_s"] = round(time.perf_counter() - t1, 3)
     row["load_s"] = round(load_s, 3)
     if contexts is not None:
-        contexts.write(json.dumps(context_row(mem, q, cutoffs["question"], date_ms, want_sessions)) + "\n")
+        contexts.write(json.dumps(context_row(mem, q, cutoffs["question"], date_ms, want_sessions, reranker)) + "\n")
         contexts.flush()
     return row
 
 
-def context_row(mem: Memory, q: dict, as_of: str, date_ms: int, want_sessions: set[str]) -> dict:
+def context_row(mem: Memory, q: dict, as_of: str, date_ms: int, want_sessions: set[str], reranker=None) -> dict:
     """The text each answerable arm returned, for ``answer``."""
     arms: dict[str, list[dict]] = {}
     body = {"op": "query", "namespace": NS, "text": q["question"], "as_of": as_of, "top_k": DEFAULT_TOP_K}
     for n in (1000, 5000):
         arms[f"search-{n}"] = [_keep(it) for it in mem.handle({**body, "max_tokens": n})["items"]]
         arms[f"recency-{n}"] = [_keep(it) for it in recency_items(mem, n, date_ms)]
+    if reranker is not None:
+        mem.reranker = reranker
+        for n in (1000, 2500, 5000):
+            arms[f"rerank-{n}"] = [_keep(it) for it in mem.handle({**body, "max_tokens": n})["items"]]
+        mem.reranker = None
     for design in recall.DESIGNS:
         shot = recall.DESIGNS[design](EvalClient(mem, as_of), {"prompt": q["question"], "session_id": "the-session-asking"}, NS)
         arms[f"hook-{design}"] = [{"text": shot.text, "valid_at": as_of, "author": "memory"}] if shot.text else []

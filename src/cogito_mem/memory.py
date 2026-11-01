@@ -57,7 +57,7 @@ class Config:
     search: str = "hybrid"
     doc_context: str = "previous"
     doc_author: bool = True
-    candidates: int = 30
+    candidates: int = 100
     rrf_k: int = 60
     piece_tokens: int = PIECE_TOKENS
     exact_lane: bool = False
@@ -254,7 +254,10 @@ class Memory:
         items, tokens = ns.fill(
             candidates, req.top_k, req.max_tokens, as_of, req.filter.include_retracted, self._tokenizer
         )
-        return {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
+        out = {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
+        if self.reranker is not None and req.rerank != 0:
+            out["reranked"] = True  # scores are the reranker's, not fused ranks
+        return out
 
     def _open(self, req: OpenIn) -> dict:
         t0 = time.perf_counter()
@@ -275,8 +278,8 @@ class Memory:
             qvec = self._embed_query(req.text, req.context)
         use_keywords = cfg.search in ("hybrid", "keyword") or qvec is None
         cands = ns.search(req.text, qvec, req.filter, as_of, pool, use_keywords, cfg.rrf_k, cfg.exact_lane, cfg.session_boost)
-        if self.reranker is not None and cands:
-            head = cands[: cfg.candidates]
+        if self.reranker is not None and cands and req.rerank != 0:
+            head = cands[: cfg.candidates if req.rerank is None else req.rerank]
             scores = self.reranker.score(req.text, [ns.row_text(c.row) for c in head])
             order = sorted(range(len(head)), key=lambda i: -scores[i])
             floor = min(scores) if scores else 0.0

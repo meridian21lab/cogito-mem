@@ -283,3 +283,17 @@ def test_llama_server_dies_with_its_parent(tmp_path):
             return  # the watchdog stopped llama-server
         time.sleep(0.3)
     pytest.fail("llama-server outlived its parent")
+
+
+def test_yes_no_reranker_reads_the_probability_of_yes(monkeypatch):
+    from cogito_mem import runtime
+
+    def post(base, path, body):
+        assert path == "/completion" and "<Query>: q" in body["prompt"]
+        yes = "right" in body["prompt"]
+        return {"completion_probabilities": [{"top_logprobs": [
+            {"token": "yes" if yes else "No", "logprob": -0.1}, {"token": "no" if yes else "yes", "logprob": -3.0}]}]}
+
+    monkeypatch.setattr(runtime, "_post", post)
+    high, low = runtime.YesNoReranker("http://x", "m").score("q", ["the right text", "another text"])
+    assert high > 0.9 and low < 0.1

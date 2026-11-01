@@ -21,6 +21,7 @@ from __future__ import annotations
 import atexit
 import bisect
 import json
+import math
 import logging
 import os
 import platform
@@ -33,6 +34,7 @@ import time
 import urllib.error
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Sequence
 
@@ -169,6 +171,51 @@ class LlamaServerReranker:
             s = float(r["relevance_score"])
             scores[r["index"]] = s if 0.0 <= s <= 1.0 else float(1.0 / (1.0 + np.exp(-s)))
         return scores
+
+
+# Qwen3-Reranker is a model that answers "yes" or "no", and the GGUFs on Hugging Face (checked 1 Nov 2026) carry neither
+# a rerank template nor a classifier, so ``--reranking`` returns noise (a clear match scored 9e-9). Its own prompt, read
+# as a probability, separates clear cases well: 0.996 for a right answer, 0.002 for a wrong one, about 20 ms each on Metal.
+_YES_NO_PROMPT = (
+    '<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. '
+    'Note that the answer can only be "yes" or "no".<|im_end|>\n<|im_start|>user\n'
+    "<Instruct>: Given a query, retrieve passages that answer it\n\n<Query>: {query}\n\n<Document>: {document}"
+    "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
+)
+_YES_NO_DOCUMENT_CHARS = 6000
+_YES_NO_FLOOR = 1e-6
+
+
+class YesNoReranker:
+    """A reranker that asks a model for "yes" or "no" about each text and scores by the probability of yes."""
+
+    def __init__(self, base: str, name: str):
+        self.base = base
+        self.name = name
+
+    def _one(self, query: str, text: str) -> float:
+        prompt = _YES_NO_PROMPT.format(query=query, document=text[:_YES_NO_DOCUMENT_CHARS])
+        res = _post(self.base, "/completion", {"prompt": prompt, "n_predict": 1, "n_probs": 20, "temperature": 0, "cache_prompt": False})
+        yes = no = _YES_NO_FLOOR
+        for entry in res["completion_probabilities"][0]["top_logprobs"]:  # type: ignore[index]
+            word = entry["token"].strip().lower()
+            if word == "yes":
+                yes += math.exp(entry["logprob"])
+            elif word == "no":
+                no += math.exp(entry["logprob"])
+        return yes / (yes + no)
+
+    def score(self, query: str, texts: Sequence[str]) -> list[float]:
+        if not texts:
+            return []
+        with ThreadPoolExecutor(PARALLEL) as pool:
+            return list(pool.map(lambda text: self._one(query, text), texts))
+
+
+def _answers_yes_or_no(model: Path) -> bool:
+    with open(model, "rb") as fh:
+        head = fh.read(32 * 1024 * 1024)
+    return b"qwen3" in head[:4096] and b"chat_template.rerank" not in head
 
 
 # --------------------------------------------------------------------------- process management
@@ -494,7 +541,7 @@ class LlamaRuntime:
             self.server = None
 
 
-def start_reranker(spec: str, root: Path | None) -> tuple[LlamaServerReranker, LlamaServer | None]:
+def start_reranker(spec: str, root: Path | None) -> tuple[LlamaServerReranker | YesNoReranker, LlamaServer | None]:
     """``spec`` is a reranker GGUF path or the URL of a llama-server started with ``--reranking``."""
     if spec.startswith(("http://", "https://")):
         return LlamaServerReranker(spec.rstrip("/"), spec), None
@@ -505,6 +552,7 @@ def start_reranker(spec: str, root: Path | None) -> tuple[LlamaServerReranker, L
     if not model.exists():
         raise RuntimeUnavailable(f"reranker model {model} does not exist")
     log_path = root / "run" / "llama-reranker.log" if root is not None else None
-    server = LlamaServer(binary, model, ["--reranking"], log_path)
+    yes_no = _answers_yes_or_no(model)
+    server = LlamaServer(binary, model, [] if yes_no else ["--reranking"], log_path)
     server.start()
-    return LlamaServerReranker(server.base, model.name), server
+    return (YesNoReranker if yes_no else LlamaServerReranker)(server.base, model.name), server
