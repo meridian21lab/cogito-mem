@@ -36,11 +36,11 @@ from pathlib import Path
 
 from .. import timeutil
 from ..memory import Config, Memory
-from .common import record, sha256_file, utc_now
+from .common import query_past_top_k_limit, record, sha256_file, utc_now
 from .longmemeval import NO_BUDGET, make_embedder, paired_bootstrap
 
 CATEGORIES = {1: "multi-hop", 2: "temporal", 3: "open-domain", 4: "single-hop", 5: "adversarial"}
-BUDGETS = (100, 300, 1000)
+BUDGETS = (100, 300, 1000, 2500, 5000)
 RECALL_KS = (1, 5, 10)
 _EVIDENCE = re.compile(r"D:?(\d+):(\d+)")
 
@@ -124,7 +124,7 @@ def baseline_sets(order: list[str], tokens: dict[str, int], budget: int, rng: ra
     return recent, rand
 
 
-def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random) -> list[dict]:
+def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random, top_k: int = 100) -> list[dict]:
     ids, tokens, order, last = load_conversation(mem, sample)
     ns = mem.namespace("c")
     mem.embed_pending(ns, limit=10**9)
@@ -142,9 +142,9 @@ def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random) -> l
         if not want:
             rows.append(row)
             continue
-        base = {"op": "query", "namespace": "c", "text": qa["question"], "as_of": as_of, "top_k": 100}
+        base = {"op": "query", "namespace": "c", "text": qa["question"], "as_of": as_of, "top_k": top_k}
         t0 = time.perf_counter()
-        resp = mem.handle({**base, "max_tokens": NO_BUDGET})
+        resp = query_past_top_k_limit(mem, {**base, "max_tokens": NO_BUDGET})
         row["query_ms"] = round((time.perf_counter() - t0) * 1000, 2)
         ranked: list[str] = []
         for item in resp["items"]:
@@ -156,7 +156,7 @@ def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random) -> l
             row[f"recall_any@{k}"] = bool(want & top)
         row["covered"], row["recent"], row["random"] = {}, {}, {}
         for n in budgets:
-            got = {i["source"]["id"] for i in mem.handle({**base, "max_tokens": n})["items"]}
+            got = {i["source"]["id"] for i in query_past_top_k_limit(mem, {**base, "max_tokens": n})["items"]}
             recent, rand = baseline_sets(order, tokens, n, rng)
             row["covered"][str(n)] = want <= got
             row["recent"][str(n)] = want <= recent
@@ -219,7 +219,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     meta = record(embedder.name if embedder is not None else None)
     meta.update({"dataset": str(data_path), "dataset_sha256": sha256_file(data_path),
                  "config": {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author},
-                 "reranker": getattr(reranker, "name", None)})  # fmt: skip
+                 "reranker": getattr(reranker, "name", None), "top_k": args.top_k})  # fmt: skip
     rng = random.Random(args.seed)
     rows: list[dict] = []
     t0 = time.perf_counter()
@@ -227,7 +227,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         for i, sample in enumerate(samples):
             with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache, reranker=reranker,
                         embed_batch=args.batch) as mem:  # fmt: skip
-                rows.extend(evaluate_sample(mem, sample, budgets, rng))
+                rows.extend(evaluate_sample(mem, sample, budgets, rng, args.top_k))
             s = summarize(rows, budgets)
             print(f"[{i + 1}/{len(samples)}] coverage@300 {s['coverage'].get('300')}  recent {s['baseline_recent'].get('300')}"
                   f"  R@10 {s['recall_all@10']}  ({time.perf_counter() - t0:.0f} s)", file=sys.stderr)  # fmt: skip
@@ -285,6 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))
     p.add_argument("--root", help="where llama.cpp and the model live (default ~/.cogito-mem)")
     p.add_argument("--budgets", default=",".join(str(b) for b in BUDGETS))
+    p.add_argument("--top-k", type=int, default=100, help="top_k of the query; may pass the API's limit of 100")
     p.add_argument("--batch", type=int, default=32)
     p.add_argument("--limit", type=int, help="first N conversations only")
     p.add_argument("--seed", type=int, default=0)

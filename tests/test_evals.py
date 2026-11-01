@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -163,6 +164,22 @@ def mini_locomo() -> list[dict]:
     return [{"sample_id": "mini-1", "conversation": conv, "qa": qa}]
 
 
+def test_query_past_top_k_limit(tmp_path):
+    from cogito_mem.api import MAX_TOP_K
+    from cogito_mem.errors import ApiError
+    from cogito_mem.evals.common import query_past_top_k_limit
+    from cogito_mem.memory import Config, Memory
+
+    n = MAX_TOP_K + 20
+    items = [{"author": "ana", "text": f"note {i} about the beach"} for i in range(n)]
+    with Memory(None, config=Config(search="keyword")) as mem:
+        mem.append(items, namespace="c")
+        body = {"op": "query", "namespace": "c", "text": "beach", "top_k": n, "max_tokens": 5000}
+        assert len(query_past_top_k_limit(mem, body)["items"]) == n
+        with pytest.raises(ApiError):
+            mem.handle(body)  # the API itself keeps its limit
+
+
 def test_locomo_run(tmp_path, capsys):
     from cogito_mem.evals import locomo
 
@@ -176,6 +193,7 @@ def test_locomo_run(tmp_path, capsys):
     s = result["summary"]
     assert s["questions"] == 3  # the adversarial question is left out
     assert s["coverage"]["1000"] == 1.0
+    assert set(s["coverage"]) == {"100", "300", "1000", "2500", "5000"}
     assert s["baseline_recent"]["100"] == 0.0  # the answers are not in the last 100 tokens
     assert set(s["by_category@300"]) == {"single-hop", "multi-hop"}
     assert locomo.evidence_ids(["D1:1; D2:1", "D:11:26", "D"]) == ["D1:1", "D2:1", "D11:26"]
@@ -244,6 +262,23 @@ def test_locomo_qa_run_and_cache(tmp_path, capsys, protocol, context):
         assert json.loads(capsys.readouterr().out)["difference_points"] == 0.0
     finally:
         srv.shutdown()
+
+
+def test_locomo_qa_memory_limit_keeps_the_best_ranked(monkeypatch):
+    from cogito_mem.evals import locomo_qa
+    from cogito_mem.memory import Config, Memory
+
+    def ask(protocol):
+        args = argparse.Namespace(context="memory", protocol=protocol, top_k=100, budget=5000)
+        with Memory(None, config=Config(search="keyword")) as mem:
+            _, rows = locomo_qa.retrieve(mem, mini_locomo()[0], args)
+        return rows[0]["items"]
+
+    everything = ask("mem0-2025")
+    assert len(everything) > 1
+    monkeypatch.setattr(locomo_qa, "BENCH_MEMORY_LIMIT", 1)
+    assert len(ask("mem0-2025")) == len(everything)  # the limit belongs to the 2026 protocol
+    assert len(ask("mem0-2026")) == 1
 
 
 def test_locomo_qa_helpers(tmp_path):

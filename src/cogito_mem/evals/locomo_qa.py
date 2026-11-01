@@ -52,7 +52,7 @@ from pathlib import Path
 
 from .. import timeutil
 from ..memory import Config, Memory
-from .common import record, sha256_file, utc_now
+from .common import query_past_top_k_limit, record, sha256_file, utc_now
 from .locomo import CATEGORIES, evidence_ids, load_conversation, sessions, turn_text
 from .longmemeval import make_embedder, paired_bootstrap
 
@@ -464,15 +464,17 @@ def retrieve(mem: Memory, sample: dict, args: argparse.Namespace) -> tuple[dict,
                "category_id": qa["category"], "question": qa["question"], "gold": str(qa["answer"])}  # fmt: skip
         if args.context == "memory":
             t1 = time.perf_counter()
-            resp = mem.handle({"op": "query", "namespace": "c", "text": qa["question"], "as_of": as_of,
-                               "top_k": args.top_k, "max_tokens": args.budget})  # fmt: skip
+            resp = query_past_top_k_limit(mem, {"op": "query", "namespace": "c", "text": qa["question"], "as_of": as_of,
+                                                "top_k": args.top_k, "max_tokens": args.budget})  # fmt: skip
             row["retrieve_ms"] = round((time.perf_counter() - t1) * 1000, 2)
-            items = sorted(resp["items"], key=lambda i: i["valid_at"])
+            # mem0-2026 reads at most 200 memories: keep the best-ranked before going to date order
+            ranked = resp["items"][:BENCH_MEMORY_LIMIT] if args.protocol == "mem0-2026" else resp["items"]
+            items = sorted(ranked, key=lambda i: i["valid_at"])
             row["items"] = [{"valid_at": i["valid_at"], "author": i["author"], "text": i["text"],
                              "message": i["source"]["id"]} for i in items]  # fmt: skip
             row["context_tokens"] = resp["tokens"]
             want = {ids[d] for d in evidence_ids(qa.get("evidence")) if d in ids}
-            got = {i["source"]["id"] for i in resp["items"]}
+            got = {i["source"]["id"] for i in ranked}
             row["evidence_turns"] = len(want)
             row["evidence_covered"] = bool(want) and want <= got
         else:
@@ -656,7 +658,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--protocol", default="mem0-2025", choices=sorted(PROTOCOLS))
     p.add_argument("--context", default="memory", choices=["memory", "full"])
     p.add_argument("--budget", type=int, default=1000, help="max_tokens of the memory's answer (memory arm)")
-    p.add_argument("--top-k", type=int, help="top_k of the query (default and maximum: 100)")
+    p.add_argument("--top-k", type=int, help="top_k of the query (default 100; may pass the API's limit of 100)")
     p.add_argument("--search", default="hybrid", choices=["hybrid", "vector", "keyword"])
     p.add_argument("--embedder", default="auto", choices=["auto", "hash"])
     p.add_argument("--no-captions", action="store_true", help="drop the photo captions (as Mem0's 2025 harness did)")
