@@ -148,7 +148,8 @@ def test_claude_code_actions_failures_and_cap():
     assert " more. Edited src/m0.py, src/m2.py, " in item["text"] and item["text"].endswith(" more.")  # fmt: skip
 
 
-def test_claude_code_actions_are_captured_once(tmp_path, mem):
+def test_claude_code_actions_are_captured_once(tmp_path, mem, monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_CAPTURE_TOOL_OUTPUT", "off")
     records = claude_code_tool_work()
     path = tmp_path / "proj" / "sess-t.jsonl"
     middle = [r["uuid"] for r in records].index("sess-t-r3") + 1  # the hook ran in the middle of the first turn
@@ -173,7 +174,7 @@ def test_claude_code_actions_are_captured_once(tmp_path, mem):
 def test_claude_code_actions_can_be_turned_off(tmp_path, mem, monkeypatch):
     monkeypatch.setenv("COGITO_MEM_CAPTURE_ACTIONS", "off")
     path = write_jsonl(tmp_path / "proj" / "sess-t.jsonl", claude_code_tool_work())
-    assert claude_code.capture_transcript(mem, path, tmp_path / "state", "sess-t") == {"added": 5, "duplicate": 0}
+    assert claude_code.capture_transcript(mem, path, tmp_path / "state", "sess-t") == {"added": 9, "duplicate": 0}  # 5 + 4 tool
     assert query(mem, "ran edited wrote read", filter={"author": "actions"}, max_tokens=1000)["items"] == []
 
 
@@ -212,7 +213,7 @@ def test_subagent_reports_from_their_own_files(tmp_path, mem):
 def test_subagent_keeps_only_its_report():
     for handback in (False, True):
         records = claude_code_subagent("a1", handback=handback)
-        items = claude_code.items_from_lines(enumerate(records), "sess-1", actions=True, subagents=True)
+        items = claude_code.items_from_lines(enumerate(records), "sess-1", actions=True, tool_output=True, subagents=True)
         assert [(it["author"], it["text"]) for it in items] == [("subagent", "Report of a1: the parser is slow on long lines.")]
         assert items[0]["client_ref"] == "claude-code:a1-a3" and items[0]["thread_id"] == "sess-1"
         assert items[0]["valid_at"] == "2026-10-11T09:30:04.000Z"
@@ -248,6 +249,125 @@ def test_subagent_reports_can_be_turned_off(tmp_path, mem, monkeypatch):
     monkeypatch.setenv("COGITO_MEM_CAPTURE_SUBAGENTS", "off")
     main, _ = subagent_session(tmp_path)
     assert claude_code.capture_transcript(mem, main, tmp_path / "state", "sess-1") == {"added": 4, "duplicate": 0}
+
+
+# --------------------------------------------------------------------------- what tools returned, by rule
+
+
+def tool_run(command: str | None, output: str, error: bool = False, name: str = "Bash", args: dict | None = None) -> list[dict]:
+    args = args if args is not None else {"command": command}
+    base = {"sessionId": "s", "cwd": "/work/app", "timestamp": "2026-10-12T10:00:00.000Z"}
+    result = {"type": "tool_result", "tool_use_id": "t1", "content": output, **({"is_error": True} if error else {})}
+    return [
+        {**base, "type": "assistant", "uuid": "c1", "message": {"content": [{"type": "tool_use", "id": "t1", "name": name, "input": args}]}},
+        {**base, "type": "user", "uuid": "r1", "message": {"content": [result]}},
+    ]  # fmt: skip
+
+
+def kept(*args, **kw) -> list[str]:
+    return [it["text"] for it in claude_code.items_from_lines(enumerate(tool_run(*args, **kw)), tool_output=True)]
+
+
+def test_tool_output_of_the_fixture_session():
+    items = claude_code.items_from_lines(enumerate(claude_code_tool_work()), "sess-t", tool_output=True)
+    tools = [it for it in items if it["author"] == "tool"]
+    assert [it["text"] for it in tools] == [
+        "`python -m pytest -q tests/test_parser.py` (failed):\nFAILED tests/test_parser.py::test_commas",
+        "Edit tests/test_parser.py (not run):\n<tool_use_error>String to replace not found in file.</tool_use_error>",
+        "`python -m pytest -q tests/test_parser.py`:\n3 passed in 0.12s",
+        "`rm -rf build` (not run):\nThe user doesn't want to proceed with this tool use. The tool use was rejected.",
+    ]
+    assert tools[0]["client_ref"] == "claude-code:sess-t-r1:tool:toolu_1"
+    assert tools[0]["thread_id"] == "sess-t" and tools[0]["title"] == "/work/app"
+    assert tools[0]["valid_at"] == "2026-10-12T10:01:20.000Z"
+    assert not any("the whole file" in it["text"] or "def parse" in it["text"] or "notes" in it["text"] for it in tools)
+
+
+def test_tool_output_a_failed_command_keeps_its_end():
+    output = "Exit code 1\n" + "\n".join(f"step {i}" for i in range(30))
+    assert kept("make all", output, error=True) == ["`make all` (failed):\n" + "\n".join(f"step {i}" for i in range(20, 30))]
+    assert kept("make all", "Exit code 1", error=True) == []  # the actions note already says it failed
+    # an error further up comes along
+    assert kept("make", "Traceback (most recent call last):\n" + "x\n" * 30 + "done", error=True)[0].startswith(
+        "`make` (failed):\nTraceback (most recent call last):\nx\ndone")  # fmt: skip
+
+
+def test_tool_output_lines_that_carry_a_metric_or_an_error():
+    noise = "compiling the thing\n"
+    for line in ("12 passed, 1 failed in 3.40s", "Error: no such stage", "ValueError: bad input", "loss=0.312",
+                 "accuracy: 0.97", "coverage 87%", "took 12 ms", "FAILED tests/a.py::t", "fatal: not a git repository"):  # fmt: skip
+        assert kept("run", noise + line + "\n" + noise) == [f"`run`:\n{line}"], line
+    for line in ("a.py", "main.py:12: def f():", "merged the branch", "see https://x.y/z?a=b", "PATH=/usr/bin", "12:30:45 started"):
+        assert kept("run", noise + line + "\n" + noise) == [], line
+
+
+def test_tool_output_of_a_long_success_keeps_its_last_lines():
+    output = "\n".join(f"step {i}" for i in range(20))
+    assert kept("make", output) == ["`make`:\nstep 18\nstep 19"]
+    assert kept("make", "\n".join(f"step {i}" for i in range(5))) == []  # short, and nothing in it to keep
+
+
+def test_tool_output_never_keeps_file_contents():
+    secret_file = "12 passed\nError: this line is in a file\nkey=1\n" * 10
+    assert kept(None, secret_file, name="Read", args={"file_path": "/work/app/a.py"}) == []
+    assert kept(None, "boom: " + secret_file, error=True, name="Read", args={"file_path": "/work/app/a.py"}) == []
+    for command in ("cat a.py", "head -50 a.py", "sed -n 1,9p a.py", "grep -n Error a.py", "cd /other && cat a.py",
+                    "git diff", "git -C /work/app show HEAD"):  # fmt: skip
+        assert kept(command, secret_file) == [], command
+    assert kept(None, secret_file, name="WebFetch", args={"url": "https://x.y"}) == []  # no command: only its failure
+    assert kept("tail -3 run.log", "loss=0.3") == ["`tail -3 run.log`:\nloss=0.3"]
+
+
+def test_tool_output_redacts_and_cleans_what_it_keeps():
+    output = ("Error: token sk-ant-api03-xxxxxxxxxxxxxxxxxxxxxxxx refused\n<private>Error: my PIN</private>\n"
+              "\x1b[31mFAILED\x1b[0m a.py\nprogress 1%\rprogress 100%\n")  # fmt: skip
+    (text,) = kept("OPENROUTER_API_KEY=xxxxxxxxxxxxxxxx ./run", output)
+    assert text == (
+        "`OPENROUTER_API_KEY=[redacted] ./run`:\nError: token [redacted] refused\nFAILED a.py\nprogress 100%"
+    )
+    key = "-----BEGIN RSA PRIVATE KEY-----\n" + "EXAMPLE\n" * 5 + "-----END RSA PRIVATE KEY-----"
+    assert "EXAMPLE" not in "".join(kept("deploy", f"{key}\nError", error=True))
+
+
+def test_tool_output_caps():
+    (text,) = kept("run", "\n".join(f"loss={i}.{'0' * 300}" for i in range(50)))  # the end of each result, in its room
+    assert len(text) <= claude_code.ACTION_CHARS
+    assert text.startswith("`run`:\n…\n") and text.endswith(" …")  # and each line cut
+    assert "loss=49." in text and "loss=0." not in text
+    base = {"sessionId": "s", "cwd": "/w", "timestamp": "2026-10-12T10:00:00Z"}
+    busy = [{**base, "type": "user", "uuid": "p", "message": {"content": "go"}}]
+    for i in range(30):  # 30 commands in a turn, each with 500 characters to keep: the newest ones stay
+        busy += tool_run(f"run-{i}", "\n".join(f"loss={i}.{n}" for n in range(60)))
+        busy[-2]["uuid"], busy[-1]["uuid"] = f"c{i}", f"r{i}"
+        busy[-2]["message"]["content"][0]["id"] = busy[-1]["message"]["content"][0]["tool_use_id"] = f"t{i}"
+    items = claude_code.items_from_lines(enumerate(busy), tool_output=True)
+    tools = [it for it in items if it["author"] == "tool"]
+    assert sum(len(it["text"]) for it in tools) <= claude_code.TOOL_TURN_CHARS
+    assert tools[-1]["text"].startswith("`run-29`") and len(tools) < 30
+    # the next prompt has a turn of its own
+    busy += [{**base, "type": "user", "uuid": "p2", "message": {"content": "again"}}, *tool_run("run-new", "loss=1")]
+    tools = [it["text"] for it in claude_code.items_from_lines(enumerate(busy), tool_output=True) if it["author"] == "tool"]
+    assert tools[-1] == "`run-new`:\nloss=1" and tools[-2].startswith("`run-29`")
+    # what failed stays even when it is older than the rest
+    busy[1]["message"]["content"][0]["is_error"] = busy[2]["message"]["content"][0]["is_error"] = True
+    tools = [it["text"] for it in claude_code.items_from_lines(enumerate(busy), tool_output=True) if it["author"] == "tool"]
+    assert tools[0].startswith("`run-0` (failed):") and tools[-2].startswith("`run-29`")
+
+
+def test_tool_output_is_captured_once_and_can_be_turned_off(tmp_path, mem, monkeypatch):
+    path = write_jsonl(tmp_path / "proj" / "sess-t.jsonl", claude_code_tool_work())
+    state = tmp_path / "state"
+    assert claude_code.capture_transcript(mem, path, state, "sess-t") == {"added": 11, "duplicate": 0}  # 5 + 2 actions + 4
+    assert claude_code.capture_transcript(mem, path, tmp_path / "lost", "sess-t") == {"added": 0, "duplicate": 11}
+    found = query(mem, "passed pytest", filter={"author": "tool"}, top_k=10, max_tokens=2000)["items"]
+    assert len(found) == 4
+    monkeypatch.setenv("COGITO_MEM_CAPTURE_TOOL_OUTPUT", "off")
+    other = write_jsonl(tmp_path / "proj" / "sess-u.jsonl", claude_code_tool_work("sess-u"))
+    assert claude_code.capture_transcript(mem, other, state, "sess-u") == {"added": 7, "duplicate": 0}
+    # with both off: the messages alone
+    monkeypatch.setenv("COGITO_MEM_CAPTURE_ACTIONS", "off")
+    last = write_jsonl(tmp_path / "proj" / "sess-v.jsonl", claude_code_tool_work("sess-v"))
+    assert claude_code.capture_transcript(mem, last, state, "sess-v") == {"added": 5, "duplicate": 0}
 
 
 def test_private_text_is_not_stored():

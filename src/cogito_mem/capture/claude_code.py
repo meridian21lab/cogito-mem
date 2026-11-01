@@ -14,9 +14,12 @@ failed or did not run) and the files it read, edited or wrote, such as
 Also kept: what each sub-agent handed back, as one ``subagent`` item, whether its
 turns are in the session's transcript (``isSidechain``) or, as now, in files of their
 own at ``<session>/subagents/agent-<id>.jsonl`` (``COGITO_MEM_CAPTURE_SUBAGENTS=off``
-leaves these out).
+leaves these out); and, by rule, the telling lines of what tools returned, as
+``tool`` items with the command in front: the end of a failed command's output, lines
+that carry an error or a metric, and the last lines of a long output
+(``COGITO_MEM_CAPTURE_TOOL_OUTPUT=off`` leaves these out).
 
-Left out: tool output and file contents, thinking, the sub-agents' other turns,
+Left out: other tool output, file contents, thinking, the sub-agents' other turns,
 slash-command output, injected system reminders and the summary Claude Code writes
 when it compacts a session.
 
@@ -38,8 +41,14 @@ from . import Cursor, Sink, enabled, jsonl, read_new_lines, redact, send, withou
 
 ACTIONS = "actions"  # the author of what a turn did (store.SIDE_AUTHOR)
 SUBAGENT = "subagent"  # the author of what a sub-agent handed back
+TOOL = "tool"  # the author of the lines kept of a tool's result
 ACTION_CHARS = 800  # about one piece (``split.PIECE_TOKENS``), so a busy turn cannot fill a reply
 COMMAND_CHARS = 80
+TOOL_TURN_CHARS = 3 * ACTION_CHARS  # of a turn's tool output, so a long run of commands cannot swamp its messages
+TOOL_LINE_CHARS = 240
+FAILED_LINES = 10  # of a failed command's output: the end says why
+LONG_OUTPUT_LINES = 10  # of a longer successful output, the last lines are kept too
+LAST_LINES = 2
 HANDBACK = "SubagentHandback"  # the tool some sub-agents hand their report back with, instead of a last reply
 
 _SKIP_PREFIXES = (
@@ -63,7 +72,20 @@ _VERBS = {"Read": "Read", "NotebookRead": "Read", "Edit": "Edited", "MultiEdit":
           "Write": "Wrote"}  # fmt: skip
 _NOT_RUN = ("<tool_use_error>", "The user doesn't want to", "[Request interrupted")
 _EXIT_CODE = re.compile(r"Exit code (\d+)")
-
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+# A line worth keeping of a tool's output: an error or a test count, or a metric (a number after a name, a percentage,
+# a duration). ``key=value`` needs a number: with any value this also takes environment dumps, URLs and tokens.
+_SIGNAL = re.compile(
+    r"(?i:\berrors?\b|\bfailed\b|\bfailures?\b|\bpassed\b|\bfatal\b)|\b\w*(?:Error|Exception)\b|Traceback"
+    r"|(?<![\w./-])[A-Za-z_][\w.-]*\"?\s*[=:]\s*[-+]?\d[\d.,]*(?:[eE][-+]?\d+)?\s?(?:%|[a-zA-Zµ]{1,3})?(?=[\s,;)\]}]|$)"
+    r"|\b\d+(?:\.\d+)?\s?%"
+    r"|\b\d+(?:\.\d+)?\s?(?:ms|s|secs?|seconds?|mins?|minutes?|h|hours?)\b"
+)
+# A command that only shows files is a Read by another name: its lines are the files' contents, not results.
+_SHOWS_FILES = re.compile(
+    r"(?:cd\s+\S+\s*(?:&&|;)\s*)?(?:cat|head|sed|awk|nl|less|more|bat|ls|find|tree|grep|egrep|rg|ag|fd|wc|stat|file"
+    r"|echo|printf|git(?:\s+-C\s+\S+)?\s+(?:diff|show|log|blame|status|grep|ls-files|branch))\b"
+)
 
 
 def projects_dir() -> Path:
@@ -97,13 +119,17 @@ def items_from_lines(
     lines: Iterable[tuple[int, dict]],
     session_id: str | None = None,
     actions: bool = False,
+    tool_output: bool = False,
     subagents: bool = False,
 ) -> list[dict]:
     """The messages as items, in order; with ``actions``, also one item per turn for its tool calls;
-    with ``subagents``, what the sub-agents in these lines handed back."""
+    with ``tool_output``, the kept lines of the tools' results; with ``subagents``, what the sub-agents in
+    these lines handed back."""
     items = []
     turns: list[tuple[dict, dict]] = []  # (actions item, its tool calls by id)
     calls: dict | None = None  # the tool calls of the turn under way
+    used: dict = {}  # every tool call, by id, for the command in front of its output
+    outputs: list[list[tuple[bool, dict]]] = [[]]  # the ``tool`` items by turn, each with whether its command failed
     for _, rec in lines:
         kind = rec.get("type")
         if subagents and kind == "assistant" and rec.get("isSidechain"):
@@ -119,14 +145,18 @@ def items_from_lines(
         if text and not text.startswith(_SKIP_PREFIXES) and rec.get("uuid"):
             author = "user" if kind == "user" else "assistant"
             items.append(_item(rec, author, redact(text), f"claude-code:{rec['uuid']}", session_id))
-        if not actions:
+        if not actions and not tool_output:
             continue
         content = message.get("content")
         blocks = [b for b in content if isinstance(b, dict)] if isinstance(content, list) else []
         if kind == "user" and not any(b.get("type") == "tool_result" for b in blocks):
             calls = None  # a prompt: the turn's actions end here
+            outputs.append([])
         for block in blocks:
             if block.get("type") == "tool_use" and isinstance(block.get("input"), dict):
+                used[block.get("id")] = block
+                if not actions:
+                    continue
                 if calls is None:
                     if not rec.get("uuid"):
                         continue
@@ -135,10 +165,23 @@ def items_from_lines(
                     items.append(turns[-1][0])
                 call = {"name": block.get("name"), "input": block["input"], "cwd": rec.get("cwd")}
                 calls[block.get("id") or len(calls)] = call
-            elif block.get("type") == "tool_result" and calls is not None and block.get("tool_use_id") in calls:
-                calls[block["tool_use_id"]]["outcome"] = _outcome(block)
+            elif block.get("type") == "tool_result":
+                outcome = _outcome(block)
+                if calls is not None and block.get("tool_use_id") in calls:
+                    calls[block["tool_use_id"]]["outcome"] = outcome
+                output = _tool_item(rec, block, outcome, used.get(block.get("tool_use_id")), session_id) if tool_output else None
+                if output:
+                    items.append(output)
+                    outputs[-1].append((outcome == "failed", output))
     for item, turn in turns:
         item["text"] = _summary(list(turn.values()))
+    for turn_output in outputs:
+        room = TOOL_TURN_CHARS
+        # What failed goes first, as it says what went wrong, then the newest, as they say how the turn came out.
+        for _, item in sorted(reversed(turn_output), key=lambda kept: not kept[0]):
+            room -= len(item["text"])
+            if room < 0:
+                item["text"] = ""
     return [it for it in items if it["text"]]
 
 
@@ -174,6 +217,58 @@ def _report(rec: dict, session_id: str | None) -> dict | None:
             text = handed.get("message") if isinstance(handed, dict) else None
     text = without_private(_REMINDER.sub("", text)).strip() if isinstance(text, str) else ""
     return _item(rec, SUBAGENT, redact(text), f"claude-code:{rec['uuid']}", session_id) if text else None
+
+
+def _tool_item(rec: dict, result: dict, outcome: str | None, call: dict | None, session_id: str | None) -> dict | None:
+    """The lines kept of one tool's result, by rule, after its command; None when none are.
+
+    Nothing of a Read: that is a file's contents. Of the other tools, what a failure said; only tools that run a
+    command also have their errors, metrics and last lines kept when they succeed.
+    """
+    if call is None or not rec.get("uuid") or _VERBS.get(call.get("name")) == "Read":
+        return None
+    args = call["input"]
+    command = args.get("command") if isinstance(args.get("command"), str) and args["command"].strip() else None
+    # Redacted whole and before it is cut: a key spans lines, and no part of a secret may be left.
+    text = redact(without_private(_ANSI.sub("", _REMINDER.sub("", _text_of(result.get("content"))))))
+    lines = [line.rstrip().rsplit("\r", 1)[-1] for line in text.split("\n")]
+    lines = [line for line in lines if line.strip()]
+    if lines and _EXIT_CODE.fullmatch(lines[0]):  # ``(failed)`` in front says that
+        lines = lines[1:]
+    has_results = command is not None and not _SHOWS_FILES.match(_command(command, _cwd(rec)))
+    picks = [i for i, line in enumerate(lines) if _SIGNAL.search(line)] if has_results else []
+    if outcome:
+        picks += range(max(0, len(lines) - FAILED_LINES), len(lines))
+    elif has_results and len(lines) > LONG_OUTPUT_LINES:
+        picks += range(len(lines) - LAST_LINES, len(lines))
+    if not picks:
+        return None
+    if command is not None:
+        what = f"`{_command(command, _cwd(rec))}`"
+    else:
+        path = args.get("file_path") or args.get("notebook_path")
+        what = f"{call.get('name')} {_relative(path, _cwd(rec))}" if isinstance(path, str) else str(call.get("name"))
+    head = what + (f" ({outcome})" if outcome else "") + ":"
+    kept: list[str] = []
+    room = ACTION_CHARS - len(head) - 2
+    chosen = list(dict.fromkeys(_cut_line(lines[i]) for i in sorted(set(picks))))
+    for line in reversed(chosen):  # from the end: the last lines say how it came out
+        room -= len(line) + 1
+        if room < 0:
+            break
+        kept.append(line)
+    if len(kept) < len(chosen):
+        kept.append("…")
+    client_ref = f"claude-code:{rec['uuid']}:tool:{result.get('tool_use_id')}"
+    return _item(rec, TOOL, "\n".join([head, *reversed(kept)]), client_ref, session_id)
+
+
+def _cwd(rec: dict) -> str:
+    return rec["cwd"] if isinstance(rec.get("cwd"), str) else ""
+
+
+def _cut_line(line: str) -> str:
+    return line if len(line) <= TOOL_LINE_CHARS else line[:TOOL_LINE_CHARS].rstrip() + " …"
 
 
 def _outcome(result: dict) -> str | None:
@@ -264,7 +359,8 @@ def capture_transcript(
     subagents = enabled("COGITO_MEM_CAPTURE_SUBAGENTS")
 
     def read(lines: Iterable[tuple[int, dict]]) -> list[dict]:
-        return items_from_lines(lines, session, actions=enabled("COGITO_MEM_CAPTURE_ACTIONS"), subagents=subagents)
+        return items_from_lines(lines, session, actions=enabled("COGITO_MEM_CAPTURE_ACTIONS"),
+                                tool_output=enabled("COGITO_MEM_CAPTURE_TOOL_OUTPUT"), subagents=subagents)  # fmt: skip
 
     def read_reports(lines: Iterable[tuple[int, dict]]) -> list[dict]:
         found = (_report(rec, session) for _, rec in lines if rec.get("type") == "assistant")
