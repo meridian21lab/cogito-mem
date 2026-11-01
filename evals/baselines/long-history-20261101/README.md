@@ -104,7 +104,9 @@ whole answer than shipped's, because the model then searches less.
 ## The reranker on 1M+ tokens (`m-rerank-*.json`, `m-answer-heldout-*.json`, `m-agent-rerank-heldout.json`)
 
 Qwen3-Reranker-0.6B Q8_0 (mradermacher's GGUF, 639 MB), scored by its own yes-or-no prompt because no GGUF checked has a rerank template.
-It reorders the top 100 at about 20 ms a text on an M5 Max. Off by default. Chosen on tuning; these are the 312 held-out answerable, no date cutoff.
+It reorders the top 100 by its score alone (`--rerank-fusion replace`, the only behaviour when this ran, before the System-1 merge), at about 20 ms a text on an M5
+Max. Off by default. Chosen on tuning; these are the 312 held-out answerable, no date cutoff. `docs/notes/system1_ranker_20261101.md` tests rank fusion
+and ggml-org's GGUF on other sets, and fusion is now the default, so these numbers aren't yet confirmed for that default.
 
 | | R@1 | R@5 | all@10 | Coverage 300 | 1,000 | 2,500 | 5,000 |
 |---|---|---|---|---|---|---|---|

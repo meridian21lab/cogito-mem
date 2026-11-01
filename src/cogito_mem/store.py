@@ -62,6 +62,8 @@ KIND_NAMES = {KIND_MESSAGE: "message", KIND_PIECE: "piece"}
 
 NEVER = np.iinfo(np.int64).max
 PREVIOUS_CONTEXT_CHARS = 1000
+# A reranker reads each candidate in full, so the message it follows on from is cut shorter.
+RANK_PREVIOUS_CHARS = 300
 # The author of the notes capture writes about what a turn did (commands, files). Such a note follows on from
 # the turn's prompt, but the reply after it still follows on from the prompt, as it did before notes existed.
 SIDE_AUTHOR = "actions"
@@ -414,6 +416,36 @@ class Namespace:
                         text = f"{author}: {before}\n\n{text}" if doc_author else f"{before}\n\n{text}"
                 out.append(write(msg.title, text))
             return out
+
+    def rank_texts(self, rows: Sequence[int], context: str = "own") -> list[str]:
+        """What a reranker (System-1 model) reads of each item: ``author: text``, after the end of
+        the message it follows on from (``previous``), and after its date (``dated``)."""
+        with self.lock:
+            out = []
+            for row in rows:
+                msg = self.messages[int(self._row_msg.data[row])]
+                text = f"{msg.author}: {self.row_text(row)}"
+                if context in ("previous", "dated"):
+                    author, before = self._previous(row)
+                    if before:
+                        if len(before) > RANK_PREVIOUS_CHARS:
+                            before = before[-RANK_PREVIOUS_CHARS:]
+                            space = before.find(" ")
+                            if 0 <= space < 60:
+                                before = before[space + 1 :]
+                            before = "…" + before
+                        text = f"{author}: {before}\n{text}"
+                if context == "dated":
+                    text = f"[{timeutil.format(msg.valid)[:10]}] {text}"
+                out.append(text)
+            return out
+
+    def visible(self, flt: FilterIn, as_of: int) -> np.ndarray:
+        """Rows of every item a query with this filter can see as of ``as_of``, oldest first."""
+        with self.lock:
+            self._refresh_locked()
+            n = len(self.row_ids)
+            return np.flatnonzero(self._mask(flt, as_of, n)) if n else np.empty(0, np.int64)
 
     # ------------------------------------------------------------------ query
 

@@ -572,6 +572,7 @@ def test_a_reranked_query_says_so_and_can_be_turned_off(mem):
 def test_with_a_reranker_its_score_is_the_gate(mem):
     pointer_memory(mem)
     mem.reranker = FakeReranker()
+    mem.config.rerank_fusion = "replace"
     shot = recall.pointers(MemClient(mem), prompt_hook("what did we settle about attempts?"), "n")
     assert [("seven attempts" in it["text"]) for it in shot.items] == [True]
     assert recall.pointers(MemClient(mem), prompt_hook("anything else entirely unrelated here?"), "n").text is None  # one shared word stays

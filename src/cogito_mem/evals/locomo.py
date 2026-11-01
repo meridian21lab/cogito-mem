@@ -36,7 +36,7 @@ from pathlib import Path
 
 from .. import timeutil
 from ..memory import Config, Memory
-from .common import query_past_top_k_limit, record, sha256_file, utc_now
+from .common import add_system1_args, make_system1, query_past_top_k_limit, record, sha256_file, system1_settings, utc_now
 from .longmemeval import NO_BUDGET, make_embedder, paired_bootstrap
 
 CATEGORIES = {1: "multi-hop", 2: "temporal", 3: "open-domain", 4: "single-hop", 5: "adversarial"}
@@ -124,7 +124,8 @@ def baseline_sets(order: list[str], tokens: dict[str, int], budget: int, rng: ra
     return recent, rand
 
 
-def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random, top_k: int = 100) -> list[dict]:
+def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random, top_k: int = 100,
+                    max_questions: int | None = None, stride: int = 1) -> list[dict]:  # fmt: skip
     ids, tokens, order, last = load_conversation(mem, sample)
     ns = mem.namespace("c")
     mem.embed_pending(ns, limit=10**9)
@@ -132,10 +133,17 @@ def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random, top_
     as_of = timeutil.format(last + 60_000)
     total_tokens = sum(tokens.values())
     rows = []
+    seen = asked = 0
     for qi, qa in enumerate(sample["qa"]):
         category = qa.get("category")
         if category == 5:
             continue
+        seen += 1
+        if (seen - 1) % stride:
+            continue
+        if max_questions is not None and asked >= max_questions:
+            break
+        asked += 1
         want = {ids[d] for d in evidence_ids(qa.get("evidence")) if d in ids}
         row = {"sample_id": sample.get("sample_id"), "q": qi, "category": CATEGORIES.get(category, str(category)),
                "evidence": len(want), "conversation_tokens": total_tokens}  # fmt: skip
@@ -143,9 +151,14 @@ def evaluate_sample(mem: Memory, sample: dict, budgets, rng: random.Random, top_
             rows.append(row)
             continue
         base = {"op": "query", "namespace": "c", "text": qa["question"], "as_of": as_of, "top_k": top_k}
+        stats = getattr(mem.reranker, "stats", None)
+        before = dict(stats) if stats else None
         t0 = time.perf_counter()
         resp = query_past_top_k_limit(mem, {**base, "max_tokens": NO_BUDGET})
         row["query_ms"] = round((time.perf_counter() - t0) * 1000, 2)
+        if stats:
+            row["system1"] = {"scored": stats["scored"] - before["scored"], "cached": stats["cached"] - before["cached"],
+                              "model_ms": round(1000 * (stats["model_s"] - before["model_s"]), 1)}  # fmt: skip
         ranked: list[str] = []
         for item in resp["items"]:
             if item["source"]["id"] not in ranked:
@@ -198,15 +211,26 @@ def summarize(rows: list[dict], budgets) -> dict:
     times = sorted(r["query_ms"] for r in scored if "query_ms" in r)
     if times:
         summary["query_ms"] = {"median": times[len(times) // 2], "p95": times[int(0.95 * (len(times) - 1))]}
+    s1 = [r["system1"] for r in scored if r.get("system1") and r["system1"]["scored"]]
+    if s1:
+        ms = sorted(x["model_ms"] for x in s1)
+        summary["system1"] = {"queries_scored": len(s1), "candidates_per_query": round(sum(x["scored"] for x in s1) / len(s1), 1),
+                              "model_ms": {"median": ms[len(ms) // 2], "p95": ms[int(0.95 * (len(ms) - 1))]}}  # fmt: skip
     return summary
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     data_path = Path(args.data)
     samples = json.loads(data_path.read_text())
+    if args.conversations:
+        samples = [samples[int(i)] for i in args.conversations.split(",")]
     if args.limit:
         samples = samples[: args.limit]
-    cfg = Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author)
+    if args.reranker and args.system1:
+        print("give --reranker or --system1, not both", file=sys.stderr)
+        return 2
+    cfg = Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author,
+                 candidates=args.candidates, rerank_context=args.rerank_context, rerank_fusion=args.rerank_fusion)  # fmt: skip
     embedder, rt = (None, None) if args.search == "keyword" else make_embedder(
         args.embedder, Path(args.root).expanduser() if args.root else None
     )
@@ -215,11 +239,15 @@ def cmd_run(args: argparse.Namespace) -> int:
         from ..runtime import start_reranker
 
         reranker, rr_server = start_reranker(args.reranker, None)
+    elif args.system1:
+        reranker, rr_server = make_system1(args)
     budgets = tuple(int(b) for b in args.budgets.split(","))
     meta = record(embedder.name if embedder is not None else None)
     meta.update({"dataset": str(data_path), "dataset_sha256": sha256_file(data_path),
-                 "config": {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author},
-                 "reranker": getattr(reranker, "name", None), "top_k": args.top_k})  # fmt: skip
+                 "config": {"search": cfg.search, "doc_context": cfg.doc_context, "doc_author": cfg.doc_author,
+                            **system1_settings(args)},
+                 "reranker": getattr(reranker, "name", None), "top_k": args.top_k, "conversations": args.conversations,
+                 "max_questions": args.max_questions, "question_stride": args.question_stride})  # fmt: skip
     rng = random.Random(args.seed)
     rows: list[dict] = []
     t0 = time.perf_counter()
@@ -227,7 +255,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         for i, sample in enumerate(samples):
             with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache, reranker=reranker,
                         embed_batch=args.batch) as mem:  # fmt: skip
-                rows.extend(evaluate_sample(mem, sample, budgets, rng, args.top_k))
+                rows.extend(evaluate_sample(mem, sample, budgets, rng, args.top_k, args.max_questions, args.question_stride))
             s = summarize(rows, budgets)
             print(f"[{i + 1}/{len(samples)}] coverage@300 {s['coverage'].get('300')}  recent {s['baseline_recent'].get('300')}"
                   f"  R@10 {s['recall_all@10']}  ({time.perf_counter() - t0:.0f} s)", file=sys.stderr)  # fmt: skip
@@ -237,6 +265,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         if rr_server is not None:
             rr_server.stop()
     meta["finished_utc"] = utc_now()
+    meta["wall_s"] = round(time.perf_counter() - t0, 1)
+    if getattr(reranker, "stats", None):
+        meta["system1_stats"] = {k: round(v, 2) for k, v in reranker.stats.items()}
     summary = summarize(rows, budgets)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
@@ -288,8 +319,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--top-k", type=int, default=100, help="top_k of the query; may pass the API's limit of 100")
     p.add_argument("--batch", type=int, default=32)
     p.add_argument("--limit", type=int, help="first N conversations only")
+    p.add_argument("--conversations", help="comma-separated conversation indexes, e.g. 0,3")
+    p.add_argument("--question-stride", type=int, default=1,
+                   help="every K-th question (categories 1-4) of each conversation; LoCoMo groups questions by "
+                   "category, so a stride keeps the mix where the first N would not")  # fmt: skip
+    p.add_argument("--max-questions", type=int, help="at most N questions of each conversation (after the stride)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--out")
+    add_system1_args(p)
     p.set_defaults(func=cmd_run)
     return p
 
