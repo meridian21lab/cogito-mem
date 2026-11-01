@@ -77,7 +77,8 @@ Client().query("mascot")          # or through the local service, which starts o
   goes to the log and the keyword index and the call returns. Embedding follows in the background.
 - **Query:** the question is embedded, the memory is masked to what was known `as_of` the moment you ask about and
   to your filters, exact cosine search and BM25 are fused by reciprocal rank, and items are filled in score order
-  up to `top_k` and the token budget.
+  up to the token budget (1,000 by default). `top_k` (default 300, at most 1,000) only limits the count when you
+  want fewer items; it also sets how far each search list is read, so it can change the order.
 
 ## Settings
 

@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 
 from cogito_mem import ApiError, Client, Memory
+from cogito_mem.api import DEFAULT_TOP_K
+from cogito_mem.cli import build_parser
 from cogito_mem.mcp_server import INSTRUCTIONS, PROTOCOL_VERSIONS, McpServer
 from cogito_mem.server import MemoryServer
 
@@ -58,9 +60,9 @@ def test_http_append_and_query(server):
 
 
 def test_http_errors_use_aip_codes(server):
-    assert post(server, {"op": "query", "text": "x", "top_k": 500}) == (
+    assert post(server, {"op": "query", "text": "x", "top_k": 5000}) == (
         400,
-        {"error": {"code": "invalid_argument", "message": "top_k must be between 1 and 100, got 500"}},
+        {"error": {"code": "invalid_argument", "message": "top_k must be between 1 and 1000, got 5000"}},
     )
     status, body = post(server, b"{not json")
     assert status == 400 and body["error"]["code"] == "invalid_argument"
@@ -196,6 +198,19 @@ def test_mcp_tool_calls_fill_in_server_side_keys(mem):
     item = resp["items"][0]
     assert item["author"] == "claude-code" and item["thread_id"] == "session-42"
     assert item["source"]["title"] == "release"
+
+
+def test_mcp_query_is_limited_by_the_budget_not_a_count(mem):
+    srv = McpServer(mem.handle)
+    for i in range(150):
+        mem.handle({"op": "append", "items": [{"author": "a", "text": f"walnut {i}"}]})
+    args = {"text": "walnut", "max_tokens": 100_000}
+    res = rpc(srv, "tools/call", {"name": "memory_query", "arguments": args})["result"]
+    assert len(res["structuredContent"]["items"]) == 150
+
+
+def test_cli_query_uses_the_api_default_top_k():
+    assert build_parser().parse_args(["query", "walnut"]).top_k == DEFAULT_TOP_K
 
 
 def test_mcp_tool_errors_are_results_not_crashes(mem):

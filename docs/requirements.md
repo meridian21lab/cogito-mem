@@ -136,7 +136,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
     "include_retracted": false
   },
   "as_of": null,
-  "top_k": 10,
+  "top_k": 300,
   "max_tokens": 1000
 }
 ```
@@ -147,7 +147,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
 | `context` | no | Extra text that steers the search: in v0 it is joined to `text` before embedding. It is never returned. The minimum bar does not measure it (§13). |
 | `filter.*` | no | Exact filters. `null` means no filter. `kind` takes a list of kinds. `valid_after` is inclusive and `valid_before` exclusive; both apply to `valid_at`. |
 | `as_of` | no (default now) | The moment the memory is viewed from. Only items with `created_at` ≤ `as_of` are visible, and only retractions made by then apply. |
-| `top_k` | no (default 10, max 100) | The most items to return. |
+| `top_k` | no (default 300, max 1000; 10 and 100 until 1 Nov 2026, see §15 item 26) | The most items to return. By default the budget decides how much comes back; set `top_k` to return fewer. It also sets how far each search list is read (§4), so it can change the order. |
 | `max_tokens` | no (default 1000; 300 in the first draft, see §15 item 21) | The reading budget: the most tokens of returned `text`, counted with the EmbeddingGemma 2 tokenizer. |
 
 **How items are filled.** Items are taken in score order. An item that would push the total past
@@ -300,6 +300,7 @@ message.
 2. Mask the store to what `as_of` and the filters allow.
 3. Run an exact cosine search over the vectors, plus BM25 if stage 0 keeps it, and fuse the two by
    reciprocal rank.
+   Each list is read to `max(30, 3 × top_k)` items, 900 by default.
 4. Take the top 30 candidates. In stage 0 the reranker may reorder them, and in stage 1 the head.
 5. Fill items up to `top_k` and `max_tokens` (§3.2).
 
@@ -729,3 +730,26 @@ These fill gaps the sections above leave open. Each can change without touching 
     locked launch reads (`uv run` is not), and `plugin/uv.lock` lists that release and numpy with their hashes. A
     release now reaches plugin users in two steps: PyPI first, then `scripts/pin_plugin.py` (docs/development.md). A
     warm hook start measured 119 ms with `uvx` against 97 ms with `uv run --frozen`.
+26. **`top_k` defaults to 300 and may go up to 1,000, so the budget decides how much comes back** (1 Nov 2026). With
+    the old default of 10, most replies stopped before the 1,000-token budget. Of 20 queries on a real memory (about
+    100 tokens per item), 14 stopped at 10 items, with a median of 952 tokens and as few as 372; from `top_k` 50 up,
+    all 20 used at least 991 tokens. LoCoMo's turns are shorter, about 28 tokens, so its replies stopped at about 280
+    tokens. Share of LoCoMo questions with every needed turn in the reply, and median query time on 10M tokens (random
+    vectors, Metal, a budget of 1,000):
+
+    | `top_k` | 300 tokens | 1,000 tokens | 2,500 tokens | 5,000 tokens | query |
+    |---|---|---|---|---|---|
+    | 10 | 59.5 % | 63.1 % | 63.1 % | 63.1 % | 13.2 ms |
+    | 100 | 56.5 % | 72.5 % | 81.3 % | 82.5 % | 13.9 ms |
+    | **300** | 56.6 % | **74.1 %** | 82.4 % | 89.5 % | 15.0 ms |
+    | 1,000 | 56.6 % | 74.1 % | 82.4 % | 89.5 % | 18.9 ms |
+
+    300 is the smallest value tried that loses nothing at these budgets, and 300 turns of even LoCoMo's length hold
+    about 8,400 tokens. The maximum rises to 1,000, since 100 such turns hold only about 2,750 and `max_tokens` goes up
+    to 100,000. Part of the gain at 1,000 tokens is not the count: no reply reaches 100 items there, but `top_k` also
+    sets how far each search list is read. On LoCoMo the 900 items of the default read a whole conversation. Two costs:
+    a caller asking for 300 tokens without a `top_k` now gets 56.6 % instead of 59.5 %, because the longer lists change
+    the order; and `max_tokens` counts only `text`, while each item adds about 430 characters of JSON, so more short
+    items make a larger reply. On the real memory, the default now fills the budget (median 13 items and 1,000 tokens,
+    at least 997); the median reply went from 6,800 to 9,000 characters and the largest from 7,800 to 18,300. LongMemEval-S is unchanged at 99.0 % session R@5. Recall (hooks) keeps its own `top_k` of 20, because it
+    filters to a few precise items rather than filling a budget.

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from cogito_mem.api import DEFAULT_TOP_K
 from cogito_mem.evals import longmemeval_recall
 from cogito_mem.evals.longmemeval_recall import distinct, score
 
@@ -132,7 +133,7 @@ def test_run_hybrid(tmp_path, data, capsys):
     assert s["fewer_than_10_sessions_ranked"] == 0
     meta = result["meta"]
     assert meta["model"] == "hash-v1" and meta["config"]["search"] == "hybrid" and meta["wall_s"] >= 0
-    assert meta["dataset_sha256"] and meta["top_k"] == 100 and meta["resumed_questions"] == 0
+    assert meta["dataset_sha256"] and meta["top_k"] == DEFAULT_TOP_K and meta["resumed_questions"] == 0
     assert meta["as_of"] == "question"
     table = capsys.readouterr().out
     assert "answerable (no _abs)" in table and "  multi-session" in table and "R@5" in table

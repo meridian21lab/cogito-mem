@@ -126,7 +126,7 @@ def test_similarity_is_null_without_a_vector():
         ({"op": "append", "namespace": "../etc", "items": [{"author": "a", "text": "x"}]}, "namespace"),
         ({"op": "append", "import": True, "items": [{"author": "a", "text": "x"}]}, "valid_at is required"),
         ({"op": "query"}, "text is required"),
-        ({"op": "query", "text": "x", "top_k": 101}, "top_k must be between 1 and 100"),
+        ({"op": "query", "text": "x", "top_k": 1001}, "top_k must be between 1 and 1000"),
         ({"op": "query", "text": "x", "top_k": True}, "top_k must be an integer"),
         ({"op": "query", "text": "x", "max_tokens": 0}, "max_tokens"),
         ({"op": "query", "text": "x", "filter": {"kind": "message"}}, "list of kinds"),
@@ -292,7 +292,15 @@ def test_top_k(mem):
     for i in range(15):
         append(mem, {"author": "a", "text": f"walnut {i}"})
     assert len(query(mem, "walnut", top_k=3)["items"]) == 3
-    assert len(query(mem, "walnut", max_tokens=10_000)["items"]) == 10
+
+
+def test_without_top_k_the_budget_decides_how_much_comes_back(mem):
+    # More short items than the old limits of 10 and 100 allowed.
+    for i in range(150):
+        append(mem, {"author": "a", "text": f"walnut {i}"})
+    resp = query(mem, "walnut", max_tokens=100_000)
+    assert len(resp["items"]) == 150
+    assert query(mem, "walnut", max_tokens=20)["tokens"] <= 20
 
 
 def test_fill_skips_items_over_budget_and_counts_tokens(mem):
