@@ -74,11 +74,19 @@
         <tr><td><code>config.json</code></td><td>your memory's name</td></tr>
       </table>
     </div>
-    <p>Before anything is stored, API keys, tokens, private keys and passwords in your chats are replaced with
-      <code>[redacted]</code>. Of Claude's work, only the command lines and file names are kept: tool output and
-      file contents are not stored at all.</p>
+    <p>Before anything is stored, common forms of API keys, tokens, private keys and passwords are replaced with
+      <code>[redacted]</code>. This goes by patterns, so others can get through. Of Claude's work, Cogi keeps the command lines and file names, what each sub-agent
+      reports back, and a few lines of command output: the end of a failed command, lines with an error or a metric,
+      the last lines of a long run (at most 800 characters per command). Files Claude reads with its Read tool are not
+      stored, and a command that only shows files keeps at most the line that says why it failed. Other commands can
+      print a line from a file, and that line can be kept. <code>COGITO_MEM_CAPTURE_TOOL_OUTPUT=off</code> keeps no command output.</p>
+    <p>Cogi does not read sessions from before you installed it unless you ask: run
+      <code>cogito-mem capture claude-code --all</code> once. <code>COGITO_MEM_BACKFILL=on</code> does it when a session
+      starts, then at most hourly, and that also picks up sessions from while capture was paused. Old sessions may hold
+      secrets the redaction misses.</p>
     <p>Put anything you want kept out inside <code>&lt;private&gt;…&lt;/private&gt;</code>. To pause capture, set
-      <code>COGITO_MEM_CAPTURE=off</code>; to keep messages only, <code>COGITO_MEM_CAPTURE_ACTIONS=off</code>.</p>
+      <code>COGITO_MEM_CAPTURE=off</code>; to keep messages only, set <code>COGITO_MEM_CAPTURE_ACTIONS</code>,
+      <code>COGITO_MEM_CAPTURE_SUBAGENTS</code> and <code>COGITO_MEM_CAPTURE_TOOL_OUTPUT</code> to <code>off</code>.</p>
 
     <h2>Check it yourself</h2>
     <p>See that Cogi listens only on your own computer:</p>

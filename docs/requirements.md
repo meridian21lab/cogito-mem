@@ -577,8 +577,11 @@ These fill gaps the sections above leave open. Each can change without touching 
    model is `embeddinggemma-2-Q8_0.gguf` (310 MB) from `ggml-org/embeddinggemma-2-GGUF`. A watchdog stops the
    server if the memory process dies.
 4. **One warm service.** `cogito-mem serve` holds the memory and the model; the MCP server, the hooks and the
-   CLI are thin clients that start it on demand. It listens on 127.0.0.1:7327, stops after one idle hour, and
+   CLI are thin clients that start it on demand. It listens on 127.0.0.1:7327, stops after 12 idle hours, and
    refuses requests whose body is not JSON or whose `Host` is not local, so a web page cannot read or write it.
+   Over 125 days of one author's 2,392 prompts, 170 waits between prompts were longer than one hour and 18 longer
+   than 12, and each costs the next prompt its recall; a prompt that finds the service down starts it for the one
+   after (`COGITO_MEM_KEEP_ALIVE=off` goes back to one hour and no restart).
 5. **The default `as_of` is the memory's clock:** max(now, the latest `created_at`). `created_at` strictly
    increases by at least 1 ms, so a burst of appends can run a few milliseconds ahead of the wall clock; with
    "now" alone, a query right after such a burst would miss the newest items.
@@ -598,11 +601,19 @@ These fill gaps the sections above leave open. Each can change without touching 
     by author `actions` per turn (the tool calls between two prompts): the command lines it ran, marked when they
     failed or did not run, and the files it read, edited or wrote, at most 800 characters
     (`COGITO_MEM_CAPTURE_ACTIONS=off` leaves it out). Its `client_ref` is the line of the turn's first tool call,
-    so capturing again from any point adds no second copy. It leaves out tool output, file contents, thinking,
-    sub-agent turns, slash-command output, injected system reminders, compaction summaries and text inside
-    `<private>…</private>`. Obvious secrets (API keys, tokens, private keys, `password=…`) are replaced with
-    `[redacted]` before they are stored. Backfills (`capture … --all`, exports) use `import`.
-    `COGITO_MEM_CAPTURE=off` pauses the hooks. Recall shows `actions` items after the messages, in the room left.
+    so capturing again from any point adds no second copy. Also from Claude Code: one item by author `subagent` per
+    report a sub-agent hands back (`COGITO_MEM_CAPTURE_SUBAGENTS=off` leaves it out), and, by rule with no model, one
+    item by author `tool` per tool result that has something to keep (`COGITO_MEM_CAPTURE_TOOL_OUTPUT=off` leaves it
+    out): the command line, then the end of a failed command's output, lines with an error or a metric, and the last
+    lines of a long output, at most 800 characters per result and 2,400 per turn, for what failed first and then the
+    newest. Nothing is kept of Read or of commands that only show files. It leaves out the rest of tool output, file contents,
+    thinking, the sub-agents' other turns, slash-command output, injected system reminders, compaction summaries and
+    text inside `<private>…</private>`. Obvious secrets (API keys, tokens, private keys, `password=…`) are replaced
+    with `[redacted]` before they are stored. Backfills (`capture … --all`, exports) use `import`; `capture … --all`
+    keeps cursors of its own, so it also reads what earlier versions left out. With `COGITO_MEM_BACKFILL=on`, `SessionStart` starts it in
+    the background the first time and at most hourly after that, for the Agent SDK runs no hook sees (off by default:
+    it reads history from before the install, and sessions from while capture was paused). `COGITO_MEM_CAPTURE=off` pauses the hooks. Recall shows `actions` items
+    after the messages, in the room left.
 11. **MCP details:** `author` is the client's name from `initialize`; `thread_id` is the Claude Code session
     (Claude Code passes `CLAUDE_CODE_SESSION_ID` to MCP servers), else `default`. Tool errors come back as tool
     results with `isError`, and every result carries the §3.2 response as text and as `structuredContent`.
