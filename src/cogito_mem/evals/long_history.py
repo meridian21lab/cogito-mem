@@ -675,6 +675,11 @@ def cmd_agent(args: argparse.Namespace) -> int:
         questions = questions[: args.limit]
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
     embedder, rt = make_embedder("auto", None)
+    reranker, rr_server = None, None
+    if args.reranker:
+        from ..runtime import start_reranker
+
+        reranker, rr_server = start_reranker(args.reranker, None)
     log_path = Path(args.questions_out) if args.questions_out else None
     rows: dict[str, dict] = {}
     if log_path is not None and log_path.exists():
@@ -687,7 +692,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         if not todo:
             return []
         out = []
-        with Memory(None, embedder=embedder, config=Config(), cache_path=args.cache, embed_batch=args.batch) as mem:
+        with Memory(None, embedder=embedder, config=Config(), cache_path=args.cache, embed_batch=args.batch, reranker=reranker) as mem:
             present = {str(s) for s in q["haystack_session_ids"]}
             want_sessions = {str(s) for s in q.get("answer_session_ids") or []} & present
             evidence, _ = load_question(mem, q, evidence_sessions=want_sessions)
@@ -723,6 +728,8 @@ def cmd_agent(args: argparse.Namespace) -> int:
     finally:
         if rt is not None:
             rt.stop()
+        if rr_server is not None:
+            rr_server.stop()
     summary: dict = {"cost_usd": round(llm.cost, 3)}
     for arm in arms:
         rs = [r for r in rows.values() if r["arm"] == arm]
@@ -804,6 +811,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--llm-cache", default=str(Path.home() / ".cogito-mem" / "cache" / "long-history-llm.jsonl"))
     g.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))
     g.add_argument("--batch", type=int, default=32)
+    g.add_argument("--reranker", help="reranker GGUF path, for the model's searches and the hook")
     g.add_argument("--max-steps", type=int, default=6)
     g.add_argument("--query-tokens", type=int, default=1000, help="memory_query's budget when the model gives none")
     g.add_argument("--workers", type=int, default=4)

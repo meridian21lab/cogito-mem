@@ -98,7 +98,10 @@ Everything has a working default. Environment variables, for when you need them:
 | `COGITO_MEM_LLAMA_SERVER` | A `llama-server` binary, or the URL of a running one. |
 | `COGITO_MEM_GPU_LAYERS` / `COGITO_MEM_THREADS` | Passed to llama.cpp as `-ngl` / `-t` (`0` layers = CPU only). |
 | `COGITO_MEM_ALLOWED_HOSTS` | Extra `Host` names the service accepts (e.g. a Docker network name). |
-| `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL (reorders the top 30; GPU recommended). |
+| `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL (off by default; about 640 MB and a GPU needed). It reorders the top 100 for a search and the top 30 for the prompt hook, about 20 ms a text on an M5 Max and far too slow on a CPU. |
+| `COGITO_MEM_RECALL_DESIGN` | What each prompt gets: `hybrid` (default), `pointers` or `shipped`. |
+| `COGITO_MEM_RECALL_HOLDOUT` | Percent of sessions kept without recall, for comparing outcomes (default 0). |
+| `COGITO_MEM_RECALL_TOOLS` | `on` adds lines about a file before an edit (default off; needs a `PostToolUse` hook). |
 | `COGITO_MEM_CAPTURE` | `off` pauses capture: the hooks store nothing (`capture … --all` still runs when you ask). |
 | `COGITO_MEM_CAPTURE_ACTIONS` | `off` stops the note of each Claude Code turn's commands and files (default on). |
 | `COGITO_MEM_CAPTURE_SUBAGENTS` | `off` stops keeping what each Claude Code sub-agent reports back (default on). |

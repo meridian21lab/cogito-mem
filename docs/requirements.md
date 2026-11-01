@@ -685,6 +685,10 @@ These fill gaps the sections above leave open. Each can change without touching 
 20. **Arm R on CPU is far over budget:** Qwen3-Reranker-0.6B in llama.cpp scored 32 candidates in about 16 s on
     the same VM (about 0.5 s each), so R stays a GPU option, as §7 expects. Its scores also looked
     uncalibrated (0.015 for a clear match); check the GGUF's rerank template before using R's scores.
+    **Checked, 1 Nov 2026:** none of the Qwen3 GGUFs checked on Hugging Face has a rerank template or a classifier, so
+    `--reranking` scored noise (9e-9 for a clear match). `runtime.YesNoReranker` asks the model's own yes-or-no question
+    instead. On LongMemEval_M's 312 held-out answerable questions, every needed turn within 1,000 tokens goes from 56.4 %
+    to 75.6 % (+19.2, 95 % CI 14.1 to 24.4), and session R@5 from 94.9 to 96.8. Stays opt-in: 640 MB, and a GPU.
 21. **The default budget is 1,000 tokens, not 300** (author's decision, 19 Oct 2026). On LoCoMo answered by
     gpt-4o-mini and judged by an LLM, 300 tokens scored 8.7 points below the whole conversation (−12.5 to −4.7),
     while 1,000 was level with it (−1.8, −5.5 to +1.8), and 1,000 tokens is small next to a chat client's context.
