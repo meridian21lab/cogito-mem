@@ -1,0 +1,393 @@
+{
+  "meta": {
+    "cogito_mem": "0.2.1",
+    "commit": "5bba30aaf05379f621f06afe6d0def9df0d93dbc-dirty",
+    "model": null,
+    "quantization": null,
+    "machine": {
+      "hostname": "Mac",
+      "platform": "macOS-26.5.1-arm64-arm-64bit",
+      "processor": "arm",
+      "cpus": 18,
+      "python": "3.12.13",
+      "gpu_layers": null,
+      "threads": null
+    },
+    "started_utc": "2026-11-01T12:10:38Z",
+    "argv": [
+      ".venv/bin/cogito-mem",
+      "eval",
+      "full-context",
+      "probe",
+      "--env-file",
+      ".env",
+      "--source",
+      "data/longmemeval_m/longmemeval_m_cleaned.json",
+      "--max-cost",
+      "5",
+      "--sizes",
+      "5000000,1500000,1100000,990000,900000,500000,390000,260000,130000",
+      "--out",
+      "results/full-context/probe.json"
+    ],
+    "source": "data/longmemeval_m/longmemeval_m_cleaned.json",
+    "source_sha256": "9d79e5524794a2e6900a3aa9cb7d9152c5a3e8319c9a87c25494ba1eacee495f",
+    "base_url": "https://openrouter.ai/api",
+    "max_cost": 5.0,
+    "sizes_are": "characters / 4; billed_prompt_tokens is the provider's own count",
+    "finished_utc": "2026-11-01T12:12:42Z"
+  },
+  "cost_usd": 1.7535,
+  "probes": [
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "sent_tokens_approx": 5000000,
+      "seconds": 4.3,
+      "status": 400,
+      "accepted": false,
+      "error": "The total text input size exceeds 8 MB",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "sent_tokens_approx": 1500000,
+      "seconds": 1.5,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 1000000 tokens. However, you requested about 1517154 tokens (1516954 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "sent_tokens_approx": 1100000,
+      "seconds": 1.2,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 1000000 tokens. However, you requested about 1112327 tokens (1112127 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "sent_tokens_approx": 990000,
+      "seconds": 1.1,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 1000000 tokens. However, you requested about 1001187 tokens (1000987 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "sent_tokens_approx": 900000,
+      "seconds": 9.6,
+      "status": 400,
+      "accepted": false,
+      "error": "{\"message\":\"prompt is too long: 1212570 tokens > 1000000 maximum\"}",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-haiku-5.5",
+      "sent_tokens_approx": 500000,
+      "seconds": 13.4,
+      "status": 200,
+      "accepted": true,
+      "billed_prompt_tokens": 675259,
+      "cost_usd": 0.3376395,
+      "served_by": "Claude Platform on AWS",
+      "reply": "OK"
+    },
+    {
+      "model": "anthropic/claude-sonnet-5.5",
+      "sent_tokens_approx": 5000000,
+      "seconds": 4.4,
+      "status": 400,
+      "accepted": false,
+      "error": "The total text input size exceeds 8 MB",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-sonnet-5.5",
+      "sent_tokens_approx": 1500000,
+      "seconds": 1.8,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 1000000 tokens. However, you requested about 1517154 tokens (1516954 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-sonnet-5.5",
+      "sent_tokens_approx": 1100000,
+      "seconds": 1.3,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 1000000 tokens. However, you requested about 1112327 tokens (1112127 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-sonnet-5.5",
+      "sent_tokens_approx": 990000,
+      "seconds": 1.2,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 1000000 tokens. However, you requested about 1001187 tokens (1000987 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-sonnet-5.5",
+      "sent_tokens_approx": 900000,
+      "seconds": 10.1,
+      "status": 400,
+      "accepted": false,
+      "error": "{\"message\":\"prompt is too long: 1212570 tokens > 1000000 maximum\"}",
+      "error_code": 400
+    },
+    {
+      "model": "anthropic/claude-sonnet-5.5",
+      "sent_tokens_approx": 500000,
+      "seconds": 14.8,
+      "status": 200,
+      "accepted": true,
+      "billed_prompt_tokens": 675259,
+      "cost_usd": 1.351788,
+      "served_by": "Claude Platform on AWS",
+      "reply": "OK"
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 5000000,
+      "seconds": 5.7,
+      "status": 400,
+      "accepted": false,
+      "error": "The total text input size exceeds 8 MB",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 1500000,
+      "seconds": 2.0,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 400000 tokens. However, you requested about 1517154 tokens (1516954 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 1100000,
+      "seconds": 1.4,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 400000 tokens. However, you requested about 1112327 tokens (1112127 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 990000,
+      "seconds": 1.3,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 400000 tokens. However, you requested about 1001187 tokens (1000987 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 900000,
+      "seconds": 1.0,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 400000 tokens. However, you requested about 910219 tokens (910019 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 500000,
+      "seconds": 0.8,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 400000 tokens. However, you requested about 505820 tokens (505620 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 390000,
+      "seconds": 1.9,
+      "status": 200,
+      "accepted": false,
+      "error": "Your input exceeds the context window of this model. Please adjust your input and try again.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-5-mini",
+      "sent_tokens_approx": 260000,
+      "seconds": 8.1,
+      "status": 200,
+      "accepted": true,
+      "billed_prompt_tokens": 215516,
+      "cost_usd": 0.054079,
+      "served_by": "OpenAI",
+      "reply": "False"
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 5000000,
+      "seconds": 4.5,
+      "status": 400,
+      "accepted": false,
+      "error": "The total text input size exceeds 8 MB",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 1500000,
+      "seconds": 1.6,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 1517154 tokens (1516954 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 1100000,
+      "seconds": 1.5,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 1112327 tokens (1112127 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 990000,
+      "seconds": 1.2,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 1001187 tokens (1000987 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 900000,
+      "seconds": 1.0,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 910219 tokens (910019 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 500000,
+      "seconds": 0.7,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 505820 tokens (505620 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 390000,
+      "seconds": 0.7,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 394571 tokens (394371 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 260000,
+      "seconds": 0.5,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 263115 tokens (262915 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "openai/gpt-oss-120b",
+      "sent_tokens_approx": 130000,
+      "seconds": 0.4,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 131072 tokens. However, you requested about 131745 tokens (131545 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 5000000,
+      "seconds": 7.6,
+      "status": 400,
+      "accepted": false,
+      "error": "The total text input size exceeds 8 MB",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 1500000,
+      "seconds": 1.6,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 262144 tokens. However, you requested about 1517154 tokens (1516954 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 1100000,
+      "seconds": 1.2,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 262144 tokens. However, you requested about 1112327 tokens (1112127 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 990000,
+      "seconds": 1.4,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 262144 tokens. However, you requested about 1001187 tokens (1000987 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 900000,
+      "seconds": 1.2,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 262144 tokens. However, you requested about 910219 tokens (910019 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 500000,
+      "seconds": 0.8,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 262144 tokens. However, you requested about 505820 tokens (505620 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 390000,
+      "seconds": 0.6,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 262144 tokens. However, you requested about 394571 tokens (394371 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 260000,
+      "seconds": 0.5,
+      "status": 400,
+      "accepted": false,
+      "error": "This endpoint's maximum context length is 262144 tokens. However, you requested about 263115 tokens (262915 of text input, 200 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.",
+      "error_code": 400
+    },
+    {
+      "model": "qwen/qwen3-235b-a22b-2507",
+      "sent_tokens_approx": 130000,
+      "seconds": 8.9,
+      "status": 200,
+      "accepted": true,
+      "billed_prompt_tokens": 111206,
+      "cost_usd": 0.01000964,
+      "served_by": "DeepInfra",
+      "reply": "OK"
+    }
+  ]
+}
