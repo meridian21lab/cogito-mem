@@ -489,7 +489,7 @@ def test_long_history_measures_search_delivery_and_recency(tmp_path):
     assert row["evidence_turns"] == 1
     assert row["search"]["base"]["none"]["session"]["recall_any@1"] is True
     assert row["search"]["base"]["question"]["budgets"]["1000"]["all"] is True
-    assert set(row["delivery"]) == {"shipped", "pointers"}
+    assert set(row["delivery"]) == {"shipped", "pointers", "hybrid"}
     assert row["recency"]["300"]["none"]["all"] is False  # session 3 of 60 is not in the last 300 tokens
     assert result["summary"]["answerable_with_labels"] == 1
     arms = json.loads(contexts.read_text().splitlines()[0])["arms"]

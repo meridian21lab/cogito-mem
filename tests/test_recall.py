@@ -468,7 +468,7 @@ def test_the_hook_shows_a_line_once_and_keeps_a_ledger(mem, tmp_path, monkeypatc
     pointer_memory(mem)
     monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "pointers")
     monkeypatch.setattr(recall, "POINTER_MIN_SCORE", 0.0)
-    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0, 8, 0))
+    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0, 8, 0, 0, 1))
     log = tmp_path / "run" / "recall.log"
     body = json.dumps({**prompt_hook("what is the retry budget for the uploader?"), "hook_event_name": "UserPromptSubmit"})
     run = lambda: recall.claude_code_hook(lambda: body, lambda: MemClient(mem), namespace="n", log=log)  # noqa: E731
@@ -488,7 +488,7 @@ def test_a_holdout_session_gets_nothing_but_is_logged(mem, tmp_path, monkeypatch
     pointer_memory(mem)
     monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "pointers")
     monkeypatch.setenv("COGITO_MEM_RECALL_HOLDOUT", "100")
-    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0, 8, 0))
+    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0, 8, 0, 0, 1))
     log = tmp_path / "run" / "recall.log"
     body = json.dumps({**prompt_hook("what is the retry budget for the uploader?"), "hook_event_name": "UserPromptSubmit"})
     assert recall.claude_code_hook(lambda: body, lambda: MemClient(mem), namespace="n", log=log) is None
@@ -518,3 +518,19 @@ def test_tool_output_never_arrives_unasked():
 def test_machine_text_stored_by_older_versions_never_comes_back():
     client = FakeClient([item("<task-notification>the uploader retry budget finished</task-notification>", 0.9)])
     assert run_hook(prompt_hook("what about the uploader retry budget?"), client) is None
+
+
+def test_hybrid_gives_the_best_match_at_length_and_pointers_after_it(mem):
+    long_text = "Filler about other things entirely. " * 30 + "We decided the retry budget for the uploader is seven attempts. It failed at nine. " + "More filler follows here. " * 30
+    mem.append([real_items(long_text, thread="old")] + [real_items(f"The retry budget for the uploader, note {i}: {'pad ' * 60}", thread="other") for i in range(6)], namespace="n")
+    mem.flush()
+    shot = recall.hybrid(MemClient(mem), prompt_hook("what is the retry budget for the uploader?"), "n")
+    lines = [ln for ln in shot.text.split("\n") if ln.startswith("- ")]
+    assert len(lines) <= recall.POINTERS and len(lines[0]) > len(lines[-1])
+    assert any("It failed at nine" in ln and "seven attempts" in ln for ln in lines)  # around the best sentence
+
+
+def test_snippet_widens_around_the_best_sentence():
+    text = "First thing. Second thing. The retry budget is seven. It failed at nine. Last thing."
+    assert recall.snippet(text, {"retry", "budget"}, 8).startswith("The retry budget is seven.")
+    assert recall.snippet(text, {"retry", "budget"}, 1000) == text
