@@ -524,3 +524,99 @@ def test_identifier_lane_finds_a_token_word_for_word():
         mem.append(items, namespace="c")
         top = mem.query("what happened with job-0137 finished", namespace="c", top_k=3)["items"]
     assert "job-0137" in top[0]["text"]
+
+def test_locomo_qa_rejudges_other_systems_files(tmp_path):
+    from cogito_mem.evals import locomo_qa
+
+    srv = HTTPServer(("127.0.0.1", 0), _FakeChat)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        samples = mini_locomo()
+        data = tmp_path / "locomo.json"
+        data.write_text(json.dumps(samples))
+        asked = [q for q in samples[0]["qa"] if q["category"] != 5]
+        mem0 = {"evaluations": [{"conversation_idx": 0, "question": q["question"], "cutoff_results": {"top_200": {"generated_answer": "Biscuit"}}}
+                                for q in asked[:-1]]}  # fmt: skip
+        honcho = {"detailed_results": [{"question_results": [{"question": q["question"], "actual_response": "Biscuit"}
+                                                             for q in samples[0]["qa"]]}]}  # fmt: skip
+        for fmt, payload, n, missing in (("mem0", mem0, len(asked) - 1, 1), ("honcho", honcho, len(asked), 0)):
+            source, out = tmp_path / f"{fmt}.json", tmp_path / f"{fmt}-out.json"
+            source.write_text(json.dumps(payload))
+            env = tmp_path / ".env"
+            env.write_text("OPENROUTER_API_KEY=test-key\n")
+            assert locomo_qa.main(["rejudge", str(source), "--format", fmt, "--data", str(data), "--out", str(out), "--env-file", str(env),
+                                   "--llm-cache", str(tmp_path / "llm.jsonl"), "--base-url", f"http://127.0.0.1:{srv.server_address[1]}"]) == 0  # fmt: skip
+            result = json.loads(out.read_text())
+            assert result["summary"]["questions"] == n and result["summary"]["unmatched_questions"] == missing  # adversarial one left out
+            assert set(result["per_question"][0]["judgments"]) == {"mem0-2026", "mem0-2025"}
+    finally:
+        srv.shutdown()
+
+
+class _FakeHindsight(BaseHTTPRequestHandler):
+    """Just enough of Hindsight's HTTP API: retain, stats, metrics, version, recall."""
+
+    retained: list = []
+    recalls: list = []
+
+    def _send(self, payload: bytes):
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self):  # noqa: N802
+        if self.path == "/metrics":
+            self._send(b'hindsight_llm_calls_total{scope="retain_extract_facts"} ' + str(len(type(self).retained)).encode() + b".0\n")
+        else:
+            self._send(json.dumps({"total_nodes": 1, "pending_operations": 0, "api_version": "test"}).encode())
+
+    def do_POST(self):  # noqa: N802
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path.endswith("/recall"):
+            type(self).recalls.append(body)
+            self._send(json.dumps({"results": [{"text": "Rex is a dog named Biscuit", "type": "world", "mentioned_at": "2023-05-08T13:56:00+00:00"}]}).encode())
+        else:
+            type(self).retained.append(body["items"][0])
+            self._send(b"{}")
+
+    def log_message(self, *args):
+        pass
+
+
+def test_locomo_qa_hindsight_arm(tmp_path):
+    from cogito_mem.evals import locomo_qa
+
+    chat = HTTPServer(("127.0.0.1", 0), _FakeChat)
+    hs = HTTPServer(("127.0.0.1", 0), _FakeHindsight)
+    for srv in (chat, hs):
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    _FakeHindsight.retained, _FakeHindsight.recalls, _FakeChat.bodies = [], [], []
+    url = f"http://127.0.0.1:{hs.server_address[1]}"
+    try:
+        data = tmp_path / "locomo.json"
+        data.write_text(json.dumps(mini_locomo()))
+        ingest = tmp_path / "ingest.json"
+        assert locomo_qa.main(["hindsight-ingest", "--data", str(data), "--url", url, "--out", str(ingest)]) == 0
+        assert json.loads(ingest.read_text())["llm_counters"]["hindsight_llm_calls_total|retain_extract_facts"] == len(_FakeHindsight.retained)
+        first = _FakeHindsight.retained[0]
+        assert first["timestamp"].endswith("Z") and json.loads(first["content"])[0]["speaker"]
+        env = tmp_path / ".env"
+        env.write_text("OPENROUTER_API_KEY=test-key\n")
+        out = tmp_path / "qa.json"
+        argv = ["--data", str(data), "--protocol", "mem0-2026", "--context", "hindsight", "--budget", "1000", "--hindsight-url", url,
+                "--hindsight-recall-cache", str(tmp_path / "recall.json"), "--llm-cache", str(tmp_path / "llm.jsonl"), "--env-file", str(env),
+                "--base-url", f"http://127.0.0.1:{chat.server_address[1]}", "--out", str(out)]  # fmt: skip
+        assert locomo_qa.main(argv) == 0
+        result = json.loads(out.read_text())
+        assert result["summary"]["questions"] == 3 and result["meta"]["hindsight_budget"] == "mid"
+        assert all(r["max_tokens"] == 1000 and r["budget"] == "mid" and r["include"] == {"entities": None} for r in _FakeHindsight.recalls)
+        prompt = next(b for b in _FakeChat.bodies if not b.get("response_format"))["messages"][0]["content"]
+        assert "(Monday, May 08, 2023) Rex is a dog named Biscuit" in prompt
+        recalls = len(_FakeHindsight.recalls)
+        assert recalls == 3
+        assert locomo_qa.main(argv) == 0  # the second model reads the same recalls
+        assert len(_FakeHindsight.recalls) == recalls
+    finally:
+        chat.shutdown()
+        hs.shutdown()
