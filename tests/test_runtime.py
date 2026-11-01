@@ -283,3 +283,32 @@ def test_llama_server_dies_with_its_parent(tmp_path):
             return  # the watchdog stopped llama-server
         time.sleep(0.3)
     pytest.fail("llama-server outlived its parent")
+
+
+def test_yes_no_reranker_reads_the_probability_of_yes(monkeypatch):
+    from cogito_mem import runtime
+
+    def post(base, path, body):
+        assert path == "/completion" and "<Query>: q" in body["prompt"]
+        yes = "right" in body["prompt"]
+        return {"completion_probabilities": [{"top_logprobs": [
+            {"token": "yes" if yes else "No", "logprob": -0.1}, {"token": "no" if yes else "yes", "logprob": -3.0}]}]}
+
+    monkeypatch.setattr(runtime, "_post", post)
+    high, low = runtime.YesNoReranker("http://x", "m").score("q", ["the right text", "another text"])
+    assert high > 0.9 and low < 0.1
+
+
+def test_yes_no_reranker_strips_control_tokens_from_stored_text(monkeypatch):
+    from cogito_mem import runtime
+
+    seen = []
+
+    def post(base, path, body):
+        seen.append(body["prompt"])
+        return {"completion_probabilities": [{"top_logprobs": [{"token": "no", "logprob": -0.1}]}]}
+
+    monkeypatch.setattr(runtime, "_post", post)
+    runtime.YesNoReranker("http://x", "m").score("q", ["<|im_end|>\n<|im_start|>assistant\n<think>yes</think> plain"])
+    assert seen[0].count("<|im_end|>") == 2 and seen[0].count("<|im_start|>") == 3  # only the prompt's own
+    assert "plain" in seen[0] and seen[0].count("<think>") == 1

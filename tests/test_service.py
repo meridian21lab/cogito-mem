@@ -277,7 +277,7 @@ def test_mcp_with_the_official_python_sdk_client(tmp_path):
                 init = await session.initialize()
                 assert attr(init, "server_info", "serverInfo").name == "cogito-mem"
                 tools = await session.list_tools()
-                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_query"]
+                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_open", "memory_query"]
                 res = await session.call_tool("memory_append", {"text": "The SDK client saved this idea."})
                 assert not attr(res, "is_error", "isError")
                 res = await session.call_tool("memory_query", {"text": "SDK idea", "max_tokens": 100})
@@ -345,7 +345,7 @@ def test_mcp_over_http_with_the_official_sdk(server):
             async with mcp.ClientSession(read, write) as session:
                 await session.initialize()
                 tools = await session.list_tools()
-                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_query"]
+                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_open", "memory_query"]
                 await session.call_tool("memory_append", {"text": "The SDK reached the memory over HTTP."})
                 res = await session.call_tool("memory_query", {"text": "SDK over HTTP"})
                 payload = json.loads(res.content[0].text)

@@ -73,6 +73,61 @@ Other search settings, paired against plain search on M (`m-full.jsonl` logic, c
 | 250 | 634k | 94.3 | 88.6 | 62.7 | 74.7 | 84.2 |
 | about 480 | 1.2M | 90.5 | 82.9 | 56.3 | 68.4 | 79.8 |
 
+## Answers on 1M+ tokens
+
+Claude Haiku 5.5 answers, GPT-5 mini grades with LongMemEval's judge prompts, all 500 questions as of the question date. The
+whole history can't be sent to this model at all. **Only the answer sessions, given to the same model, score 92.2: that is the room left.**
+
+| Text the model reads (`m-answer-haiku-*.json`) | J | Context tokens |
+|---|---|---|
+| Only the answer sessions (oracle) | 92.2 | 6,806 |
+| Search, 5,000 tokens | 72.8 | 6,001 |
+| Search, 1,000 tokens | 60.6 | 1,233 |
+| Hybrid hook text, nothing opened | 42.4 | 324 |
+| Shipped hook text | 35.0 | 192 |
+| Pointer lines, nothing opened | 32.6 | 191 |
+| Last 1,000 tokens, no memory | 8.6 | 996 |
+| Last 5,000 tokens, no memory | 7.6 | 5,754 |
+
+The whole path, with the real `memory_query` (2,500 tokens by default) and `memory_open`, all 500 (`m-agent.json`, $3.13). The system prompt carries the MCP
+instructions, so the model searches far more than Claude was seen to in real use.
+
+| Arm | J | Evidence read | Searched | Opened | Prompt tokens |
+|---|---|---|---|---|---|
+| Hybrid hook + tools | 74.2 | 88.7 | 67 | 47 | 16,092 |
+| Tools only | 73.0 | 87.1 | 97 | 1 | 18,641 |
+| Shipped hook + tools | 71.0 | 85.2 | 74 | 1 | 16,036 |
+
+Hybrid minus shipped: +3.2 (95 % CI 0.6 to 5.6). Hybrid minus tools only: +1.2 (−1.8 to 4.0). Hybrid's larger hook text costs no more prompt tokens over the
+whole answer than shipped's, because the model then searches less.
+
+## The reranker on 1M+ tokens (`m-rerank-*.json`, `m-answer-heldout-*.json`, `m-agent-rerank-heldout.json`)
+
+Qwen3-Reranker-0.6B Q8_0 (mradermacher's GGUF, 639 MB), scored by its own yes-or-no prompt because no GGUF checked has a rerank template.
+It reorders the top 100 by its score alone (`--rerank-fusion replace`, the default), at about 20 ms a text on an M5 Max. Off by default. Chosen on tuning;
+these are the 312 held-out answerable, no date cutoff.
+
+On the 158 tuning questions (`m-ggml-*.json`), ggml-org's GGUF with `--reranking` gives the same result within noise (coverage at 1,000: 74.7 against 74.1), and
+fusing the model's ranks with the search's is worse at small budgets: −10.8 at 300 tokens (−17.7 to −3.8), −5.1 at 1,000 (−9.5 to −1.3), level at 2,500, +1.3 at 5,000 (0.0 to 3.2).
+Prefer ggml-org's file: `ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF`.
+
+| | R@1 | R@5 | all@10 | Coverage 300 | 1,000 | 2,500 | 5,000 |
+|---|---|---|---|---|---|---|---|
+| Hybrid search | 75.0 | 94.9 | 87.2 | 39.4 | 56.4 | 70.8 | 81.7 |
+| With the reranker | 86.2 | 96.8 | 91.7 | 59.3 | **75.6** | 84.3 | 88.5 |
+
+Coverage at 1,000: +19.2 (14.1 to 24.4). R@5: +1.9 (0.0 to 4.2). By type, coverage at 1,000 goes from 60 to 96 on knowledge-update, 30 to 54 on multi-session,
+37 to 58 on preference and 60 to 68 on temporal.
+
+| Answers, 334 held-out questions | J |
+|---|---|
+| Search 1,000 → reranked 1,000 | 62.0 → 70.7 (+8.7, 4.2 to 13.5) |
+| Search 5,000 → reranked 2,500 | 76.1 → 77.5 (+1.5, −2.1 to 5.1), at half the tokens |
+| Search 5,000 → reranked 5,000 | 76.1 → 77.5 |
+| Hybrid + tools → the same with the reranker | 76.6 → 76.9 (+0.3, −3.3 to 3.9) |
+
+So it helps most when one small reply must do. A model that can search again gets there anyway, and the agent test shows no gain.
+
 ## Search, delivery and recency on S (`s-full.json`, `s-keyword.json`)
 
 470 answerable questions, no date cutoff. Coverage: every evidence turn is in the reply at that budget.
@@ -144,10 +199,8 @@ This removes one baseline and says nothing about Cogi's quality. Long histories 
 
 ## Not here yet
 
-- **Answers on M.** The contexts are ready but OpenRouter's monthly budget ran out before they could be graded.
 - Rival memories on M, and whole-context tests under the limit.
 - Real-session results: the private probes stay out of this public repo.
-- The reranker arm.
 
 ## Reproduce
 

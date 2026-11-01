@@ -5,6 +5,11 @@
 
 <!-- RESULTS-SUMMARY -->
 
+**Checked on 1M+ tokens, later on 1 Nov 2026.** On LongMemEval_M's 158 tuning questions, Qwen3-Reranker (ggml-org, top 100) ordered by its score alone
+beats rank fusion at small budgets: every needed turn in the reply for 59.5 % against 48.7 % at 300 tokens (−10.8, 95 % CI −17.7 to −3.8), 74.7 %
+against 69.6 % at 1,000 (−5.1, −9.5 to −1.3), level at 2,500, and 82.3 % against 83.5 % at 5,000. So `rerank_fusion` now defaults to `replace`.
+The numbers below are from when `rrf` was the default, on smaller histories.
+
 ## 1. The idea
 
 Cogi finds memories by words (BM25) and meaning (EmbeddingGemma 2) and fuses the two lists. Neither reads the

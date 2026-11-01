@@ -50,10 +50,9 @@ class Config:
       text; default), ``"previous"`` (also the end of the message it follows on from) or
       ``"dated"`` (``"previous"`` with the message's date first). With ``"previous"`` the reply
       after an answer carries the answer in its context and is ranked above it.
-    - ``rerank_fusion``: ``"rrf"`` (default) fuses the reranker's ranks with the search's by
-      reciprocal rank; ``"replace"`` orders the candidates by the reranker's score alone.
-      Both defaults were chosen on LongMemEval-S development questions
-      (docs/notes/system1_ranker_20261101.md).
+    - ``rerank_fusion``: ``"replace"`` (default) orders the candidates by the reranker's score
+      alone; ``"rrf"`` fuses its ranks with the search's by reciprocal rank, which does worse at
+      small budgets on 1M+ token histories (docs/notes/system1_ranker_20261101.md).
     - ``doc_author``: write the author's name before the text for embedding and keyword
       search ("Caroline: …"), so "what did Caroline say about…" finds her messages.
     - ``exact_lane``: also rank the items holding an identifier from the query word for word.
@@ -66,11 +65,11 @@ class Config:
     search: str = "hybrid"
     doc_context: str = "previous"
     doc_author: bool = True
-    candidates: int = 30
+    candidates: int = 100
     rrf_k: int = 60
     piece_tokens: int = PIECE_TOKENS
     rerank_context: str = "own"
-    rerank_fusion: str = "rrf"
+    rerank_fusion: str = "replace"
     exact_lane: bool = False
     session_boost: float = 0.0
 
@@ -269,7 +268,10 @@ class Memory:
         items, tokens = ns.fill(
             candidates, req.top_k, req.max_tokens, as_of, req.filter.include_retracted, self._tokenizer
         )
-        return {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
+        out = {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
+        if self.reranker is not None and req.rerank != 0:
+            out["reranked"] = True  # scores are the reranker's, not fused ranks
+        return out
 
     def _open(self, req: OpenIn) -> dict:
         t0 = time.perf_counter()
@@ -290,17 +292,18 @@ class Memory:
             qvec = self._embed_query(req.text, req.context)
         use_keywords = cfg.search in ("hybrid", "keyword") or qvec is None
         cands = ns.search(req.text, qvec, req.filter, as_of, pool, use_keywords, cfg.rrf_k, cfg.exact_lane, cfg.session_boost)
-        if self.reranker is None:
+        if self.reranker is None or req.rerank == 0:
             return cands
-        if cfg.candidates <= 0:  # full scan: the reranker reads every visible item
+        candidates = cfg.candidates if req.rerank is None else req.rerank
+        if candidates <= 0:  # full scan: the reranker reads every visible item
             found = {c.row for c in cands}
             cands = cands + [Candidate(int(r), 0.0) for r in ns.visible(req.filter, as_of) if int(r) not in found]
         if not cands:
             return cands
-        head = cands if cfg.candidates <= 0 else cands[: cfg.candidates]
+        head = cands if candidates <= 0 else cands[:candidates]
         scores = self.reranker.score(req.text, ns.rank_texts([c.row for c in head], cfg.rerank_context))
         # A full scan has no search order to fuse with (items past the keyword matches come oldest first).
-        if cfg.rerank_fusion == "rrf" and cfg.candidates > 0:
+        if cfg.rerank_fusion == "rrf" and candidates > 0:
             by_model = sorted(range(len(head)), key=lambda i: (-scores[i], i))
             model_rank = {i: r for r, i in enumerate(by_model, start=1)}
             best = 2 / (cfg.rrf_k + 1)

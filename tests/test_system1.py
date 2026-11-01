@@ -180,5 +180,5 @@ def test_long_history_runs_a_system1_rerank_variant(tmp_path):
     assert row["search"]["rerank"]["none"]["budgets"]["1000"]["all"] is True
     assert row["system1"]["scored"] > 0
     assert result["meta"]["rerank"] == {"system1": base, "system1_kind": "noul", "candidates": 10,
-                                        "rerank_context": "own", "rerank_fusion": "rrf"}
+                                        "rerank_context": "own", "rerank_fusion": "replace"}
     assert json.loads(log.read_text().splitlines()[0])["settings"]["rerank"]["system1_kind"] == "noul"

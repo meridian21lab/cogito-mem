@@ -80,6 +80,11 @@ SIDE_AUTHORS = (ACTIONS, TOOL)  # what sessions did, as against what was said
 POINTERS = 8
 POINTER_MIN_SCORE = 0.6
 POINTER_MIN_WORDS = 3
+# With a reranker the score is the chance the message answers the prompt, so one shared word is gate enough (with
+# ``rerank_fusion`` "rrf" the score is a fused rank, and this passes all it read). It reads few enough
+# candidates to answer within ``TIMEOUT``: about 0.3 s for 30 on Metal, against about 15 s on a CPU, where it stays off.
+RERANK_MIN_SCORE = 0.6
+RERANK_CANDIDATES = 30
 POINTER_POOL = 100  # after this session's own lines and the notes of what sessions did are dropped
 SNIPPET_TOKENS = 28
 SIBLINGS = 3
@@ -211,10 +216,12 @@ def pointers(
     words = query_terms(prompt)
     need = min(len(words), min_words)
     kwargs: dict = {"filter": dict(hook["filter"])} if hook.get("filter") else {}
-    resp = client.query(prompt, namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, **kwargs)
+    resp = client.query(prompt, namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, rerank=RERANK_CANDIDATES, **kwargs)
+    # One shared word stays even so: the model's score should not be all that lets stored text into a prompt.
+    gate, gate_words = (RERANK_MIN_SCORE, min(len(words), 1)) if resp.get("reranked") else (min_score, need)
     found: dict[str, dict] = {}
     for it in resp["items"]:
-        if it["score"] < min_score or len(words & set(terms(it["text"]))) < need:
+        if it["score"] < gate or len(words & set(terms(it["text"]))) < gate_words:
             continue
         if not it["text"].strip() or it["author"] in SIDE_AUTHORS or _machine(it):
             continue
@@ -238,7 +245,7 @@ def pointers(
 def _siblings(client: Any, hook: dict, prompt: str, namespace: str, project: str, words: set[str], need: int) -> list[dict]:
     now = hook.get("now_ms") or timeutil.now_ms()
     flt = {**(hook.get("filter") or {}), "valid_after": timeutil.format(now - SIBLING_MS)}
-    resp = client.query(prompt, namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, filter=flt)
+    resp = client.query(prompt, namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, rerank=0, filter=flt)
     found: dict[str, dict] = {}
     for it in resp["items"]:
         if it["thread_id"] != hook.get("session_id") and _title(it) == project and it["author"] not in SIDE_AUTHORS \
@@ -329,7 +336,7 @@ def compact_context(client: Any, hook: dict, namespace: str = "default") -> Shot
     moment = compacted_at(hook.get("transcript_path"))
     if moment is not None:
         flt["valid_before"] = timeutil.format(moment)
-    resp = client.query(prompt[:QUERY_CHARS], namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, filter=flt)
+    resp = client.query(prompt[:QUERY_CHARS], namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, rerank=RERANK_CANDIDATES, filter=flt)
     found: dict[str, dict] = {}
     for it in resp["items"]:
         if it["author"] not in SIDE_AUTHORS and it["text"].strip():
@@ -353,7 +360,7 @@ def tool_context(client: Any, hook: dict, namespace: str = "default", seen: set[
     project = project_of(hook.get("cwd"))
     if len(name) < 4:
         return Shot()
-    resp = client.query(f"what was decided about {name}", namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400)
+    resp = client.query(f"what was decided about {name}", namespace=namespace, top_k=POINTER_POOL, max_tokens=POINTER_POOL * 400, rerank=0)
     found: dict[str, dict] = {}
     for it in resp["items"]:
         if it["thread_id"] != hook.get("session_id") and it["author"] not in SIDE_AUTHORS and name in it["text"].lower() \

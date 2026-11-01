@@ -69,7 +69,8 @@ VARIANTS: dict[str, dict] = {
     "exact": {"exact_lane": True},
     "session": {"session_boost": 0.5},
     "exact+session": {"exact_lane": True, "session_boost": 0.5},
-    "rerank": {},  # with --reranker or --system1, the only variant that uses it
+    "rerank": {},  # with --reranker or --system1, these two are the only variants that use it
+    "rerank100": {"candidates": 100},
 }
 
 
@@ -212,7 +213,7 @@ def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None, r
     shipped = mem.config
     for name, cfg in variants.items():
         mem.config = cfg
-        mem.reranker = reranker if name == "rerank" else None
+        mem.reranker = reranker if name.startswith("rerank") else None
         stats = getattr(mem.reranker, "stats", None)
         before = dict(stats) if stats else None
         row["search"][name] = {c: search_arm(mem, q, want_turns, want_sessions, as_of) for c, as_of in cutoffs.items()}
@@ -230,18 +231,23 @@ def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None, r
     row["query_s"] = round(time.perf_counter() - t1, 3)
     row["load_s"] = round(load_s, 3)
     if contexts is not None:
-        contexts.write(json.dumps(context_row(mem, q, cutoffs["question"], date_ms, want_sessions)) + "\n")
+        contexts.write(json.dumps(context_row(mem, q, cutoffs["question"], date_ms, want_sessions, reranker)) + "\n")
         contexts.flush()
     return row
 
 
-def context_row(mem: Memory, q: dict, as_of: str, date_ms: int, want_sessions: set[str]) -> dict:
+def context_row(mem: Memory, q: dict, as_of: str, date_ms: int, want_sessions: set[str], reranker=None) -> dict:
     """The text each answerable arm returned, for ``answer``."""
     arms: dict[str, list[dict]] = {}
     body = {"op": "query", "namespace": NS, "text": q["question"], "as_of": as_of, "top_k": DEFAULT_TOP_K}
     for n in (1000, 5000):
         arms[f"search-{n}"] = [_keep(it) for it in mem.handle({**body, "max_tokens": n})["items"]]
         arms[f"recency-{n}"] = [_keep(it) for it in recency_items(mem, n, date_ms)]
+    if reranker is not None:
+        mem.reranker = reranker
+        for n in (1000, 2500, 5000):
+            arms[f"rerank-{n}"] = [_keep(it) for it in mem.handle({**body, "max_tokens": n})["items"]]
+        mem.reranker = None
     for design in recall.DESIGNS:
         shot = recall.DESIGNS[design](EvalClient(mem, as_of), {"prompt": q["question"], "session_id": "the-session-asking"}, NS)
         arms[f"hook-{design}"] = [{"text": shot.text, "valid_at": as_of, "author": "memory"}] if shot.text else []
@@ -688,6 +694,11 @@ def cmd_agent(args: argparse.Namespace) -> int:
         questions = questions[: args.limit]
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
     embedder, rt = make_embedder("auto", None)
+    reranker, rr_server = None, None
+    if args.reranker:
+        from ..runtime import start_reranker
+
+        reranker, rr_server = start_reranker(args.reranker, None)
     log_path = Path(args.questions_out) if args.questions_out else None
     rows: dict[str, dict] = {}
     if log_path is not None and log_path.exists():
@@ -700,7 +711,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
         if not todo:
             return []
         out = []
-        with Memory(None, embedder=embedder, config=Config(), cache_path=args.cache, embed_batch=args.batch) as mem:
+        with Memory(None, embedder=embedder, config=Config(), cache_path=args.cache, embed_batch=args.batch, reranker=reranker) as mem:
             present = {str(s) for s in q["haystack_session_ids"]}
             want_sessions = {str(s) for s in q.get("answer_session_ids") or []} & present
             evidence, _ = load_question(mem, q, evidence_sessions=want_sessions)
@@ -736,6 +747,8 @@ def cmd_agent(args: argparse.Namespace) -> int:
     finally:
         if rt is not None:
             rt.stop()
+        if rr_server is not None:
+            rr_server.stop()
     summary: dict = {"cost_usd": round(llm.cost, 3)}
     for arm in arms:
         rs = [r for r in rows.values() if r["arm"] == arm]
@@ -818,6 +831,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--llm-cache", default=str(Path.home() / ".cogito-mem" / "cache" / "long-history-llm.jsonl"))
     g.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))
     g.add_argument("--batch", type=int, default=32)
+    g.add_argument("--reranker", help="reranker GGUF path, for the model's searches and the hook")
     g.add_argument("--max-steps", type=int, default=6)
     g.add_argument("--query-tokens", type=int, default=1000, help="memory_query's budget when the model gives none")
     g.add_argument("--workers", type=int, default=4)

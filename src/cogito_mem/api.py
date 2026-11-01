@@ -28,7 +28,7 @@ MAX_OPEN_AROUND = 50
 
 _APPEND_KEYS = {"op", "namespace", "import", "items"}
 _ITEM_KEYS = {"thread_id", "author", "valid_at", "title", "text", "client_ref", "retracts"}
-_QUERY_KEYS = {"op", "namespace", "text", "context", "filter", "as_of", "top_k", "max_tokens"}
+_QUERY_KEYS = {"op", "namespace", "text", "context", "filter", "as_of", "top_k", "max_tokens", "rerank"}
 _OPEN_KEYS = {"op", "namespace", "id", "before", "after", "max_tokens"}
 _FILTER_KEYS = {"thread_id", "author", "kind", "valid_after", "valid_before", "include_retracted"}
 
@@ -70,6 +70,7 @@ class QueryIn:
     as_of: int | None
     top_k: int
     max_tokens: int
+    rerank: int | None = None  # how many candidates a reranker reads, 0 for none; None: the memory's setting
 
 
 @dataclass
@@ -235,6 +236,7 @@ def parse_query(body: dict) -> QueryIn:
         as_of=_opt_time(body, "as_of", ""),
         top_k=_opt_int(body, "top_k", DEFAULT_TOP_K, 1, MAX_TOP_K),
         max_tokens=_opt_int(body, "max_tokens", DEFAULT_MAX_TOKENS, 1, MAX_MAX_TOKENS),
+        rerank=_opt_int(body, "rerank", None, 0, MAX_TOP_K),  # type: ignore[arg-type]
     )
 
 
