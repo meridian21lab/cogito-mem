@@ -23,10 +23,13 @@ DEFAULT_MAX_TOKENS = 1000
 MAX_MAX_TOKENS = 100_000
 MAX_ITEMS = 1000
 MAX_TEXT_CHARS = 4_000_000
+DEFAULT_OPEN_AROUND = 1
+MAX_OPEN_AROUND = 50
 
 _APPEND_KEYS = {"op", "namespace", "import", "items"}
 _ITEM_KEYS = {"thread_id", "author", "valid_at", "title", "text", "client_ref", "retracts"}
 _QUERY_KEYS = {"op", "namespace", "text", "context", "filter", "as_of", "top_k", "max_tokens"}
+_OPEN_KEYS = {"op", "namespace", "id", "before", "after", "max_tokens"}
 _FILTER_KEYS = {"thread_id", "author", "kind", "valid_after", "valid_before", "include_retracted"}
 
 
@@ -66,6 +69,15 @@ class QueryIn:
     filter: FilterIn
     as_of: int | None
     top_k: int
+    max_tokens: int
+
+
+@dataclass
+class OpenIn:
+    namespace: str
+    id: str
+    before: int
+    after: int
     max_tokens: int
 
 
@@ -223,4 +235,18 @@ def parse_query(body: dict) -> QueryIn:
         as_of=_opt_time(body, "as_of", ""),
         top_k=_opt_int(body, "top_k", DEFAULT_TOP_K, 1, MAX_TOP_K),
         max_tokens=_opt_int(body, "max_tokens", DEFAULT_MAX_TOKENS, 1, MAX_MAX_TOKENS),
+    )
+
+
+def parse_open(body: dict) -> OpenIn:
+    _check_keys(body, _OPEN_KEYS, "the request")
+    item_id = _opt_str(body, "id", "")
+    if item_id is None:
+        raise invalid("id is required")
+    return OpenIn(
+        namespace=_namespace(body),
+        id=item_id.strip(),
+        before=_opt_int(body, "before", DEFAULT_OPEN_AROUND, 0, MAX_OPEN_AROUND),
+        after=_opt_int(body, "after", DEFAULT_OPEN_AROUND, 0, MAX_OPEN_AROUND),
+        max_tokens=_opt_int(body, "max_tokens", DEFAULT_MAX_TOKENS * 4, 1, MAX_MAX_TOKENS),
     )

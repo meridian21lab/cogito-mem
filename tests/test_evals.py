@@ -460,3 +460,67 @@ def test_full_context_sessions_count_tokens_and_forks_once(tmp_path, capsys):
     assert s["sessions"] == 2 and s["compactions"] == 2 and s["sessions_history_over_1M"] == 1
     assert s["largest_history"] == 1_700_101
     assert "secret" not in json.dumps(s)
+
+
+def long_history_question(qid="q1", sessions=8):
+    ids = [f"s{i}" for i in range(sessions)]
+    turns = [[{"role": "user", "content": f"session {i} is about topic number {i} and its garden"},
+              {"role": "assistant", "content": f"noted topic {i}"}] for i in range(sessions)]
+    turns[3] = [{"role": "user", "content": "My passport number ends in 4411 and the kiwi plant died.", "has_answer": True},
+                {"role": "assistant", "content": "Sorry about the kiwi plant."}]
+    return {"question_id": qid, "question_type": "single-session-user", "question": "What plant of mine died recently?",
+            "question_date": "2023/06/01 (Thu) 10:00", "answer": "the kiwi plant", "answer_session_ids": ["s3"],
+            "haystack_session_ids": ids, "haystack_dates": [f"2023/05/{i % 28 + 1:02d} (Mon) 09:{i % 60:02d}" for i in range(sessions)],
+            "haystack_sessions": turns}
+
+
+def test_long_history_measures_search_delivery_and_recency(tmp_path):
+    from cogito_mem.evals import long_history
+
+    data = tmp_path / "m.json"
+    data.write_text(json.dumps([long_history_question(sessions=60), long_history_question("q2_abs", sessions=60)]))
+    out = tmp_path / "r.json"
+    contexts = tmp_path / "c.jsonl"
+    code = long_history.main(["run", "--data", str(data), "--embedder", "hash", "--variants", "base,exact,session",
+                              "--cache", str(tmp_path / "e.sqlite3"), "--contexts-out", str(contexts), "--out", str(out)])
+    assert code == 0
+    result = json.loads(out.read_text())
+    row = result["per_question"][0]
+    assert row["evidence_turns"] == 1
+    assert row["search"]["base"]["none"]["session"]["recall_any@1"] is True
+    assert row["search"]["base"]["question"]["budgets"]["1000"]["all"] is True
+    assert set(row["delivery"]) == {"shipped", "pointers"}
+    assert row["recency"]["300"]["none"]["all"] is False  # session 3 of 60 is not in the last 300 tokens
+    assert result["summary"]["answerable_with_labels"] == 1
+    arms = json.loads(contexts.read_text().splitlines()[0])["arms"]
+    assert "kiwi" in " ".join(a["text"] for a in arms["oracle"]) and arms["search-1000"]
+
+
+def test_long_history_subset_keeps_the_evidence():
+    from cogito_mem.evals import long_history
+
+    q = long_history_question(sessions=40)
+    small = long_history.subset(q, 5, seed=1)
+    assert len(small["haystack_session_ids"]) == 5 and "s3" in small["haystack_session_ids"]
+    assert small == long_history.subset(q, 5, seed=1)
+    assert long_history.subset(q, 100) is q
+
+
+def test_long_history_splits_are_stable():
+    from cogito_mem.evals.long_history import split_of
+
+    assert {split_of(f"q{i}") for i in range(100)} == {"tuning", "heldout"}
+    assert split_of("q1") == split_of("q1")
+
+
+def test_identifier_lane_finds_a_token_word_for_word():
+    from cogito_mem.memory import Config, Memory
+    from cogito_mem.terms import identifiers
+
+    assert identifiers("look at src/app/run.py and --top-k 5bba30a please, GPT-5.") >= {"src/app/run.py", "--top-k", "5bba30a", "gpt-5"}
+    assert not identifiers("just some plain words here")
+    items = [{"author": "ana", "text": f"run {i} of job-{i:04d} finished without trouble"} for i in range(300)]
+    with Memory(None, embedder="hash", config=Config(search="keyword", exact_lane=True)) as mem:
+        mem.append(items, namespace="c")
+        top = mem.query("what happened with job-0137 finished", namespace="c", top_k=3)["items"]
+    assert "job-0137" in top[0]["text"]

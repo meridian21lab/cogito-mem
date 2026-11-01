@@ -177,9 +177,9 @@ def test_mcp_initialize_and_tools(mem):
     unknown = rpc(srv, "initialize", {"protocolVersion": "1999-01-01"})["result"]
     assert unknown["protocolVersion"] == PROTOCOL_VERSIONS[0]
     tools = {t["name"]: t for t in rpc(srv, "tools/list")["result"]["tools"]}
-    assert set(tools) == {"memory_append", "memory_query"}
+    assert set(tools) == {"memory_append", "memory_query", "memory_open"}
     assert set(tools["memory_append"]["inputSchema"]["properties"]) == {"text", "title"}
-    assert set(tools["memory_query"]["inputSchema"]["properties"]) == {"text", "valid_after", "valid_before", "max_tokens"}
+    assert set(tools["memory_query"]["inputSchema"]["properties"]) == {"text", "valid_after", "valid_before", "max_tokens", "this_session"}
     assert "a week ago" in tools["memory_query"]["description"]
     assert rpc(srv, "ping")["result"] == {}
     assert rpc(srv, "no/such")["error"]["code"] == -32601
@@ -316,7 +316,7 @@ def test_mcp_over_http(server):
     assert status == 403
     status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "id": 6, "method": "tools/list"}, session,
                                {"Origin": "http://localhost:3000"})  # fmt: skip
-    assert status == 200 and len(body["result"]["tools"]) == 2
+    assert status == 200 and len(body["result"]["tools"]) == 3
     conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
     conn.request("GET", "/mcp")
     assert conn.getresponse().status == 405

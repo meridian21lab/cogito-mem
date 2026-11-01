@@ -127,7 +127,7 @@ def cmd_mcp(args: argparse.Namespace) -> int:
         namespace = _namespace(args)
     except InvalidName as exc:  # answer every tool call with the reason, so the assistant can say it
         namespace, handle = None, _refuse(str(exc))
-    McpServer(handle, namespace=namespace).run()
+    McpServer(handle, namespace=namespace, ledger_folder=_root(args) / "run").run()
     return 0
 
 
@@ -158,6 +158,14 @@ def cmd_setup(args: argparse.Namespace) -> int:
     from .install import setup
 
     return setup(_root(args), model_only=args.model_only)
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    from . import ledger, timeutil
+
+    since = timeutil.now_ms() - args.days * 86_400_000 if args.days else None
+    print(json.dumps(ledger.summarize(ledger.read(_root(args) / "run", since)), indent=2))
+    return 0
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -327,6 +335,10 @@ def cmd_eval(args: argparse.Namespace) -> int:
         from .evals import full_context
 
         return full_context.main(args.eval_args[1:])
+    if args.eval_args[:1] == ["long-history"]:
+        from .evals import long_history
+
+        return long_history.main(args.eval_args[1:])
     if args.eval_args[:1] == ["longmemeval-recall"]:
         from .evals import longmemeval_recall
 
@@ -388,6 +400,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("client", choices=["claude-code", "codex", "claude-desktop"])
     sp = add("setup", cmd_setup, "download llama.cpp and the embedding model, without touching any client")
     sp.add_argument("--model-only", action="store_true")
+    sp = add("report", cmd_report, "what recall put in front of Claude, what it cost and what Claude opened")
+    sp.add_argument("--days", type=float, help="only the last N days")
+
     sp = add("doctor", cmd_doctor, "check the install and say how to fix what is missing")
     sp.add_argument("--url")
 

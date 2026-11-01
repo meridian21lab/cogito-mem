@@ -14,7 +14,7 @@ import pytest
 from conftest import append
 from fixtures import claude_code_transcript, write_jsonl
 
-from cogito_mem import recall
+from cogito_mem import recall, timeutil
 from cogito_mem.capture.claude_code import items_from_lines, project_of
 from cogito_mem.errors import ApiError
 
@@ -307,3 +307,140 @@ def test_session_start_keeps_each_prompt_with_its_last_reply(tmp_path, monkeypat
         "user: prompt 39", "assistant: done with 39",
     ]  # fmt: skip
     assert lines[0].endswith(" …")  # each message cut to its share
+
+
+# --------------------------------------------------------------------------- pointers
+
+
+def real_items(text: str, thread: str = "old", author: str = "user", at: str = "2026-10-01T10:00:00Z"):
+    return {"thread_id": thread, "author": author, "text": text, "valid_at": at}
+
+
+def pointer_memory(mem):
+    mem.append(
+        [
+            real_items("We decided the retry budget for the uploader is seven attempts because of the flaky gateway.", thread="old"),
+            real_items("Unrelated talk about lunch and the weather on the balcony today.", thread="old"),
+            real_items("The retry budget in this very session was first set to nine attempts.", thread="now", at="2026-10-02T10:00:00Z"),
+        ],
+        namespace="n",
+    )
+    mem.flush()
+
+
+class MemClient:
+    def __init__(self, mem):
+        self.mem = mem
+
+    def query(self, text, namespace=None, **kw):
+        return self.mem.query(text, namespace=namespace, **kw)
+
+
+def test_pointers_are_short_lines_that_memory_open_can_read(mem):
+    pointer_memory(mem)
+    long_tail = " filler words" * 400
+    mem.append([real_items("The retry budget note with a long tail." + long_tail, thread="other")], namespace="n")
+    mem.flush()
+    shot = recall.pointers(MemClient(mem), prompt_hook("what is the retry budget for the uploader?"), "n", min_score=0.0)
+    assert shot.text and "memory_open" in shot.text
+    assert all(len(line) < 400 for line in shot.text.split("\n")[1:])
+    line = next(ln for ln in shot.text.split("\n") if "seven attempts" in ln)
+    short_id = line.split()[1]
+    assert len(short_id) == 12
+    opened = mem.handle({"op": "open", "namespace": "n", "id": short_id})
+    target = next(it for it in opened["items"] if it["opened"])
+    assert "because of the flaky gateway" in target["text"]
+
+
+def test_pointers_leave_out_this_session_until_it_compacts(mem, tmp_path):
+    pointer_memory(mem)
+    hook = prompt_hook("what is the retry budget for the uploader?")
+    shot = recall.pointers(MemClient(mem), hook, "n", min_score=0.0)
+    assert not any(it["thread_id"] == "now" for it in shot.items)
+    transcript = tmp_path / "now.jsonl"
+    boundary = {"type": "system", "subtype": "compact_boundary", "timestamp": "2026-10-03T00:00:00Z"}
+    transcript.write_text(json.dumps({"type": "user"}) + "\n" + json.dumps(boundary, separators=(",", ":")) + "\n")
+    shot = recall.pointers(MemClient(mem), {**hook, "transcript_path": str(transcript)}, "n", min_score=0.0)
+    assert any(it["thread_id"] == "now" for it in shot.items)
+
+
+def test_compacted_at_reads_the_last_boundary(tmp_path):
+    path = tmp_path / "t.jsonl"
+    lines = [{"subtype": "compact_boundary", "timestamp": t} for t in ("2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z")]
+    path.write_text("".join(json.dumps(x, separators=(",", ":")) + "\n" for x in lines))
+    assert recall.compacted_at(str(path)) == timeutil.parse("2026-02-01T00:00:00Z")
+    assert recall.compacted_at(str(tmp_path / "none.jsonl")) is None
+    assert recall.compacted_at(None) is None
+
+
+def test_siblings_get_their_own_lines(mem):
+    pointer_memory(mem)
+    now = timeutil.now_ms()
+    mem.append(
+        [{"thread_id": "parallel", "author": "user", "title": "/work/app", "text": "The retry budget is being tested right now on the gateway.",
+          "valid_at": timeutil.format(now - 60_000)}],
+        namespace="n",
+    )
+    mem.flush()
+    shot = recall.pointers(MemClient(mem), prompt_hook("what is the retry budget for the uploader?"), "n", min_score=0.0)
+    assert "other sessions of this project" in shot.text
+    assert shot.text.index("other sessions of this project") < shot.text.index("being tested right now")
+
+
+def test_a_compacted_session_is_told_what_it_can_still_read(mem, tmp_path):
+    mem.append([real_items("The first decision of this session was to pin the gateway version.", thread="now")], namespace="n")
+    mem.flush()
+    transcript = tmp_path / "now.jsonl"
+    prompt = {"type": "user", "uuid": "u1", "sessionId": "now", "timestamp": "2026-11-01T00:00:00Z", "cwd": "/work/app",
+              "message": {"role": "user", "content": "what about the gateway version decision?"}}
+    boundary = {"type": "system", "subtype": "compact_boundary", "timestamp": "2026-11-01T00:00:01Z"}
+    transcript.write_text(json.dumps(prompt) + "\n" + json.dumps(boundary, separators=(",", ":")) + "\n")
+    hook = {"session_id": "now", "cwd": "/work/app", "transcript_path": str(transcript), "source": "compact"}
+    shot = recall.compact_context(MemClient(mem), hook, "n")
+    assert "this_session" in shot.text and "pin the gateway version" in shot.text
+
+
+def test_edits_bring_earlier_messages_about_the_file_once(mem):
+    mem.append(
+        [{"thread_id": "old", "author": "user", "title": "/work/app", "text": "Never reorder the hooks in uploader.py, the gateway depends on it."}],
+        namespace="n",
+    )
+    mem.flush()
+    hook = {"session_id": "now", "cwd": "/work/app", "tool_name": "Edit", "tool_input": {"file_path": "/work/app/uploader.py"}}
+    seen: set[str] = set()
+    assert "Never reorder" in recall.tool_context(MemClient(mem), hook, "n", seen).text
+    assert recall.tool_context(MemClient(mem), hook, "n", seen).text is None
+    assert recall.tool_context(MemClient(mem), {**hook, "tool_name": "Read"}, "n", set()).text is None
+
+
+def test_the_hook_shows_a_line_once_and_keeps_a_ledger(mem, tmp_path, monkeypatch):
+    pointer_memory(mem)
+    monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "pointers")
+    monkeypatch.setattr(recall, "POINTER_MIN_SCORE", 0.0)
+    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0))
+    log = tmp_path / "run" / "recall.log"
+    body = json.dumps({**prompt_hook("what is the retry budget for the uploader?"), "hook_event_name": "UserPromptSubmit"})
+    run = lambda: recall.claude_code_hook(lambda: body, lambda: MemClient(mem), namespace="n", log=log)  # noqa: E731
+    first = run()
+    assert first and "seven attempts" in first
+    assert run() is None
+    from cogito_mem import ledger
+
+    rows = ledger.read(tmp_path / "run")
+    assert [r["fired"] for r in rows] == [True, False]
+    assert rows[0]["items"] and "seven" not in json.dumps(rows)  # ids and counts, never text
+    summary = ledger.summarize(rows)
+    assert summary["prompts"] == 2 and summary["prompts_fired"] == 1
+
+
+def test_a_holdout_session_gets_nothing_but_is_logged(mem, tmp_path, monkeypatch):
+    pointer_memory(mem)
+    monkeypatch.setenv("COGITO_MEM_RECALL_DESIGN", "pointers")
+    monkeypatch.setenv("COGITO_MEM_RECALL_HOLDOUT", "100")
+    monkeypatch.setattr(recall.pointers, "__defaults__", ("default", 0.0))
+    log = tmp_path / "run" / "recall.log"
+    body = json.dumps({**prompt_hook("what is the retry budget for the uploader?"), "hook_event_name": "UserPromptSubmit"})
+    assert recall.claude_code_hook(lambda: body, lambda: MemClient(mem), namespace="n", log=log) is None
+    from cogito_mem import ledger
+
+    assert ledger.read(tmp_path / "run")[0]["withheld"] is True

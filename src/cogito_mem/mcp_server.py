@@ -1,4 +1,4 @@
-"""The MCP server (stdio): tools ``memory_append`` and ``memory_query`` (requirements §3.5).
+"""The MCP server (stdio): tools ``memory_append``, ``memory_query`` and ``memory_open`` (requirements §3.5).
 
 It speaks JSON-RPC 2.0, one message per line, and forwards each tool call as the
 same request body the HTTP API takes. By default it forwards to the local service
@@ -11,9 +11,10 @@ import datetime as _dt
 import json
 import os
 import sys
+from pathlib import Path
 from typing import IO, Any, Callable
 
-from . import __version__, timeutil
+from . import __version__, ledger, timeutil
 from .errors import ApiError
 
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
@@ -25,7 +26,11 @@ and sessions, word for word, with the time it was said.
 - Search it with memory_query whenever the user refers to earlier work or past \
 conversations, or asks whether you remember something ("do you remember...", \
 "that idea from last week", "what did we decide about..."). Search before saying \
-you don't know.
+you don't know, and before planning or redoing work that may have been tried \
+before: it costs milliseconds. If a search misses, search again in other words.
+- A session compacted earlier is still here word for word: use this_session.
+- Lines that cogito-mem adds to a prompt point at earlier messages. Read one with \
+memory_open before relying on it.
 - Save with memory_append the ideas, decisions, open questions and facts the user \
 states, as short notes that make sense on their own.
 - Results come back as stored text with valid_at, the time it was said. Quote them \
@@ -78,8 +83,32 @@ def _tools() -> list[dict]:
                         "maximum": 100000,
                         "description": "Reading budget for the returned text, in tokens (default 1000).",
                     },
+                    "this_session": {
+                        "type": "boolean",
+                        "description": "Only this session, including what compaction removed from your context.",
+                    },
                 },
                 "required": ["text"],
+                "additionalProperties": False,
+            },
+            "annotations": {"readOnlyHint": True, "openWorldHint": False},
+        },
+        {
+            "name": "memory_open",
+            "title": "Open a remembered message",
+            "description": (
+                "Read one stored message whole, word for word, with the messages around it in its session. "
+                "Give the id from a memory_query result or a cogito-mem pointer line."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string", "description": "The message id, or its last characters as a pointer line shows them."},
+                    "before": {"type": "integer", "minimum": 0, "maximum": 50, "description": "Messages before it (default 1)."},
+                    "after": {"type": "integer", "minimum": 0, "maximum": 50, "description": "Messages after it (default 1)."},
+                    "max_tokens": {"type": "integer", "minimum": 1, "maximum": 100000, "description": "Reading budget (default 4000)."},
+                },
+                "required": ["id"],
                 "additionalProperties": False,
             },
             "annotations": {"readOnlyHint": True, "openWorldHint": False},
@@ -94,8 +123,10 @@ class McpServer:
         namespace: str | None = None,  # None: the memory's default name
         thread_id: str | None = None,
         thread_from_env: bool = True,
+        ledger_folder: Path | None = None,
     ):
         self.handle = handle
+        self.ledger = ledger_folder
         self.namespace = namespace
         # the session, when the client gives one (Claude Code passes its session id to the
         # stdio servers it starts; an HTTP session has no such environment)
@@ -186,12 +217,17 @@ class McpServer:
             build = self._append_body
         elif name == "memory_query":
             build = self._query_body
+        elif name == "memory_open":
+            build = self._open_body
         else:
             raise _RpcError(-32602, f"unknown tool: {name}")
         try:
             response = self.handle(build(args))
         except ApiError as err:
             return {"content": [{"type": "text", "text": json.dumps(err.body(), ensure_ascii=False)}], "isError": True}
+        if self.ledger is not None and name != "memory_append":
+            event = {"event": "open", "id": args.get("id")} if name == "memory_open" else {"event": "query"}
+            ledger.record(self.ledger, {**event, "session": self.thread_id, "returned": len(response.get("items", []))})
         return {
             "content": [{"type": "text", "text": json.dumps(response, ensure_ascii=False)}],
             "structuredContent": response,
@@ -217,14 +253,23 @@ class McpServer:
         return {"op": "append", "namespace": self.namespace, "items": [item]}
 
     def _query_body(self, args: dict) -> dict:
-        self._check(args, {"text", "valid_after", "valid_before", "max_tokens"})
+        self._check(args, {"text", "valid_after", "valid_before", "max_tokens", "this_session"})
         body: dict = {"op": "query", "namespace": self.namespace, "text": args.get("text")}
         flt = {k: args[k] for k in ("valid_after", "valid_before") if args.get(k) is not None}
+        if args.get("this_session"):
+            if not self.thread_id:
+                raise ApiError("invalid_argument", "this_session needs a session id, and this client gives none")
+            flt["thread_id"] = self.thread_id
         if flt:
             body["filter"] = flt
         if args.get("max_tokens") is not None:
             body["max_tokens"] = args["max_tokens"]
         return body
+
+
+    def _open_body(self, args: dict) -> dict:
+        self._check(args, {"id", "before", "after", "max_tokens"})
+        return {"op": "open", "namespace": self.namespace, **{k: v for k, v in args.items() if v is not None}}
 
 
 class _RpcError(Exception):

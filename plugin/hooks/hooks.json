@@ -24,7 +24,7 @@
     ],
     "SessionStart": [
       {
-        "matcher": "startup|resume",
+        "matcher": "startup|resume|compact",
         "hooks": [
           { "type": "command", "command": "uvx cogito-mem==0.2.1 recall claude-code", "timeout": 15 }
         ]
