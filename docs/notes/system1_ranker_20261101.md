@@ -3,12 +3,28 @@
 *Spec and measurements, 1 Nov 2026. Stage-0 arm R of [`requirements.md`](../requirements.md) §7, widened to
 "System-1" decision models and to search with no embeddings at all.*
 
-<!-- RESULTS-SUMMARY -->
+**In short.** A small local System-1 model that reads the question and each candidate memory together (here
+Qwen3-Reranker-0.6B, or the open Jev-style decision model vLLM-SR d3-lite, both run by llama.cpp on the same
+machine) gives the largest gain any search setting has shown on 1M+ token histories so far
+(`evals/baselines/long-history-20261101/`), **as a reranker on top of the hybrid search**:
 
-**Checked on 1M+ tokens, later on 1 Nov 2026.** On LongMemEval_M's 158 tuning questions, Qwen3-Reranker (ggml-org, top 100) ordered by its score alone
-beats rank fusion at small budgets: every needed turn in the reply for 59.5 % against 48.7 % at 300 tokens (−10.8, 95 % CI −17.7 to −3.8), 74.7 %
-against 69.6 % at 1,000 (−5.1, −9.5 to −1.3), level at 2,500, and 82.3 % against 83.5 % at 5,000. So `rerank_fusion` now defaults to `replace`.
-The numbers below are from when `rrf` was the default, on smaller histories.
+- **LongMemEval_M (1.2M tokens per question), measured on the M5 Max:** every needed turn inside a 1,000-token reply
+  for 75.6 % of 312 held-out questions, against 56.4 % for the shipped search (+19.2, 95 % CI 14.1 to 24.4);
+  knowledge updates 60 → 96, multi-session 30 → 54. Answers from that reply: 62.0 → 70.7.
+- **LoCoMo, measured here:** +8.0 points at 300 tokens (4.9 to 11.3), past the +5-point gate of `requirements.md` §7;
+  multi-hop 14.9 → 23.9, temporal 60.5 → 72.1.
+- **Across sessions on LongMemEval-S:** every answer session in the top 10 for 8 of 8 multi-session questions,
+  against 6 of 8.
+- **It does not replace the embeddings or the search.** With keyword search alone in front, it beats the shipped
+  search at 300 tokens on M (+16.2, 5.4 to 28.4) but loses 16 points at 5,000 and stays below it on S: it can only reorder what
+  the search found. Reading every message is 117 s a query on 19k tokens here, about 80 minutes at 1.2M.
+- **Speed:** 17 s for 30 candidates on a 4-core CPU (the search: 33 ms), about 0.6 s on the M5 Max. Off by default;
+  worth distilling into the search (stage 1) so the quality fits the CPU budget.
+- **Settings:** the model reads the candidate alone, not the message before it (that one moves a reply above the
+  answer it follows). On 20 S dev questions fusing its ranks with the search's (RRF) looked better, but on M's 158
+  tuning questions with hybrid candidates its score alone beats RRF by 10.8 points at 300 tokens (3.8 to 17.7) and
+  5.1 at 1,000 (1.3 to 9.5), so `replace` is the default. The keyword-candidate runs below used RRF and 30
+  candidates; the hybrid runs on M used `replace` and 100.
 
 ## 1. The idea
 
@@ -70,9 +86,9 @@ per text). New code is in `src/cogito_mem/system1.py`; the search is unchanged.
 
 | Setting (`Config`) | Values | Meaning |
 |---|---|---|
-| `candidates` | N, or 0 | how many search candidates the System-1 model reads; 0 is a full scan of every visible item |
+| `candidates` | N (default 100), or 0 | how many search candidates the System-1 model reads; 0 is a full scan of every visible item. A query can ask for its own count (`rerank`, 0 for none) |
 | `rerank_context` | `own` (default), `previous`, `dated` | what it reads of a candidate: `author: text`; plus the last 300 characters of the message it answers; plus the date |
-| `rerank_fusion` | `rrf` (default), `replace` | fuse the model's ranks with the search's by reciprocal rank (ties keep the search order), or order by the model's score alone; a full scan always uses the model's order |
+| `rerank_fusion` | `replace` (default), `rrf` | order by the model's score alone, or fuse its ranks with the search's by reciprocal rank (ties keep the search order); a full scan always uses the model's order |
 
 Scorers (`system1.start_system1(spec, kind)`):
 
@@ -87,7 +103,8 @@ Scorers (`system1.start_system1(spec, kind)`):
 `CachedRanker` keeps scores in SQLite, keyed by model, question and text (and, for a Choice, the whole option
 list): an evaluation asks each question at several budgets, and reruns with another fusion cost nothing.
 
-Evaluation flags, the same for `eval longmemeval-recall` and `eval locomo`: `--system1 <gguf or URL>`,
+Evaluation flags, the same for `eval longmemeval-recall`, `eval locomo` and `eval long-history run` (where the model
+is the `rerank` variant, over the same loaded memory as `base`): `--system1 <gguf or URL>`,
 `--system1-kind rerank|noul|choice`, `--candidates N` (0: full scan), `--rerank-context`, `--rerank-fusion`,
 `--system1-cache`, `--system1-threads`. `eval longmemeval-recall --sample N [--sample-offset M] [--seed S]`
 takes N questions in a seeded order that keeps the mix of question types, and whose prefixes nest.
@@ -96,7 +113,9 @@ takes N questions in a seeded order that keeps the mix of question types, and wh
 
 The evaluation protocol of [`benchmarks.md`](../benchmarks.md), with the same data files (hashes checked:
 LongMemEval-S `d6f21ea9…`, LoCoMo `79fa87e9…`), the shipped EmbeddingGemma 2 Q8_0 and the shipped search, plus
-the System-1 arms. No LLM answers or judges anything: every number is retrieval against the benchmark's labels.
+the System-1 arms, and the long-history suite of `evals/baselines/long-history-20261101/`. Nothing run here asks an
+LLM: every number is retrieval against the benchmark's labels (the answer rows quoted from the M5 Max runs are the
+exception, and say so).
 
 | | |
 |---|---|
@@ -122,15 +141,18 @@ takes 4–8 minutes on this CPU, against 4.7 s with Metal on the laptop of `benc
   many sessions). Its 2.7 GB were streamed and the first 100 questions of the S order written in that order
   (`--limit 40` there is `--sample 40` on S: the same questions, ten times the history). M's histories hardly
   overlap (each question brings about 1.1M new tokens), so embedding one takes about an hour on this CPU: the
-  keyword arms (no embeddings) ran on 40 to 100 questions, the hybrid arms on as many as the time allowed.
+  keyword arms (no embeddings) ran here on 30 to 80 questions, and the hybrid arms come from the M5 Max runs in
+  `evals/baselines/long-history-20261101/` (all 500 questions), paired by `question_id`.
 - **LoCoMo**: every 4th question of categories 1–4 in each of the 10 conversations (`--question-stride 4`:
   388 questions with LoCoMo's mix of categories; the first N would not keep it, since LoCoMo groups questions by
   category). The baselines also ran on all 1,536.
 
-**Metrics.** LongMemEval-S as `eval longmemeval-recall` reports them, with no date cutoff (`--as-of none`,
-LongMemEval's own protocol): session R@k (an evidence session in the first k), all@5, NDCG@10 and MRR, and the
-same at the turn level (the `has_answer` turns). LoCoMo as `eval locomo`: coverage@N, every evidence turn inside
-an N-token reply. Differences are paired over the same questions, with 95 % percentile-bootstrap intervals.
+**Metrics.** LongMemEval as `eval longmemeval-recall` and `eval long-history run` report them, with no date cutoff
+(`--as-of none`, LongMemEval's own protocol): session R@k (an evidence session in the first k), all@k (every one),
+NDCG@10 and MRR, the same at the turn level (the `has_answer` turns), and the long-history suite's coverage and
+reached at 300, 1,000, 2,500 and 5,000 tokens (every / at least one evidence turn in a reply of that size). LoCoMo as `eval locomo`: coverage@N, every evidence turn inside
+an N-token reply. Differences are paired over the same questions, with 95 % percentile-bootstrap intervals
+(5,000 resamples; `compare`'s 10,000 move the ends by a point or so).
 **Across sessions**: LongMemEval's multi-session questions need evidence from two or more sessions (all@k: every
 one of them in the first k), and its temporal and knowledge-update questions ask about facts spread over, or
 changed across, sessions; LoCoMo's multi-hop questions do the same across up to 35 sessions. These slices are
@@ -167,20 +189,25 @@ What the dev questions decided:
   falls 15.8 points for Qwen3-Reranker, and the native decision models fall further (d3-lite's listwise Choice
   to 0 turn R@1, its evidence turns ranked 4th to 20th). Reading the candidate alone (`own`) removes the problem
   for all three, and is 25 % cheaper. A date in front (`dated`) changed nothing.
-- **RRF over replace.** Fusing the model's ranks with the search's keeps the search's first place when the model
-  is unsure: with `own`, +10.5 turn R@1 for every model, against −15.8 to 0 for replace. Letting the model break
-  RRF ties was one question worse at both levels, so ties keep the search order.
+- **RRF over replace, on these questions.** Fusing the model's ranks with the search's keeps the search's first
+  place when the model is unsure: with `own`, +10.5 turn R@1 for every model, against −15.8 to 0 for replace.
+  Letting the model break RRF ties was one question worse at both levels, so ties keep the search order. **This
+  did not carry over to 1M+ tokens:** on LongMemEval_M's 158 tuning questions with hybrid candidates (top 100),
+  the model's score alone beats fusion at 300 tokens by 10.8 points (95 % CI 3.8 to 17.7) and at 1,000 by 5.1
+  (1.3 to 9.5), level at 2,500 (`m-ggml-*.json`, measured on the M5 Max). There the search's own order is the
+  weaker signal, so `replace` is now the default; RRF stays an option for small memories.
 - **Three finalists, which 20 questions cannot separate:** Qwen3-Reranker-0.6B (a relevance Noul; the fastest,
   28.7 s per query on 2 threads), d3-lite as a Noul per candidate (the best turn level, 40.8 s) and d3-lite as one
-  listwise Choice over the 30 candidates (the best session level, 34.6 s), all with `own` and RRF. All three go
-  to the test questions of LongMemEval-S; LoCoMo, the slowest to score, runs Qwen3-Reranker only. d3-edge
-  (0.59B) lost to keyword search alone and was dropped.
+  listwise Choice over the 30 candidates (the best session level, 34.6 s), all with `own` and RRF. All three ran
+  on the test questions of LongMemEval_M with keyword candidates; Qwen3-Reranker also ran on S and on LoCoMo, the
+  slowest to score. d3-edge (0.59B) lost to keyword search alone and was dropped.
 
 ## 6. Results on the test questions
 
-Every System-1 arm here uses the settings fixed on the dev questions: the candidate alone (`own`), RRF, 30
-candidates. Each cell is the arm's score, then its paired difference from the row it is compared with and the
-95 % interval.
+The System-1 arms run on this machine use the settings fixed on the dev questions: the candidate alone (`own`),
+RRF, 30 candidates; the `replace` rows replay the same scores ordered by the model alone. The hybrid + reranker rows on M in §6.3 come from `evals/baselines/long-history-20261101/`
+(M5 Max, top 100, `replace`). Each cell is the arm's score, then its paired difference from the row it is compared
+with and the 95 % interval.
 
 ### 6.1 LongMemEval-S (about 120k tokens per question)
 
@@ -194,11 +221,13 @@ The shipped search, then the System-1 model behind it (`long-history run`, 29 an
 | | Session R@1 | Session all@10 | Coverage 300 | Coverage 1,000 | Coverage 2,500 | Reached 1,000 |
 |---|---|---|---|---|---|---|
 | Hybrid search (shipped) | 96.6 | 93.1 | 44.8 | 75.9 | 79.3 | 93.1 |
-| Hybrid + Qwen3-Reranker | 96.6 (0) | **100.0 (+6.9 [0, +17.2])** | 44.8 (0) | 79.3 (+3.4 [0, +10.3]) | 79.3 (0) | 100.0 (+6.9 [0, +17.2]) |
+| Hybrid + Qwen3-Reranker, RRF | 96.6 (0) | **100.0 (+6.9 [0, +17.2])** | 44.8 (0) | 79.3 (+3.4 [0, +10.3]) | 79.3 (0) | 100.0 (+6.9 [0, +17.2]) |
+| Hybrid + Qwen3-Reranker, `replace` (same scores) | 96.6 (0) | **100.0 (+6.9 [0, +17.2])** | **51.7 (+6.9 [−10.3, +24.1])** | 79.3 (+3.4 [0, +10.3]) | 79.3 (0) | 100.0 (+6.9 [0, +17.2]) |
 
 The gain is all across sessions: multi-session questions with every answer session in the top 10 go from 6 of 8
-to 8 of 8, and one knowledge-update question gets its evidence inside 1,000 tokens. At 29 questions none of it is
-outside the noise.
+to 8 of 8, and one knowledge-update question gets its evidence inside 1,000 tokens. Ordering by the model's score
+alone (`replace`, the default now) also lifts coverage at 300 tokens by 6.9 points, where RRF kept the search's top.
+At 29 questions none of it is outside the noise.
 
 Without embeddings (`eval longmemeval-recall`, the 30 hybrid questions, no cutoff), against the shipped search:
 
@@ -234,10 +263,27 @@ in it. Reordering more candidates is what could move the larger budgets.
 `long-history run --search keyword` with the System-1 model as the `rerank` variant, so `base` (keyword search)
 and `rerank` come from the same loaded memory. The shipped hybrid search is the published
 `evals/baselines/long-history-20261101/m-final.json`, paired by `question_id`. This machine reproduces those
-files exactly where it could check (S hybrid and S keyword above), and embedding M here would take about an hour
-a question, so hybrid + System-1 on M was not run (§10).
+files exactly where it could check (S hybrid and S keyword above). Embedding M here would take about an hour a
+question, so **hybrid + System-1 on M was measured on the M5 Max** (`m-rerank-heldout.json`, Qwen3-Reranker on the
+top 100, the model's order alone, 312 held-out answerable questions):
 
-**Qwen3-Reranker, 74 answerable questions** (80 test questions; no date cutoff):
+| | Session R@1 | Session R@5 | Session all@10 | Coverage 300 | Coverage 1,000 | Coverage 2,500 | Coverage 5,000 |
+|---|---|---|---|---|---|---|---|
+| Hybrid search (shipped) | 75.0 | 94.9 | 87.2 | 39.4 | 56.4 | 70.8 | 81.7 |
+| **Hybrid + Qwen3-Reranker** | **86.2** | 96.8 | **91.7** | **59.3** | **75.6** | **84.3** | **88.5** |
+
+Coverage at 1,000: +19.2 (95 % CI 14.1 to 24.4). By type, coverage at 1,000 goes from 60 to 96 on knowledge
+updates, 30 to 54 on multi-session questions, 37 to 58 on preferences and 60 to 68 on temporal reasoning. Answered
+by Claude Haiku 5.5 from the reply alone (334 held-out questions, GPT-5 mini judging): 62.0 → 70.7 at 1,000 tokens
+(+8.7, 4.2 to 13.5), and reranked 2,500 tokens match plain search at 5,000 (77.5 against 76.1) at half the tokens.
+With the real `memory_query` tool, where the model can search again, there is no gain (76.6 → 76.9).
+
+No other search setting in that folder moves coverage at 1,000 on M by more than 2 points (session boost −1.9,
+exact-identifier lane −0.2). This is where the System-1 model belongs: **on top of the hybrid search, when one small reply must do.** The runs on this machine below ask
+the other question, whether it can replace the embeddings.
+
+**Instead of embeddings: keyword search + Qwen3-Reranker, 74 answerable questions** (80 test questions; 30
+candidates, RRF; no date cutoff):
 
 | | Session R@1 | Session all@10 | Coverage 300 | Coverage 1,000 | Coverage 2,500 | Coverage 5,000 | Reached 1,000 |
 |---|---|---|---|---|---|---|---|
@@ -246,9 +292,14 @@ a question, so hybrid + System-1 on M was not run (§10).
 | **Keyword + Qwen3-Reranker** | 77.0 | 82.4 | **43.2** | **62.2** | 63.5 | 66.2 | 79.7 |
 | … minus keyword alone | +8.1 [0, +16.2] | +6.8 [+1.4, +13.5] | +6.8 [+1.4, +13.5] | **+8.1 [+2.7, +14.9]** | +1.4 [0, +4.1] | 0 | +8.1 [+2.7, +14.9] |
 | … minus the shipped hybrid | +1.4 [−9.5, +12.2] | −5.4 [−10.8, −1.4] | **+10.8 [+1.4, +21.6]** | +6.8 [−4.1, +17.6] | −6.8 [−14.9, 0] | **−16.2 [−24.3, −8.1]** | −5.4 [−14.9, +4.1] |
+| Keyword + Qwen3-Reranker, `replace` (same scores) | 79.7 | 85.1 | **48.6** | 62.2 | 64.9 | 66.2 | — |
+| … minus keyword alone | +10.8 [+1.4, +21.6] | +9.5 [+2.7, +16.2] | **+12.2 [+1.4, +23.0]** | +8.1 [+2.7, +14.9] | +2.7 [0, +6.8] | 0 | — |
+| … minus the shipped hybrid | +4.1 [−5.4, +13.5] | −2.7 [−8.1, +2.7] | **+16.2 [+5.4, +28.4]** | +6.8 [−4.1, +16.2] | −5.4 [−12.2, +1.4] | **−16.2 [−24.3, −8.1]** | — |
 
-On the 47 of them in the held-out split (`split_of`), against keyword alone: coverage at 1,000 +10.6 [+2.1, +21.3],
-R@1 +14.9 [+4.3, +27.7].
+On the 47 of them in the held-out split (`split_of`), against keyword alone (RRF): coverage at 1,000 +10.6 [+2.1,
++21.3], R@1 +14.9 [+4.3, +27.7]. Replaying the same scores with `replace` (no new model run) adds 5.4 points at 300
+tokens over RRF (−4.1 to +14.9) and 2.7 at all@10 (0 to +6.8): the same direction as the 158 tuning questions with
+hybrid candidates.
 
 **All three finalists on the same 29 answerable questions:**
 
@@ -262,24 +313,35 @@ R@1 +14.9 [+4.3, +27.7].
 
 What M shows:
 
-- **On 1M+ token histories the System-1 model matters more than on S.** Behind keyword search it adds 7 to 8 points
+- **On 1M+ token histories the System-1 model matters more than on S.** Behind keyword search it adds 7 to 12 points
   of coverage at 300 and 1,000 tokens (on S: −2.7 and +5.4), and with no embedding model at all it beats the shipped
-  hybrid search at 300 tokens by 10.8 points. The published scale curve explains why: hybrid search loses 13 points of
+  hybrid search at 300 tokens by 10.8 points with RRF and 16.2 ordered by its score alone. The published scale curve
+  explains why: hybrid search loses 13 points of
   coverage at 1,000 from 129k to 1.2M tokens, because more near-miss messages crowd the top; a model that reads each
   candidate pushes them back down.
 - **It cannot fix what the search did not find.** Past the 30 candidates it reorders, keyword search's list is
   worse than hybrid's: at 5,000 tokens keyword + System-1 is 16 points below the shipped search, and the session
-  all@10 is 5 points below. The model only reorders; the embeddings are what find a message whose words differ.
-  **System-1 replaces neither the embeddings nor the search; it is worth most on top of the hybrid search**, which
-  is the arm §10 asks for on M.
+  all@10 is 3 to 5 points below. The model only reorders; the embeddings are what find a message whose words differ.
+  **System-1 replaces neither the embeddings nor the search; it is worth most on top of the hybrid search**, as
+  the M5 Max run above shows: +19.2 coverage at 1,000 with hybrid candidates, against +8.1 with keyword candidates.
 - **Qwen3-Reranker is the System-1 model to keep.** It has the best coverage and is the fastest. d3-lite as one
-  listwise Choice is close (the same coverage at 300, better R@1, 20 % slower); as a Noul per candidate it is the
-  slowest and loses coverage at 1,000.
+  listwise Choice is close (the same coverage at 300, better R@1; as fast on an idle machine, §7); as a Noul per
+  candidate it is the slowest and loses coverage at 1,000.
 
 ### 6.4 Across sessions
 
-Questions whose answer is spread over, or changed across, sessions, at 1,000 tokens (coverage: every evidence turn
-in the reply):
+Questions whose answer is spread over, or changed across, sessions. On top of the hybrid search on M (312 held-out
+answerable questions, M5 Max, `m-rerank-heldout.json`), coverage at 1,000 tokens:
+
+| LongMemEval_M, by type | Hybrid (shipped) | Hybrid + Qwen3-Reranker |
+|---|---|---|
+| knowledge-update | 60 | **96** |
+| multi-session | 30 | **54** |
+| single-session-preference | 37 | **58** |
+| temporal-reasoning | 60 | **68** |
+
+From the runs here (the M rows: the 74 keyword questions of §6.3, against the published hybrid on the same
+questions; the S and LoCoMo rows: hybrid + model):
 
 | | Hybrid (shipped) | Keyword | Keyword + Qwen3-Reranker |
 |---|---|---|---|
@@ -294,10 +356,31 @@ The model helps most with knowledge updates (the latest of several versions of a
 it reads the question and the message together (for example "where do I live now?" against "we finally moved to
 Denver last week"), where neither shared words nor a vector computed without the question singles out the newest
 version. It brings multi-session recall on M up to the hybrid search's level from keyword candidates, and to
-every answer session in the top 10 on top of hybrid search on S. Temporal questions gain on LoCoMo but not on M,
-where the missing sessions are a recall problem of the keyword search the model cannot repair.
+every answer session in the top 10 on top of hybrid search on S. Temporal questions gain on LoCoMo and, on top of
+hybrid search, on M (60 → 68), but not from keyword candidates on M, where the missing sessions are a recall
+problem of the keyword search that the model cannot repair.
 
-<!-- SPEED -->
+## 7. Speed
+
+Measured on the idle VM, every server on 4 threads, one run at a time, each System-1 score computed for the first
+time (no cache). The query time includes embedding the question and the search.
+
+| What answers the query | LongMemEval-S, median (p95) | LoCoMo, median (p95) |
+|---|---|---|
+| Keyword search | 1.7 ms (1.8) | — |
+| Hybrid search, shipped | **33 ms (55)** | **24 ms (29)** |
+| Hybrid + Qwen3-Reranker, 10 candidates | 5.3 s (5.5) | 2.7 s (3.0) |
+| Hybrid + Qwen3-Reranker, 30 candidates | 17.1 s (26.3) | 8.1 s (9.0) |
+| Hybrid + d3-lite, Noul over 30 | 19.2 s (21.3) | — |
+| Hybrid + d3-lite, one Choice over 30 | 16.9 s (20.7) | — |
+| Qwen3-Reranker over every message (full scan, 419) | — | **117 s** (3 questions) |
+
+A 0.6B model reads about 400 tokens a second on these 4 cores, the same in every run (6.3k tokens in 17 s, the
+50k-token full scan in 117 s). The cost grows with the number of candidates, not with the size of the memory: 30
+candidates cost the same on a 1.2M-token history as on a 19k one. On the M5 Max with Metal the same model takes
+about 20 ms a candidate (`evals/baselines/long-history-20261101/README.md`): about 0.6 s for 30, 2 s for the
+default 100. **On a CPU, 30 candidates make a query 340 to 520 times slower than the search** (8.1 s against 24 ms,
+17.1 s against 33 ms), where §6 of `requirements.md` sets 100 ms.
 
 ## 8. What a System-1 model costs, and why it cannot replace the search
 
@@ -311,30 +394,70 @@ candidate):
 | A LoCoMo conversation (about 19k tokens) | 115 | 3.5k | 50k (419 items) |
 | The 10M-token memory of the speed test (106k items) | — | — | about 22M (106k × 210) |
 
-<!-- COST -->
+At about 400 tokens a second on 4 CPU cores, and 20 ms a candidate on the M5 Max:
+
+| | 30 candidates | 100 candidates (the default) | Every item (full scan) |
+|---|---|---|---|
+| LongMemEval-S, CPU | 17 s (measured) | about 57 s | about 8 min (862 items) |
+| LongMemEval_M, CPU | 17 s | about 57 s | **about 80 min** (about 8,600 items) |
+| LongMemEval_M, M5 Max | about 0.6 s | about 2 s | about 3 min |
+| 10M-token memory, M5 Max | about 0.6 s | about 2 s | **about 35 min** |
+
+Reading every message is not a design on any machine: the search's job is exactly to make the model read 30 or
+100 messages instead of thousands. The full scan was tried on three LoCoMo questions and got all three right,
+which says nothing either way; at these costs it was not worth more CPU hours.
 
 ## 9. Where it could go in Cogi
 
-The prompt hook adds at most 300 tokens to every prompt and must not hold the prompt up, so a System-1 model
-does not belong there on a CPU. The places it could go, in order of how well they fit:
+`dev` already carries the reranker as an option: `COGITO_MEM_RERANKER` (a GGUF or a llama-server URL), off by
+default; it reorders the top 100 by the model's score alone, a query can ask for its own count (`rerank`, 0 for
+none), and the reply says when its scores are the reranker's. The hook reranks 30 so it can answer in time and
+reads the score as its gate. The places a System-1 model fits, in order:
 
-1. **Distilled into the search (stage 1 of `requirements.md` §7).** The reranker's scores on the top 30 become
-   the teacher of a small head over EmbeddingGemma's outputs, which costs a few milliseconds. This keeps the
-   query path at tens of milliseconds and is what §7 plans when a reranker gains enough.
-2. **An opt-in reranker for searches Claude asks for** (`memory_query`), on machines with a GPU: the plugin's
-   recall hook stays as it is, and `cogito-mem serve --system1 <gguf>` (today `--reranker`, `/v1/rerank` only)
-   reorders the top N of explicit searches. N is bounded by a time budget, not fixed: candidates are scored in
-   search order until the budget is spent, and the rest keep their search order.
-3. **Instead of embeddings (keyword search, then the System-1 model).** One model instead of two, but the
-   System-1 model can only reorder what BM25 found; see §6 for what that costs in recall.
+1. **Distilled into the search (stage 1 of `requirements.md` §7).** The reranker's scores on the top 100 become
+   the teacher of a small head over EmbeddingGemma's outputs, which costs milliseconds. This brings the quality to
+   every machine and keeps the query path within §6's 100 ms; §11 decision 8b names exactly this case.
+2. **The opt-in reranker as it is, where it is fast enough.** On the M5 Max, 30 candidates take about 0.6 s and 100
+   about 2 s. On a 4-core CPU the hook's 30 take about 17 s on LongMemEval-sized messages, which holds up every
+   prompt: there the hook should not rerank, and `memory_query` can, because Claude asked and can wait. A time budget
+   rather than a fixed count would make this safe everywhere: score candidates in search order until the budget is
+   spent and leave the rest in search order.
+3. **Instead of embeddings (keyword search, then the model).** One model instead of two, and better than hybrid
+   search at 300 tokens on M, but worse at large budgets and on S (§6). Not worth losing what the embeddings find.
 4. **Instead of search (a full scan).** Not viable: §8.
 
-None of these sends anything off the machine: the model is a GGUF file run by the same llama.cpp, on
-`127.0.0.1`.
+None of these sends anything off the machine: every model is a GGUF file run by the same llama.cpp, on `127.0.0.1`.
+
+## 10. Verdict
+
+**On the question asked:** a local System-1 model does improve recall, and most where Cogi is positioned, on
+1M+ token histories and across sessions. It does so as a reranker on top of the hybrid search, not instead of it.
+
+| Use | Quality | Speed (CPU / M5 Max) | Verdict |
+|---|---|---|---|
+| Reranker after hybrid search | M: coverage at 1,000 +19.2 (56.4 → 75.6), answers +8.7; LoCoMo: +8.0 at 300 (the §7 gate); S: across sessions +6.9 all@10 | 17 s / 0.6 s for 30; 57 s / 2 s for 100 | **Yes, opt-in, off the per-prompt path on a CPU** |
+| Instead of embeddings (keyword, then the model) | M: +16.2 over hybrid at 300 tokens, −16 at 5,000; S: below hybrid everywhere | same as above, and no embedding model to run | No: the embeddings find what keywords miss, and the model can only reorder |
+| Instead of search (read every message) | not measurable at this cost | 80 min / 3 min a query at 1.2M tokens | No |
+| Jev-like decision model (d3-lite) vs relevance model (Qwen3-Reranker) | d3 Choice close on M (same coverage at 300, better R@1), Noul worse | d3 Choice as fast, d3 Noul 1.1× slower | Qwen3-Reranker; d3 stays a candidate for typed questions beyond relevance |
+
+What to do next, in order:
+
+1. **Keep the reranker off by default and offer it where a GPU or time allows**, which `dev` already does
+   (`COGITO_MEM_RERANKER`, a query's own `rerank`, top 100, the model's score alone). On a CPU-only machine the
+   hook must not use it: 17 s for 30 candidates.
+2. **Stage 1 of `requirements.md` §7 is now justified**: the reranker clears the +5-point gate (LoCoMo +8.0 at
+   300 tokens; M +19.2 at 1,000) and does not fit the CPU budget, which is exactly the case §11 decision 8b names.
+   Distil its scores on the top 100 into a small head over EmbeddingGemma's outputs, so the quality arrives in
+   milliseconds.
+3. **Rerank more than 30 on LoCoMo-sized memories too**: at 30, coverage at 1,000 did not move on LoCoMo, while
+   the top 100 on M moved every budget.
+4. Measure a smaller relevance model (ettin-reranker-68m or -32m, Apache-2.0; its GGUFs on Hugging Face lack the
+   classifier head, so ONNX for now) for the CPU path, and the reranker's latency inside the real hook on a laptop CPU.
 
 ## 11. Reproduce
 
-llama.cpp at commit `785322d` or later (for `/v1/systemone`), built for the CPU; the models from Hugging Face:
+llama.cpp at commit `785322d` or later (for `/v1/systemone`), built for the CPU; the models from Hugging Face
+(`ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF`, which carries the rerank template, and `ggml-org/vllm-d3-lite-GGUF`):
 
 ```sh
 huggingface-cli download ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF qwen3-reranker-0.6b-q8_0.gguf --local-dir models
@@ -342,27 +465,38 @@ huggingface-cli download ggml-org/vllm-d3-lite-GGUF vllm-d3-lite-Q8_0.gguf --loc
 export COGITO_MEM_LLAMA_SERVER=/path/to/llama-server
 ```
 
-Dev questions (keyword candidates; swap the model, `--system1-kind`, `--rerank-context` and `--rerank-fusion`
-for the other rows of §5):
+The samples: `--sample 20 --sample-offset 60` (dev) and `--sample 40` / `--sample 30` (test) of
+`eval longmemeval-recall`; for `long-history`, the first 100 questions of that order written to a file in order
+(positions 0–59 and 80–99, without the dev questions, for the 80-question test file), so `--limit N` takes the same
+questions from S and M. Settings below are the ones these runs used (30 candidates, RRF); drop
+`--candidates 30 --rerank-fusion rrf` for the current defaults (100, the model's score alone).
 
 ```sh
+# dev: keyword candidates, one row of §5 (swap the model, --system1-kind, --rerank-context, --rerank-fusion)
 cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --sample 20 --sample-offset 60 --as-of none \
-  --search keyword --system1 models/qwen3-reranker-0.6b-q8_0.gguf --rerank-context own --rerank-fusion rrf \
+  --search keyword --system1 models/qwen3-reranker-0.6b-q8_0.gguf --candidates 30 --rerank-fusion rrf \
   --system1-cache s1-cache.sqlite3 --out dev/kw-qwen-own-rrf.json
-```
 
-Test questions (drop `--system1 …` for the baselines; `--search keyword` for the arms with no embeddings;
-`--system1-kind noul` or `choice` with the d3 GGUF):
+# LongMemEval S and M, the long-history suite: base and rerank over the same loaded memory
+cogito-mem eval long-history run --data s_test80.json --limit 30 --variants base \
+  --system1 models/qwen3-reranker-0.6b-q8_0.gguf --candidates 30 --rerank-fusion rrf --out lh/s-hybrid-qwen.json
+cogito-mem eval long-history run --data m_test80.json --limit 80 --search keyword --variants base \
+  --system1 models/qwen3-reranker-0.6b-q8_0.gguf --candidates 30 --rerank-fusion rrf --out lh/m-kw-qwen.json
+cogito-mem eval long-history run --data m_test80.json --limit 40 --search keyword --variants base \
+  --system1 models/vllm-d3-lite-Q8_0.gguf --system1-kind choice --candidates 30 --rerank-fusion rrf --out lh/m-kw-d3choice.json
+cogito-mem eval long-history compare evals/baselines/long-history-20261101/m-final.json lh/m-kw-qwen.json \
+  --metric search.base.coverage.300 --metric-b search.rerank.coverage.300
 
-```sh
-cogito-mem eval longmemeval-recall --data longmemeval_s_cleaned.json --sample 30 --as-of none \
-  --system1 models/qwen3-reranker-0.6b-q8_0.gguf --system1-cache s1-cache.sqlite3 --out s1/lme-hybrid-qwen.json
-cogito-mem eval locomo --data locomo10.json --question-stride 4 \
-  --system1 models/qwen3-reranker-0.6b-q8_0.gguf --system1-cache s1-cache.sqlite3 --out s1/locomo-hybrid-qwen.json
-cogito-mem eval longmemeval-recall compare lme-hybrid.json s1/lme-hybrid-qwen.json
+# hybrid + reranker on M (needs M's embeddings: about 90 minutes on the M5 Max, far longer on a CPU)
+cogito-mem eval long-history run --data longmemeval_m_cleaned.json --split heldout --variants base \
+  --reranker models/qwen3-reranker-0.6b-q8_0.gguf --out m-rerank-heldout.json
+
+# LoCoMo
+cogito-mem eval locomo --data locomo10.json --question-stride 4 --system1 models/qwen3-reranker-0.6b-q8_0.gguf \
+  --candidates 30 --rerank-fusion rrf --system1-cache s1-cache.sqlite3 --out s1/locomo-hybrid-qwen.json
 cogito-mem eval locomo compare locomo-hybrid.json s1/locomo-hybrid-qwen.json --budget 300
 ```
 
 Speed: the same commands with `COGITO_MEM_THREADS=4 --system1-threads 4`, no `--system1-cache`, nothing else
-running; `--candidates 0` for the full scan. Each result file's `meta` records the settings, the commit, the
-machine and the dataset hash.
+running; `--search keyword --candidates 0` for the full scan. Each result file's `meta` records the settings, the
+commit, the machine and the dataset hash.
