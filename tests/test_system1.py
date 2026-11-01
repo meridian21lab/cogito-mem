@@ -182,3 +182,22 @@ def test_long_history_runs_a_system1_rerank_variant(tmp_path):
     assert result["meta"]["rerank"] == {"system1": base, "system1_kind": "noul", "candidates": 10,
                                         "rerank_context": "own", "rerank_fusion": "replace"}
     assert json.loads(log.read_text().splitlines()[0])["settings"]["rerank"]["system1_kind"] == "noul"
+
+
+def test_cached_ranker_sends_a_long_list_in_chunks():
+    from cogito_mem import system1
+
+    class Sizes(_Counting):
+        def __init__(self):
+            super().__init__()
+            self.calls: list[int] = []
+
+        def score(self, query, texts):
+            self.calls.append(len(texts))
+            return super().score(query, texts)
+
+    inner = Sizes()
+    texts = [f"message {i}" for i in range(system1.POINTWISE_CHUNK * 2 + 5)] + ["Biscuit"]
+    scores = CachedRanker(inner, ScoreCache(None)).score("q", texts)
+    assert inner.calls == [system1.POINTWISE_CHUNK, system1.POINTWISE_CHUNK, 6]
+    assert scores[-1] == 0.9 and len(scores) == len(texts)
