@@ -90,7 +90,7 @@ class Cursor:
 
     def save(self, offset: int, line: int) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
+        tmp = self.path.with_suffix(f".{os.getpid()}.tmp")  # a hook and a sweep may read the same file at once
         tmp.write_text(json.dumps({"offset": offset, "line": line}))
         tmp.replace(self.path)
         self.offset, self.line = offset, line

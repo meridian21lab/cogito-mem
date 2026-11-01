@@ -9,10 +9,16 @@ import os
 import signal
 import sys
 import threading
+import time
 from pathlib import Path
 
 from . import __version__
 from .api import DEFAULT_MAX_TOKENS
+
+BACKFILL_NOTICE = (
+    "cogito-mem is reading the user's past Claude Code sessions into the memory, in the background, for the first "
+    "time. Tell the user so in one line (COGITO_MEM_BACKFILL=off leaves past sessions alone)."
+)
 
 
 def _root(args: argparse.Namespace) -> Path:
@@ -200,7 +206,11 @@ def cmd_capture(args: argparse.Namespace) -> int:
         from .capture import claude_code
 
         if args.all:
-            _print(claude_code.capture_all(_client(args), state, args.namespace))
+            # Cursors of its own: what the hooks read before this version left out sub-agents and tool output.
+            claude_code.mark_swept(root)
+            backfill = root / "run" / "backfill"
+            # Marked again after each file, so no session starts a second sweep while this one runs.
+            _print(claude_code.capture_all(_client(args), backfill, args.namespace, on_file=lambda: claude_code.mark_swept(root)))
             return 0
         if args.transcript is None:  # called as a hook: read its JSON, then work in the background
             try:
@@ -241,6 +251,7 @@ def cmd_recall(args: argparse.Namespace) -> int:
     from .client import Client
     from .names import InvalidName
     from .recall import TIMEOUT, _log, claude_code_hook
+    from .recall import enabled as recall_enabled
 
     root = _root(args)
     try:
@@ -248,17 +259,55 @@ def cmd_recall(args: argparse.Namespace) -> int:
     except InvalidName as exc:  # recall is a hint: say nothing, and note why
         _log(root / "run" / "recall.log", "recall", exc)
         return 0
+    body = sys.stdin.read()
     out = claude_code_hook(
-        sys.stdin.read,
+        lambda: body,
         lambda: Client(url=args.url, root=root, autostart=False, timeout=TIMEOUT),
         namespace=args.namespace,
         min_score=args.min_score,
         max_tokens=args.max_tokens,
         log=root / "run" / "recall.log",
     )
+    try:
+        notice = _sweep_past_sessions(args, root, body)
+    except Exception as exc:  # the next session tries again
+        _log(root / "run" / "recall.log", "SessionStart (reading past sessions)", exc)
+        notice = None
+    if notice and recall_enabled():
+        out = _with_notice(out, notice)
     if out:
         print(out)
     return 0
+
+
+def _sweep_past_sessions(args: argparse.Namespace, root: Path, body: str) -> str | None:
+    """On ``SessionStart``, read past sessions in the background when that is due; what to say, the first time."""
+    from .capture import claude_code, enabled
+
+    try:
+        hook = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(hook, dict) or hook.get("hook_event_name") != "SessionStart":
+        return None
+    if not enabled() or not enabled("COGITO_MEM_BACKFILL"):
+        return None
+    swept = claude_code.last_sweep(root)
+    if swept is not None and time.time() - swept < claude_code.SWEEP_SECONDS:
+        return None
+    argv = ["capture", "claude-code", "--all", "--namespace", args.namespace, "--root", str(root)]
+    _detach(argv + (["--url", args.url] if args.url else []), root)
+    claude_code.mark_swept(root)
+    return None if swept is not None else BACKFILL_NOTICE
+
+
+def _with_notice(out: str | None, notice: str) -> str:
+    """The hook's JSON with ``notice`` in front of what it adds to the conversation."""
+    empty = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ""}}
+    payload = json.loads(out) if out else empty
+    context = payload["hookSpecificOutput"]
+    context["additionalContext"] = f"{notice}\n\n{context['additionalContext']}".strip()
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def cmd_import(args: argparse.Namespace) -> int:

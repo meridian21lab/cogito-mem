@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -19,6 +20,7 @@ def _mark(ok: bool | None) -> str:
 
 def doctor(root: Path, url: str | None = None, say: Say = print) -> int:
     from . import runtime
+    from .capture.claude_code import last_sweep
     from .client import Client
     from .install import claude_desktop_config, claude_dir, claude_json, codex_config, launcher_path
 
@@ -88,6 +90,14 @@ def doctor(root: Path, url: str | None = None, say: Say = print) -> int:
     if cc is not None:
         hooked = settings.exists() and "capture claude-code" in settings.read_text()
         check(hooked, "Claude Code: capture hooks", "run `cogito-mem install claude-code`")
+        swept = last_sweep(root)
+        if swept is None:
+            check(None, "Claude Code: past sessions not read yet: the next session start reads them "
+                        "(COGITO_MEM_BACKFILL=off leaves them alone), or run `cogito-mem capture claude-code --all`")  # fmt: skip
+        else:
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(swept))
+            check(True, f"Claude Code: past sessions read in the background, last on {when}; old sessions may hold "
+                        "secrets the redaction missed")  # fmt: skip
     cfg = codex_config()
     if cfg.exists():
         text = cfg.read_text()

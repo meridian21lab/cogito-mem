@@ -4,8 +4,13 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import threading
+import time
 import zipfile
+from pathlib import Path
 
+import pytest
 from conftest import query
 from fixtures import (
     chatgpt_export,
@@ -18,8 +23,11 @@ from fixtures import (
     write_jsonl,
 )
 
+from cogito_mem import Memory
 from cogito_mem.capture import read_new_lines, redact
 from cogito_mem.capture import claude_code, codex, exports
+
+SRC = str(Path(__file__).resolve().parents[1] / "src")
 
 
 def test_redact_common_secrets():
@@ -368,6 +376,165 @@ def test_tool_output_is_captured_once_and_can_be_turned_off(tmp_path, mem, monke
     monkeypatch.setenv("COGITO_MEM_CAPTURE_ACTIONS", "off")
     last = write_jsonl(tmp_path / "proj" / "sess-v.jsonl", claude_code_tool_work("sess-v"))
     assert claude_code.capture_transcript(mem, last, state, "sess-v") == {"added": 5, "duplicate": 0}
+
+
+# --------------------------------------------------------------------------- reading past sessions
+
+
+def session_start(root, monkeypatch, capsys, hook: dict | str | None = None) -> tuple[list, str]:
+    """Run the ``SessionStart`` hook with no real background process. Returns what it would start, and its stdout."""
+    from cogito_mem.cli import main
+
+    started: list = []
+    monkeypatch.setattr("cogito_mem.cli._detach", lambda argv, _root: started.append(argv))
+    body = hook if isinstance(hook, str) else json.dumps(hook or {"hook_event_name": "SessionStart", "session_id": "now", "cwd": "/work/app"})
+    monkeypatch.setattr("sys.stdin", io.StringIO(body))
+    assert main(["--root", str(root), "recall", "claude-code"]) == 0
+    return started, capsys.readouterr().out
+
+
+@pytest.fixture
+def sweep_env(isolated_env, monkeypatch):
+    monkeypatch.setenv("COGITO_MEM_URL", "http://127.0.0.1:9")  # nothing listens there, and no service is started
+    return isolated_env
+
+
+def test_first_session_start_reads_past_sessions_in_the_background(tmp_path, sweep_env, monkeypatch, capsys):
+    root = tmp_path / "cogito-home"
+    started, out = session_start(root, monkeypatch, capsys)
+    assert started == [["capture", "claude-code", "--all", "--namespace", "ksirg-hollow", "--root", str(root)]]
+    payload = json.loads(out)["hookSpecificOutput"]
+    assert payload["hookEventName"] == "SessionStart"
+    assert "past Claude Code sessions" in payload["additionalContext"] and "COGITO_MEM_BACKFILL=off" in payload["additionalContext"]
+    assert claude_code.last_sweep(root) is not None
+    # once: the next session says nothing, and starts nothing while the sweep is recent
+    assert session_start(root, monkeypatch, capsys) == ([], "")
+    # later it looks again, for what no hook saw, and says nothing
+    marker = root / claude_code.SWEEP_MARKER
+    long_ago = time.time() - claude_code.SWEEP_SECONDS - 1
+    os.utime(marker, (long_ago, long_ago))
+    started, out = session_start(root, monkeypatch, capsys)
+    assert len(started) == 1 and out == ""
+    assert marker.stat().st_mtime > long_ago + 1
+
+
+def test_past_sessions_notice_comes_with_the_last_session(tmp_path, sweep_env, monkeypatch, capsys):
+    projects = sweep_env / ".claude" / "projects"
+    write_jsonl(projects / "-work-app" / "old.jsonl", claude_code_transcript("old", "2026-10-01"))
+    hook = {"hook_event_name": "SessionStart", "session_id": "now", "cwd": "/work/app",
+            "transcript_path": str(projects / "-work-app" / "now.jsonl")}  # fmt: skip
+    _, out = session_start(tmp_path / "h", monkeypatch, capsys, hook)
+    context = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    assert context.startswith("cogito-mem is reading") and "the last session in this project (old," in context
+
+
+def test_past_sessions_are_left_alone_when_switched_off(tmp_path, sweep_env, monkeypatch, capsys):
+    root = tmp_path / "cogito-home"
+    for setting in ("COGITO_MEM_BACKFILL", "COGITO_MEM_CAPTURE"):
+        monkeypatch.setenv(setting, "off")
+        assert session_start(root, monkeypatch, capsys) == ([], "")
+        monkeypatch.delenv(setting)
+    assert claude_code.last_sweep(root) is None
+    monkeypatch.setenv("COGITO_MEM_RECALL", "off")  # recall off adds nothing to the conversation; the sweep is its own switch
+    started, out = session_start(root, monkeypatch, capsys)
+    assert len(started) == 1 and out == ""
+
+
+def test_past_sessions_only_on_session_start(tmp_path, sweep_env, monkeypatch, capsys):
+    root = tmp_path / "cogito-home"
+    prompt = {"hook_event_name": "UserPromptSubmit", "session_id": "now", "cwd": "/work/app", "prompt": "yes"}
+    for hook in (prompt, "garbage", "[1, 2]", ""):
+        assert session_start(root, monkeypatch, capsys, hook) == ([], "")
+    assert claude_code.last_sweep(root) is None
+
+
+def test_a_sweep_that_cannot_start_never_fails_the_session(tmp_path, sweep_env, monkeypatch, capsys):
+    from cogito_mem.cli import main
+
+    def cannot(*_):
+        raise OSError("no room")
+
+    root = tmp_path / "cogito-home"
+    monkeypatch.setattr("cogito_mem.cli._detach", cannot)
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"hook_event_name": "SessionStart"})))
+    assert main(["--root", str(root), "recall", "claude-code"]) == 0
+    assert capsys.readouterr().out == ""
+    assert claude_code.last_sweep(root) is None  # the next session tries again
+    assert "reading past sessions): OSError: no room" in (root / "run" / "recall.log").read_text()
+
+
+@pytest.fixture
+def live_service(isolated_env, monkeypatch):
+    from cogito_mem.server import MemoryServer
+
+    memory = Memory(None, embedder="hash")
+    server = MemoryServer(memory, host="127.0.0.1", port=0)
+    threading.Thread(target=server.serve, daemon=True).start()
+    monkeypatch.setenv("COGITO_MEM_URL", server.url)
+    monkeypatch.setenv("COGITO_MEM_NAMESPACE", "default")
+    yield memory
+    server.shutdown()
+    memory.close()
+
+
+def test_backfill_also_reads_what_the_hooks_left_out(tmp_path, live_service, monkeypatch, capsys):
+    from cogito_mem.cli import main
+
+    root = tmp_path / "cogito-home"
+    project = tmp_path / "home" / ".claude" / "projects" / "-work-app"
+    path = write_jsonl(project / "sess-t.jsonl", claude_code_tool_work())
+    write_jsonl(project / "sess-t" / "subagents" / "agent-a1.jsonl", claude_code_subagent("a1", "sess-t"))
+    sdk = claude_code_tool_work("sess-sdk")  # an Agent SDK run: same folder, and no hook ever saw it
+    write_jsonl(project / "sess-sdk.jsonl", [{**r, "entrypoint": "sdk-py"} for r in sdk])
+    # a hook of an earlier version read the session: its cursor stands at the end, with less kept
+    monkeypatch.setenv("COGITO_MEM_CAPTURE_TOOL_OUTPUT", "off")
+    monkeypatch.setenv("COGITO_MEM_CAPTURE_SUBAGENTS", "off")
+    main(["--root", str(root), "capture", "claude-code", "--transcript", str(path), "--session", "sess-t", "--wait"])
+    assert json.loads(capsys.readouterr().out) == {"added": 7, "duplicate": 0}
+    monkeypatch.delenv("COGITO_MEM_CAPTURE_TOOL_OUTPUT")
+    monkeypatch.delenv("COGITO_MEM_CAPTURE_SUBAGENTS")
+
+    assert main(["--root", str(root), "capture", "claude-code", "--all"]) == 0
+    totals = json.loads(capsys.readouterr().out)
+    assert totals == {"added": 16, "duplicate": 7, "files": 2}  # sess-t: 4 tool items, 1 report; the SDK run whole
+    assert claude_code.last_sweep(root) is not None
+    assert main(["--root", str(root), "capture", "claude-code", "--all"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"added": 0, "duplicate": 0, "files": 2}
+
+
+@pytest.mark.slow
+def test_session_start_really_reads_past_sessions_in_the_background(tmp_path, live_service, monkeypatch, capsys):
+    from cogito_mem.cli import main
+
+    monkeypatch.setenv("PYTHONPATH", SRC + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    root = tmp_path / "cogito-home"
+    projects = root.parent / "home" / ".claude" / "projects"
+    write_jsonl(projects / "-work-app" / "sess-a.jsonl", claude_code_transcript("sess-a", "2026-09-01"))
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"hook_event_name": "SessionStart"})))
+    assert main(["--root", str(root), "recall", "claude-code"]) == 0
+    assert "cogito-mem is reading" in capsys.readouterr().out
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        items = query(live_service, "storage layer", max_tokens=1000, namespace="default")["items"]
+        if items:
+            break
+        time.sleep(0.1)
+    assert {i["thread_id"] for i in items} == {"sess-a"}, (root / "run" / "capture.log").read_text()
+
+
+def test_doctor_says_whether_past_sessions_were_read(tmp_path, isolated_env, monkeypatch):
+    from cogito_mem.doctor import doctor
+
+    monkeypatch.setenv("COGITO_MEM_URL", "http://127.0.0.1:9")
+    root = tmp_path / "cogito-home"
+    (isolated_env / ".claude.json").write_text("{}")
+    lines: list[str] = []
+    doctor(root, say=lines.append)
+    assert any("past sessions not read yet" in line for line in lines)
+    claude_code.mark_swept(root)
+    lines.clear()
+    doctor(root, say=lines.append)
+    assert any("past sessions read in the background" in line for line in lines)
 
 
 def test_private_text_is_not_stored():

@@ -50,6 +50,8 @@ FAILED_LINES = 10  # of a failed command's output: the end says why
 LONG_OUTPUT_LINES = 10  # of a longer successful output, the last lines are kept too
 LAST_LINES = 2
 HANDBACK = "SubagentHandback"  # the tool some sub-agents hand their report back with, instead of a last reply
+SWEEP_MARKER = "run/backfill.marker"  # under the memory's folder: its age says when past sessions were last read
+SWEEP_SECONDS = 3600.0  # a new session reads them again after this long, for the Agent SDK runs no hook sees
 
 _SKIP_PREFIXES = (
     "<command-name>",
@@ -394,8 +396,17 @@ def subagent_files(transcript: Path) -> list[Path]:
     return sorted(path for path in found if not path.name.startswith("agent-acompact"))
 
 
-def capture_all(sink: Sink, state_dir: Path, namespace: str = "default", root: Path | None = None) -> dict:
-    """Backfill every transcript under ~/.claude/projects (as history, with ``import``)."""
+def capture_all(
+    sink: Sink,
+    state_dir: Path,
+    namespace: str = "default",
+    root: Path | None = None,
+    on_file: Callable[[], None] | None = None,
+) -> dict:
+    """Backfill every transcript under ~/.claude/projects (as history, with ``import``).
+
+    That holds the runs no hook sees too: the Agent SDK writes its transcripts to the same folders.
+    """
     total = {"added": 0, "duplicate": 0, "files": 0}
     base = root or projects_dir()
     if not base.is_dir():
@@ -405,7 +416,23 @@ def capture_all(sink: Sink, state_dir: Path, namespace: str = "default", root: P
         total["added"] += counts["added"]
         total["duplicate"] += counts["duplicate"]
         total["files"] += 1
+        if on_file:
+            on_file()
     return total
+
+
+def last_sweep(memory_root: Path) -> float | None:
+    """When ``capture_all`` last ran for this memory (or last finished a file); None if it never has."""
+    try:
+        return (memory_root / SWEEP_MARKER).stat().st_mtime
+    except OSError:
+        return None
+
+
+def mark_swept(memory_root: Path) -> None:
+    marker = memory_root / SWEEP_MARKER
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
 
 
 def _safe(name: str) -> str:
