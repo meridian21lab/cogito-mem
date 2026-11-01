@@ -174,9 +174,10 @@ class LlamaServerReranker:
         return scores
 
 
-# Qwen3-Reranker is a model that answers "yes" or "no", and the GGUFs on Hugging Face (checked 1 Nov 2026) carry neither
-# a rerank template nor a classifier, so ``--reranking`` returns noise (a clear match scored 9e-9). Its own prompt, read
-# as a probability, separates clear cases well: 0.996 for a right answer, 0.002 for a wrong one, about 20 ms each on Metal.
+# Qwen3-Reranker is a model that answers "yes" or "no". GGUFs converted before llama.cpp PR #15824, most of those on Hugging
+# Face, carry neither a rerank template nor a classifier, so ``--reranking`` returns noise (a clear match scored 9e-9). Prefer
+# ggml-org's. For the others, the model's own prompt read as a probability does as well, about 20 ms each on Metal: on the 158
+# tuning questions of LongMemEval_M, coverage at 1,000 tokens is 74.1 % this way and 74.7 % with ggml-org's.
 _YES_NO_PROMPT = (
     '<|im_start|>system\nJudge whether the Document meets the requirements based on the Query and the Instruct provided. '
     'Note that the answer can only be "yes" or "no".<|im_end|>\n<|im_start|>user\n'

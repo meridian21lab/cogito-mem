@@ -80,8 +80,8 @@ SIDE_AUTHORS = (ACTIONS, TOOL)  # what sessions did, as against what was said
 POINTERS = 8
 POINTER_MIN_SCORE = 0.6
 POINTER_MIN_WORDS = 3
-# With a reranker and ``rerank_fusion`` "replace", the score is the chance the message answers the prompt, so one shared
-# word is gate enough. With "rrf" the score is a fused rank, and this passes everything the reranker read. It reads few enough
+# With a reranker the score is the chance the message answers the prompt, so one shared word is gate enough (with
+# ``rerank_fusion`` "rrf" the score is a fused rank, and this passes all it read). It reads few enough
 # candidates to answer within ``TIMEOUT``: about 0.3 s for 30 on Metal, against about 15 s on a CPU, where it stays off.
 RERANK_MIN_SCORE = 0.6
 RERANK_CANDIDATES = 30

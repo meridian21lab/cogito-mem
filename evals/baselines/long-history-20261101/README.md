@@ -104,9 +104,12 @@ whole answer than shipped's, because the model then searches less.
 ## The reranker on 1M+ tokens (`m-rerank-*.json`, `m-answer-heldout-*.json`, `m-agent-rerank-heldout.json`)
 
 Qwen3-Reranker-0.6B Q8_0 (mradermacher's GGUF, 639 MB), scored by its own yes-or-no prompt because no GGUF checked has a rerank template.
-It reorders the top 100 by its score alone (`--rerank-fusion replace`, the only behaviour when this ran, before the System-1 merge), at about 20 ms a text on an M5
-Max. Off by default. Chosen on tuning; these are the 312 held-out answerable, no date cutoff. `docs/notes/system1_ranker_20261101.md` tests rank fusion
-and ggml-org's GGUF on other sets, and fusion is now the default, so these numbers aren't yet confirmed for that default.
+It reorders the top 100 by its score alone (`--rerank-fusion replace`, the default), at about 20 ms a text on an M5 Max. Off by default. Chosen on tuning;
+these are the 312 held-out answerable, no date cutoff.
+
+On the 158 tuning questions (`m-ggml-*.json`), ggml-org's GGUF with `--reranking` gives the same result within noise (coverage at 1,000: 74.7 against 74.1), and
+fusing the model's ranks with the search's is worse at small budgets: −10.8 at 300 tokens (−17.7 to −3.8), −5.1 at 1,000 (−9.5 to −1.3), level at 2,500, +1.3 at 5,000 (0.0 to 3.2).
+Prefer ggml-org's file: `ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF`.
 
 | | R@1 | R@5 | all@10 | Coverage 300 | 1,000 | 2,500 | 5,000 |
 |---|---|---|---|---|---|---|---|
