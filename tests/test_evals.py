@@ -369,3 +369,93 @@ def test_locomo_qa_llm_retries_a_dropped_body():
         assert _DropsFirstBody.calls == 2
     finally:
         srv.shutdown()
+
+
+def lme_question(chars: int) -> dict:
+    return {"haystack_sessions": [[{"role": "user", "content": "x" * chars}], [{"role": "assistant", "content": "y" * chars}]]}
+
+
+def test_full_context_sizes():
+    from cogito_mem.evals import full_context as fc
+
+    tokens = [fc.history_chars(lme_question(n)) // fc.CHARS_PER_TOKEN for n in (1_000_000, 3_000_000)]
+    assert tokens == [500_000, 1_500_000]
+    s = fc.summarize_sizes(tokens)
+    assert s["share_over"]["1000000"] == 0.5 and s["share_over"]["200000"] == 1.0
+    assert s["tokens"]["max"] == 1_500_000
+
+
+def test_full_context_history_text_is_real_turns_cut_to_size():
+    from cogito_mem.evals import full_context as fc
+
+    text = fc.history_text([lme_question(50), lme_question(50)], 150)
+    assert len(text) == 150 and text.startswith("user: xxx") and "assistant: yyy" in text
+    with pytest.raises(ValueError):
+        fc.history_text([lme_question(5)], 1000)
+
+
+def test_full_context_probe_stops_at_first_acceptance_and_at_max_cost():
+    from cogito_mem.evals import full_context as fc
+
+    def fake(model, text):
+        if len(text) > 100:
+            return {"accepted": False, "status": 400, "error": "too long"}
+        return {"accepted": True, "cost_usd": 1.0}
+
+    rows, spent = fc.probe(["a", "b"], (50, 200, 500), lambda n: "x" * n, fake, max_cost=10)
+    assert [(r["model"], r["sent_tokens_approx"], r["accepted"]) for r in rows] == [
+        ("a", 500, False), ("a", 200, False), ("a", 50, True), ("b", 500, False), ("b", 200, False), ("b", 50, True)]  # fmt: skip
+    assert spent == 2.0
+    rows, spent = fc.probe(["a", "b"], (50,), lambda n: "x" * n, fake, max_cost=1)
+    assert spent == 1.0 and rows[-1] == {"model": "b", "sent_tokens_approx": 50, "skipped": "max cost reached"}
+
+
+def test_full_context_send_reports_a_refusal_as_a_result():
+    from cogito_mem.evals import full_context as fc
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            assert body["transforms"] == []  # nothing may be silently compressed
+            too_long = len(body["messages"][0]["content"]) > 200
+            reply = ({"error": {"code": 400, "message": "Provider returned error", "metadata": {"raw": "prompt is too long"}}}
+                     if too_long else
+                     {"choices": [{"message": {"content": "OK"}}], "provider": "p", "usage": {"prompt_tokens": 42, "cost": 0.5}})  # fmt: skip
+            self.send_response(400 if too_long else 200)
+            self.end_headers()
+            self.wfile.write(json.dumps(reply).encode())
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        no = fc.send(base, "k", "m", "x" * 500, 10, 5)
+        assert no["accepted"] is False and no["status"] == 400 and no["error"] == "prompt is too long"
+        yes = fc.send(base, "k", "m", "x", 10, 5)
+        assert yes["accepted"] is True and yes["billed_prompt_tokens"] == 42 and yes["cost_usd"] == 0.5
+    finally:
+        server.shutdown()
+
+
+def test_full_context_sessions_count_tokens_and_forks_once(tmp_path, capsys):
+    from cogito_mem.evals import full_context as fc
+
+    project = tmp_path / "p"
+    project.mkdir()
+
+    def write(name, boundaries, context):
+        lines = [{"type": "system", "subtype": "compact_boundary", "uuid": u, "compactMetadata": {"preTokens": t}, "content": "secret"}
+                 for u, t in boundaries]  # fmt: skip
+        lines.append({"type": "assistant", "message": {"content": "secret", "usage": {"input_tokens": 1, "cache_read_input_tokens": context}}})
+        (project / name).write_text("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
+
+    write("a.jsonl", [("u1", 900_000), ("u2", 800_000)], 100)
+    write("fork.jsonl", [("u1", 900_000)], 5000)
+    assert fc.main(["sessions", "--root", str(tmp_path)]) == 0
+    s = json.loads(capsys.readouterr().out)
+    assert s["sessions"] == 2 and s["compactions"] == 2 and s["sessions_history_over_1M"] == 1
+    assert s["largest_history"] == 1_700_101
+    assert "secret" not in json.dumps(s)

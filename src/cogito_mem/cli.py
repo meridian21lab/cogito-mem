@@ -323,6 +323,10 @@ def cmd_eval(args: argparse.Namespace) -> int:
         from .evals import locomo
 
         return locomo.main(args.eval_args[1:])
+    if args.eval_args[:1] == ["full-context"]:
+        from .evals import full_context
+
+        return full_context.main(args.eval_args[1:])
     if args.eval_args[:1] == ["longmemeval-recall"]:
         from .evals import longmemeval_recall
 
