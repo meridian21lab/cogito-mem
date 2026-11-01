@@ -36,6 +36,9 @@ states, as short notes that make sense on their own.
 - Results come back as stored text with valid_at, the time it was said. Quote them \
 and say when they were said; never invent what the memory does not hold."""
 
+# What Claude reads when it asks without a budget. On 1M+ token histories every needed turn is in the reply for 56 % of
+# questions at 1,000 tokens and 70 % at 2,500, and a search is a choice Claude made, so it can afford the read.
+QUERY_TOKENS = 2500
 _RFC3339_HINT = "RFC 3339 time with a time zone, e.g. 2026-10-11T00:00:00Z"
 
 
@@ -81,7 +84,7 @@ def _tools() -> list[dict]:
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 100000,
-                        "description": "Reading budget for the returned text, in tokens (default 1000).",
+                        "description": f"Reading budget for the returned text, in tokens (default {QUERY_TOKENS}).",
                     },
                     "this_session": {
                         "type": "boolean",
@@ -262,8 +265,7 @@ class McpServer:
             flt["thread_id"] = self.thread_id
         if flt:
             body["filter"] = flt
-        if args.get("max_tokens") is not None:
-            body["max_tokens"] = args["max_tokens"]
+        body["max_tokens"] = args["max_tokens"] if args.get("max_tokens") is not None else QUERY_TOKENS
         return body
 
 

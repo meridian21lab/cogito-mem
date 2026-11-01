@@ -231,7 +231,7 @@ What it means:
   model reads a little under 5,000 tokens, and every needed turn is read for 89.1 % of questions against 89.5 % returned.
 - **The automatic recall uses the smallest budget.** The plugin's prompt hook adds at most 300 tokens to each prompt,
   so what Claude gets without asking scores like the 300-token row (79.6 against 94.1). Searches Claude makes itself
-  use 1,000 tokens unless it asks for another budget.
+  use 2,500 tokens unless it asks for another budget.
 - **The judge matters as much as the memory.** The same answers score 6 to 8 points higher under the 2026 rules than
   under the 2025 ones. Re-judging the 2025 protocol's gpt-4o-mini answers (1,000 tokens) with the 2026 judge lifts
   them from 74.7 to 86.3.
