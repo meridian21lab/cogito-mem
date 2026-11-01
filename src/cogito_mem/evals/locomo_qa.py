@@ -280,8 +280,11 @@ class LLM:
                     continue
 
     def chat(self, model: str, messages: list[dict], temperature: float | None = 0.0, json_mode: bool = False,
-             reasoning: str | None = None, max_tokens: int | None = None, providers: list[str] | None = None) -> dict:
+             reasoning: str | None = None, max_tokens: int | None = None, providers: list[str] | None = None,
+             tools: list[dict] | None = None) -> dict:
         body: dict = {"model": model, "messages": messages}
+        if tools:
+            body["tools"] = tools
         if temperature is not None:
             body["temperature"] = temperature
         if json_mode:
@@ -312,6 +315,8 @@ class LLM:
                 choice = res["choices"][0]
                 out = {"content": choice["message"].get("content") or "", "finish_reason": choice.get("finish_reason"),
                        "usage": res.get("usage") or {}, "model": res.get("model"), "provider": res.get("provider")}  # fmt: skip
+                if choice["message"].get("tool_calls"):
+                    out["tool_calls"] = choice["message"]["tool_calls"]
                 break
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", "replace")[:300]

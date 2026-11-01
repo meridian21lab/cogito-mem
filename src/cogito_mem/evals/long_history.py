@@ -3,7 +3,8 @@
     cogito-mem eval long-history run --data longmemeval_m_cleaned.json --out results/long-history/m.json
     cogito-mem eval long-history run --data longmemeval_m_cleaned.json --sessions 50 --split tuning --out s50.json
     cogito-mem eval long-history answer --contexts m-contexts.jsonl --arm search-5000 --env-file .env --out a.json
-    cogito-mem eval long-history compare a.json b.json --metric search.coverage.1000
+    cogito-mem eval long-history agent --data longmemeval_m_cleaned.json --split tuning --env-file .env --out g.json
+    cogito-mem eval long-history compare a.json b.json --metric search.base.coverage.1000
 
 LongMemEval_M gives each of its 500 questions about 480 chat sessions, 1.13-1.30M tokens by
 chars/4, with the sessions and turns that hold the answer labelled. Each question gets a fresh
@@ -28,6 +29,8 @@ or held-out (70 %) questions by a hash of the id: choose settings on tuning, rep
 ``--contexts-out`` keeps the text each arm returned, for ``answer``.
 
 ``answer`` has a model answer from one arm's text and LongMemEval's judge prompts grade it.
+``agent`` gives the model the real ``memory_query`` and ``memory_open`` tools and each recall design's
+hook text, so it measures the whole path: did it search, did it open, did it answer correctly.
 Abstention questions (``_abs``) are scored by retrieval only when they name an answer session.
 """
 
@@ -46,6 +49,8 @@ from pathlib import Path
 
 from .. import recall, timeutil
 from ..api import DEFAULT_TOP_K
+from ..mcp_server import INSTRUCTIONS as MCP_INSTRUCTIONS
+from ..mcp_server import _tools as mcp_tools
 from ..memory import Config, Memory
 from ..tokenizer import count
 from .common import query_past_top_k_limit, record, sha256_file, utc_now
@@ -467,7 +472,7 @@ JUDGE_PREFERENCE = (
 )
 JUDGE_ABSTENTION = (
     "I will give you an unanswerable question, an explanation, and a response from a model. Please answer yes if the "
-    "model identifies the question as unanswerable. The model could say that the information is incomplete, or some "
+    "model correctly identifies the question as unanswerable. The model could say that the information is incomplete, or some "
     "other information is given but the asked information is not."
 )
 ANSWER_PROMPT = """I will give you several notes from past conversations between you and a user, each with the time it was said. Please answer the question based on the relevant notes. If the question cannot be answered from them, say so.
@@ -493,6 +498,21 @@ def judge_prompt(row: dict, response: str) -> str:
             f"Model Response: {response}\n\nIs the model response correct? Answer yes or no only.")  # fmt: skip
 
 
+def grade(llm, args: argparse.Namespace, row: dict, response: str) -> bool | None:
+    verdict = llm.chat(args.judge_model, [{"role": "user", "content": judge_prompt(row, response)}],
+                       max_tokens=args.judge_max_tokens, temperature=None, reasoning=args.judge_reasoning)  # fmt: skip
+    word = verdict["content"].strip().lower()
+    return word.startswith("yes") if word else None
+
+
+def make_llm(args: argparse.Namespace, LLM, read_env_file):
+    env = read_env_file(Path(args.env_file))
+    key = env.get("OPENROUTER_API_KEY") or env.get("OPENROUTER_AUTH_TOKEN")
+    if not key:
+        raise SystemExit(f"no OPENROUTER_API_KEY in {args.env_file}")
+    return LLM(env.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api", key, Path(args.llm_cache).expanduser())
+
+
 def notes_text(items: list[dict]) -> str:
     return "\n".join(f"[{it['valid_at']}, {it['author']}] {it['text']}" for it in items)
 
@@ -502,13 +522,12 @@ def cmd_answer(args: argparse.Namespace) -> int:
 
     from .locomo_qa import LLM, read_env_file
 
-    keys = read_env_file(Path(args.env_file))
+    llm = make_llm(args, LLM, read_env_file)
     rows = [json.loads(line) for line in Path(args.contexts).read_text().splitlines() if line.strip()]
     if args.split:
         rows = [r for r in rows if split_of(r["question_id"]) == args.split]
     if args.limit:
         rows = rows[: args.limit]
-    llm = LLM(keys, Path(args.llm_cache).expanduser(), args.max_cost)
 
     def one(row: dict) -> dict:
         items = row["arms"].get(args.arm)
@@ -519,18 +538,15 @@ def cmd_answer(args: argparse.Namespace) -> int:
             notes=notes, date=row["question_date"], question=row["question"])}],
             max_tokens=args.answer_max_tokens, temperature=None if args.no_temperature else 0.0,
             reasoning=args.answer_reasoning)  # fmt: skip
-        verdict = llm.chat(args.judge_model, [{"role": "user", "content": judge_prompt(row, answer["text"])}],
-                           max_tokens=args.judge_max_tokens, temperature=None, reasoning=args.judge_reasoning)  # fmt: skip
-        word = verdict["text"].strip().lower()
         return {
             "question_id": row["question_id"],
             "question_type": row.get("question_type"),
             "abstention": "_abs" in str(row["question_id"]),
             "evidence_turns": 1,
-            "judged": word.startswith("yes") if word else None,
+            "judged": grade(llm, args, row, answer["content"]),
             "context_tokens": len(notes) // 4,
-            "prompt_tokens": answer.get("prompt_tokens"),
-            "answer": answer["text"],
+            "prompt_tokens": (answer.get("usage") or {}).get("prompt_tokens"),
+            "answer": answer["content"],
         }
 
     with ThreadPoolExecutor(args.workers) as pool:
@@ -552,6 +568,145 @@ def cmd_answer(args: argparse.Namespace) -> int:
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(json.dumps({"meta": meta, "summary": summary, "per_question": out}))
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
+# --------------------------------------------------------------------------- agent
+
+AGENT_TOOLS = [
+    {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["inputSchema"]}}
+    for t in mcp_tools()
+    if t["name"] in ("memory_query", "memory_open")
+]
+AGENT_SYSTEM = (
+    "You are a coding and research assistant. You have no memory of earlier sessions except through the tools.\n\n"
+    + MCP_INSTRUCTIONS
+    + "\n\nAnswer the user's question in one short paragraph."
+)
+
+
+def run_agent(llm, args: argparse.Namespace, mem: Memory, q: dict, as_of: str, context: str | None) -> dict:
+    """The answering model with the real tools over this question's memory: what it asks for, and what it answers."""
+    prompt = f"(Current date: {q['question_date']})\n{q['question']}"
+    if context:
+        prompt = f"{context}\n\n{prompt}"
+    messages: list[dict] = [{"role": "system", "content": AGENT_SYSTEM}, {"role": "user", "content": prompt}]
+    queries = opens = prompt_tokens = 0
+    read: list[str] = []
+    answer = ""
+    for _ in range(args.max_steps):
+        out = llm.chat(args.answer_model, messages, max_tokens=args.answer_max_tokens, temperature=0.0, tools=AGENT_TOOLS)
+        prompt_tokens += (out.get("usage") or {}).get("prompt_tokens") or 0
+        calls = out.get("tool_calls") or []
+        if not calls:
+            answer = out["content"]
+            break
+        messages.append({"role": "assistant", "content": out["content"] or "", "tool_calls": calls})
+        for call in calls:
+            fn = call["function"]
+            try:
+                params = json.loads(fn.get("arguments") or "{}")
+                if fn["name"] == "memory_open":
+                    opens += 1
+                    allowed = {k: params[k] for k in ("id", "before", "after", "max_tokens") if k in params}
+                    result = mem.handle({"op": "open", "namespace": NS, **allowed})
+                    read += [it["id"] for it in result["items"]]
+                else:
+                    queries += 1
+                    body = {"op": "query", "namespace": NS, "text": params["text"], "as_of": as_of,
+                            "max_tokens": params.get("max_tokens", 1000)}  # fmt: skip
+                    flt = {k: params[k] for k in ("valid_after", "valid_before") if params.get(k)}
+                    if flt:
+                        body["filter"] = flt
+                    result = mem.handle(body)
+                    read += [it["source"]["id"] for it in result["items"]]
+                text = json.dumps(result, ensure_ascii=False)
+            except Exception as exc:  # the model sees its mistake, as it would over MCP
+                text = json.dumps({"error": str(exc)})
+            messages.append({"role": "tool", "tool_call_id": call["id"], "content": text})
+    return {"answer": answer, "queries": queries, "opens": opens, "prompt_tokens": prompt_tokens, "read": read}
+
+
+def cmd_agent(args: argparse.Namespace) -> int:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from .locomo_qa import LLM, read_env_file
+
+    llm = make_llm(args, LLM, read_env_file)
+    questions = load(Path(args.data))
+    if args.split:
+        questions = [q for q in questions if split_of(q["question_id"]) == args.split]
+    if args.limit:
+        questions = questions[: args.limit]
+    arms = [a.strip() for a in args.arms.split(",") if a.strip()]
+    embedder, rt = make_embedder("auto", None)
+    log_path = Path(args.questions_out) if args.questions_out else None
+    rows: dict[str, dict] = {}
+    if log_path is not None and log_path.exists():
+        for line in log_path.read_text().splitlines():
+            row = json.loads(line)
+            rows[f"{row['question_id']}|{row['arm']}"] = row
+
+    def one(q: dict) -> list[dict]:
+        todo = [a for a in arms if f"{q['question_id']}|{a}" not in rows]
+        if not todo:
+            return []
+        out = []
+        with Memory(None, embedder=embedder, config=Config(), cache_path=args.cache, embed_batch=args.batch) as mem:
+            present = {str(s) for s in q["haystack_session_ids"]}
+            want_sessions = {str(s) for s in q.get("answer_session_ids") or []} & present
+            evidence, _ = load_question(mem, q, evidence_sessions=want_sessions)
+            mem.embed_pending(mem.namespace(NS), limit=10**9)
+            mem.flush()
+            as_of = timeutil.format(parse_date(q["question_date"]) + 59_999)
+            client = EvalClient(mem, as_of)
+            hook = {"prompt": q["question"], "session_id": "the-session-asking"}
+            for arm in todo:
+                shot = recall.Shot() if arm == "tools-only" else recall.DESIGNS[arm](client, hook, NS)
+                res = run_agent(llm, args, mem, q, as_of, shot.text)
+                got = set(res.pop("read")) | {it["source"]["id"] for it in shot.items}
+                ctx = {"question_id": q["question_id"], "question_type": q.get("question_type"), "question": q["question"],
+                       "answer": q.get("answer")}  # fmt: skip
+                out.append({
+                    "question_id": q["question_id"], "question_type": q.get("question_type"), "arm": arm,
+                    "abstention": "_abs" in str(q["question_id"]), "evidence_turns": len(evidence),
+                    "judged": grade(llm, args, ctx, res["answer"]), "reached_any": bool(set(evidence) & got),
+                    "reached_all": bool(evidence) and set(evidence) <= got, "fired": bool(shot.text), **res,
+                })  # fmt: skip
+        return out
+
+    try:
+        with ThreadPoolExecutor(args.workers) as pool, open(log_path, "a") if log_path else contextlib.nullcontext() as log:
+            for i, batch in enumerate(pool.map(one, questions)):
+                for row in batch:
+                    rows[f"{row['question_id']}|{row['arm']}"] = row
+                    if log is not None:
+                        log.write(json.dumps(row) + "\n")
+                        log.flush()
+                if (i + 1) % 10 == 0:
+                    print(f"[{i + 1}/{len(questions)}] ${llm.cost:.2f}", file=sys.stderr)
+    finally:
+        if rt is not None:
+            rt.stop()
+    summary: dict = {"cost_usd": round(llm.cost, 3)}
+    for arm in arms:
+        rs = [r for r in rows.values() if r["arm"] == arm]
+        judged = [r for r in rs if r["judged"] is not None]
+        summary[arm] = {
+            "questions": len(rs),
+            "J": round(100 * sum(r["judged"] for r in judged) / max(len(judged), 1), 2),
+            "reached_any": _share([r["reached_any"] for r in rs if r["evidence_turns"]]),
+            "searched": _share([r["queries"] > 0 for r in rs]),
+            "opened": _share([r["opens"] > 0 for r in rs]),
+            "fired": _share([r["fired"] for r in rs]),
+            "prompt_tokens": _mean([r["prompt_tokens"] for r in rs]),
+        }
+    meta = record(embedder.name)
+    meta.update({"dataset": args.data, "arms": arms, "answer_model": args.answer_model, "judge_model": args.judge_model})
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(json.dumps({"meta": meta, "summary": summary, "per_question": list(rows.values())}))
     print(json.dumps(summary, indent=2))
     return 0
 
@@ -597,12 +752,30 @@ def build_parser() -> argparse.ArgumentParser:
     a.add_argument("--judge-reasoning", default="minimal")
     a.add_argument("--judge-max-tokens", type=int, default=1500)
     a.add_argument("--llm-cache", default=str(Path.home() / ".cogito-mem" / "cache" / "long-history-llm.jsonl"))
-    a.add_argument("--max-cost", type=float, default=20.0)
     a.add_argument("--workers", type=int, default=8)
     a.add_argument("--split", choices=["tuning", "heldout"])
     a.add_argument("--limit", type=int)
     a.add_argument("--out")
     a.set_defaults(func=cmd_answer)
+    g = sub.add_parser("agent", help="the answering model with memory_query and memory_open, per recall design")
+    g.add_argument("--data", required=True)
+    g.add_argument("--arms", default="tools-only,shipped,pointers", help="tools-only, or names from recall.DESIGNS")
+    g.add_argument("--env-file", default=".env")
+    g.add_argument("--answer-model", default="anthropic/claude-haiku-5.5")
+    g.add_argument("--answer-max-tokens", type=int, default=2000)
+    g.add_argument("--judge-model", default="openai/gpt-5-mini")
+    g.add_argument("--judge-reasoning", default="minimal")
+    g.add_argument("--judge-max-tokens", type=int, default=1500)
+    g.add_argument("--llm-cache", default=str(Path.home() / ".cogito-mem" / "cache" / "long-history-llm.jsonl"))
+    g.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))
+    g.add_argument("--batch", type=int, default=32)
+    g.add_argument("--max-steps", type=int, default=6)
+    g.add_argument("--workers", type=int, default=4)
+    g.add_argument("--split", choices=["tuning", "heldout"])
+    g.add_argument("--limit", type=int)
+    g.add_argument("--questions-out")
+    g.add_argument("--out")
+    g.set_defaults(func=cmd_agent)
     return p
 
 
