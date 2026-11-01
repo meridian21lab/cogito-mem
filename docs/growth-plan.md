@@ -14,8 +14,10 @@ asks "how do I make Claude Code remember?". Written 20 Oct 2026 from the competi
   **no AI calls** to store, needs **no key** and **no cloud**, and recalls a turn the moment it ends. Rivals bill an
   observer model per tool call (claude-mem), need a paid API key (Mem0), or run LLM extraction (cognee, Supermemory).
   Today: 0 stars, no listing anywhere, no PyPI package.
-- **The story in one line:** *"Claude forgets. Cogi doesn't. 1,000 tokens from Cogi answer LoCoMo questions as well
-  as rereading the whole conversation. Free, local, no API key."*
+- **The story in one line:** *"Claude forgets. Cogi doesn't. 1,000 tokens from Cogi give 95% of the LoCoMo answers
+  that rereading the whole conversation gives, from 9 times less reading. Free, local, no API key."* (Updated 1 Nov
+  2026: with current answering models the whole conversation still scores 3–5 points higher, so "as well as" was
+  dropped; see docs/benchmarks.md.)
 
 ## Phase 0: be listable (this week)
 
