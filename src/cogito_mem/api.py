@@ -17,8 +17,8 @@ KINDS = ("message", "piece", "digest", "statement")
 
 DEFAULT_NAMESPACE = "default"
 DEFAULT_THREAD = "default"
-DEFAULT_TOP_K = 10
-MAX_TOP_K = 100
+DEFAULT_TOP_K = 300
+MAX_TOP_K = 1000
 DEFAULT_MAX_TOKENS = 1000
 MAX_MAX_TOKENS = 100_000
 MAX_ITEMS = 1000

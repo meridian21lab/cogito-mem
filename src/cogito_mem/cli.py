@@ -12,7 +12,7 @@ import threading
 from pathlib import Path
 
 from . import __version__
-from .api import DEFAULT_MAX_TOKENS
+from .api import DEFAULT_MAX_TOKENS, DEFAULT_TOP_K
 
 
 def _root(args: argparse.Namespace) -> Path:
@@ -429,7 +429,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("query", cmd_query, "query the memory")
     sp.add_argument("text")
     sp.add_argument("--namespace", help=NAMESPACE_HELP)
-    sp.add_argument("--top-k", type=int, default=10)
+    sp.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     sp.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     sp.add_argument("--json", action="store_true")
     sp.add_argument("--url")
