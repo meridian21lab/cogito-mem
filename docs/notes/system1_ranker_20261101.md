@@ -119,7 +119,7 @@ takes 4–8 minutes on this CPU, against 4.7 s with Metal on the laptop of `benc
   overlap (each question brings about 1.1M new tokens), so embedding one takes about an hour on this CPU: the
   keyword arms (no embeddings) ran on 40 to 100 questions, the hybrid arms on as many as the time allowed.
 - **LoCoMo**: every 4th question of categories 1–4 in each of the 10 conversations (`--question-stride 4`:
-  387 questions with LoCoMo's mix of categories; the first N would not keep it, since LoCoMo groups questions by
+  388 questions with LoCoMo's mix of categories; the first N would not keep it, since LoCoMo groups questions by
   category). The baselines also ran on all 1,536.
 
 **Metrics.** LongMemEval-S as `eval longmemeval-recall` reports them, with no date cutoff (`--as-of none`,
@@ -171,7 +171,128 @@ What the dev questions decided:
   to the test questions of LongMemEval-S; LoCoMo, the slowest to score, runs Qwen3-Reranker only. d3-edge
   (0.59B) lost to keyword search alone and was dropped.
 
-<!-- RESULTS -->
+## 6. Results on the test questions
+
+Every System-1 arm here uses the settings fixed on the dev questions: the candidate alone (`own`), RRF, 30
+candidates. Each cell is the arm's score, then its paired difference from the row it is compared with and the
+95 % interval.
+
+### 6.1 LongMemEval-S (about 120k tokens per question)
+
+**This machine reproduces the published baseline exactly.** On the 29 answerable questions of the test sample,
+`long-history run`'s hybrid search here gives the same value as `evals/baselines/long-history-20261101/s-full.json`
+(measured on the M5 Max) for every one of R@1, R@5, all@5, all@10, coverage and reached at every budget, question by
+question. The LoCoMo baselines match `benchmarks.md` too (coverage 39.1 / 56.5 / 72.5 against 39.0 / 56.5 / 72.5).
+
+The shipped search, then the System-1 model behind it (`long-history run`, 29 answerable questions, no cutoff):
+
+| | Session R@1 | Session all@10 | Coverage 300 | Coverage 1,000 | Coverage 2,500 | Reached 1,000 |
+|---|---|---|---|---|---|---|
+| Hybrid search (shipped) | 96.6 | 93.1 | 44.8 | 75.9 | 79.3 | 93.1 |
+| Hybrid + Qwen3-Reranker | 96.6 (0) | **100.0 (+6.9 [0, +17.2])** | 44.8 (0) | 79.3 (+3.4 [0, +10.3]) | 79.3 (0) | 100.0 (+6.9 [0, +17.2]) |
+
+The gain is all across sessions: multi-session questions with every answer session in the top 10 go from 6 of 8
+to 8 of 8, and one knowledge-update question gets its evidence inside 1,000 tokens. At 29 questions none of it is
+outside the noise.
+
+Without embeddings (`eval longmemeval-recall`, the 30 hybrid questions, no cutoff), against the shipped search:
+
+| | Session R@1 | Session R@5 | Session NDCG@10 | Session MRR | Turn R@5 | Turn NDCG@10 |
+|---|---|---|---|---|---|---|
+| Hybrid search (shipped) | 96.7 | 100.0 | 95.5 | 97.8 | 89.7 | 66.8 |
+| Keyword search alone | 83.3 (−13.3) | 96.7 (−3.3) | 88.3 (−7.1 [−15, −1]) | 89.4 (−8.4) | 79.3 (−10.3) | 62.6 (−4.2) |
+| **Keyword + Qwen3-Reranker** | 93.3 (−3.3) | 100.0 (0) | 92.9 (−2.6 [−7, +1]) | 96.1 (−1.7) | 86.2 (−3.4) | 65.5 (−1.3) |
+
+On the 40 test questions, keyword + Qwen3-Reranker against keyword alone: session R@1 +10.0 [+2, +20], NDCG@10 +4.4
+[+2, +7], MRR +6.7 [+2, +12], turn R@5 +5.4 [0, +14]. **The System-1 model recovers most of what the embeddings
+add, but not all of it:** it can only reorder what BM25 found, so a question whose words do not appear in the
+answer stays lost.
+
+### 6.2 LoCoMo (about 19k tokens per conversation, up to 35 sessions)
+
+388 questions (every 4th of categories 1–4, all 10 conversations), against the shipped search on the same
+questions:
+
+| | Coverage 100 | **Coverage 300** | Coverage 1,000 | All evidence in the top 10 |
+|---|---|---|---|---|
+| Hybrid search (shipped), same questions | 36.1 | 54.4 | 74.0 | 55.2 |
+| Hybrid + Qwen3-Reranker | 42.8 (+6.7 [+3.6, +9.8]) | **62.4 (+8.0 [+4.9, +11.3])** | 74.2 (+0.3 [0, +0.8]) | 65.2 (+10.1 [+7.0, +13.1]) |
+
+Coverage at 300 tokens by category: multi-hop 14.9 → 23.9, temporal 60.5 → 72.1, single-hop 68.9 → 75.6,
+open-domain 19.2 → 23.1. **This is the gate of `requirements.md` §7: +5 points at 300 tokens. The reranker clears it
+(+8.0; the lower end of the interval, +4.9, is at the line).** At 1,000 tokens nothing changes: a reply that size
+already holds nearly all of the 30 candidates the model reorders, so the order inside it does not change what is
+in it. Reordering more candidates is what could move the larger budgets.
+
+### 6.3 LongMemEval_M (about 1.2M tokens and 4,900 messages per question)
+
+`long-history run --search keyword` with the System-1 model as the `rerank` variant, so `base` (keyword search)
+and `rerank` come from the same loaded memory. The shipped hybrid search is the published
+`evals/baselines/long-history-20261101/m-final.json`, paired by `question_id`. This machine reproduces those
+files exactly where it could check (S hybrid and S keyword above), and embedding M here would take about an hour
+a question, so hybrid + System-1 on M was not run (§10).
+
+**Qwen3-Reranker, 74 answerable questions** (80 test questions; no date cutoff):
+
+| | Session R@1 | Session all@10 | Coverage 300 | Coverage 1,000 | Coverage 2,500 | Coverage 5,000 | Reached 1,000 |
+|---|---|---|---|---|---|---|---|
+| Hybrid search, shipped (published) | 75.7 | 87.8 | 32.4 | 55.4 | 70.3 | 82.4 | 85.1 |
+| Keyword search alone | 68.9 | 75.7 | 36.5 | 54.1 | 62.2 | 66.2 | 71.6 |
+| **Keyword + Qwen3-Reranker** | 77.0 | 82.4 | **43.2** | **62.2** | 63.5 | 66.2 | 79.7 |
+| … minus keyword alone | +8.1 [0, +16.2] | +6.8 [+1.4, +13.5] | +6.8 [+1.4, +13.5] | **+8.1 [+2.7, +14.9]** | +1.4 [0, +4.1] | 0 | +8.1 [+2.7, +14.9] |
+| … minus the shipped hybrid | +1.4 [−9.5, +12.2] | −5.4 [−10.8, −1.4] | **+10.8 [+1.4, +21.6]** | +6.8 [−4.1, +17.6] | −6.8 [−14.9, 0] | **−16.2 [−24.3, −8.1]** | −5.4 [−14.9, +4.1] |
+
+On the 47 of them in the held-out split (`split_of`), against keyword alone: coverage at 1,000 +10.6 [+2.1, +21.3],
+R@1 +14.9 [+4.3, +27.7].
+
+**All three finalists on the same 29 answerable questions:**
+
+| | Session R@1 | Session all@10 | Coverage 300 | Coverage 1,000 | Coverage 5,000 | Model time per question (2 threads, shared) |
+|---|---|---|---|---|---|---|
+| Hybrid search, shipped (published) | 79.3 | 86.2 | 31.0 | 58.6 | 86.2 | — |
+| Keyword search alone | 62.1 | 79.3 | 34.5 | 62.1 | 72.4 | — |
+| Keyword + Qwen3-Reranker | 79.3 | 82.8 | **48.3** | **65.5** | 72.4 | **27.7 s** |
+| Keyword + d3-lite, Noul | **82.8** | 82.8 | 41.4 | 55.2 | 72.4 | 38.3 s |
+| Keyword + d3-lite, Choice over 30 | **82.8** | 82.8 | **48.3** | 62.1 | 72.4 | 33.8 s |
+
+What M shows:
+
+- **On 1M+ token histories the System-1 model matters more than on S.** Behind keyword search it adds 7 to 8 points
+  of coverage at 300 and 1,000 tokens (on S: −2.7 and +5.4), and with no embedding model at all it beats the shipped
+  hybrid search at 300 tokens by 10.8 points. The published scale curve explains why: hybrid search loses 13 points of
+  coverage at 1,000 from 129k to 1.2M tokens, because more near-miss messages crowd the top; a model that reads each
+  candidate pushes them back down.
+- **It cannot fix what the search did not find.** Past the 30 candidates it reorders, keyword search's list is
+  worse than hybrid's: at 5,000 tokens keyword + System-1 is 16 points below the shipped search, and the session
+  all@10 is 5 points below. The model only reorders; the embeddings are what find a message whose words differ.
+  **System-1 replaces neither the embeddings nor the search; it is worth most on top of the hybrid search**, which
+  is the arm §10 asks for on M.
+- **Qwen3-Reranker is the System-1 model to keep.** It has the best coverage and is the fastest. d3-lite as one
+  listwise Choice is close (the same coverage at 300, better R@1, 20 % slower); as a Noul per candidate it is the
+  slowest and loses coverage at 1,000.
+
+### 6.4 Across sessions
+
+Questions whose answer is spread over, or changed across, sessions, at 1,000 tokens (coverage: every evidence turn
+in the reply):
+
+| | Hybrid (shipped) | Keyword | Keyword + Qwen3-Reranker |
+|---|---|---|---|
+| M multi-session (22): coverage 1,000 / all answer sessions in the top 10 | 54.5 / 90.9 | 40.9 / 72.7 | **54.5** / 81.8 |
+| M knowledge-update (8): coverage 1,000 / at 300 | 25.0 / 0.0 | 62.5 / 37.5 | **87.5 / 62.5** |
+| M temporal reasoning (20): coverage 1,000 / all@10 | 60.0 / 80.0 | 55.0 / 65.0 | 55.0 / 70.0 |
+| S multi-session (8), hybrid + Qwen3-Reranker: all answer sessions in the top 10 | 75.0 | — | **100.0** (hybrid + model) |
+| LoCoMo multi-hop (67): coverage 300 | 14.9 | 9.0 | **23.9** (hybrid + model) |
+| LoCoMo temporal (86): coverage 300 | 60.5 | 60.5 | **72.1** (hybrid + model) |
+
+The model helps most with knowledge updates (the latest of several versions of a fact) and multi-hop questions:
+it reads the question and the message together (for example "where do I live now?" against "we finally moved to
+Denver last week"), where neither shared words nor a vector computed without the question singles out the newest
+version. It brings multi-session recall on M up to the hybrid search's level from keyword candidates, and to
+every answer session in the top 10 on top of hybrid search on S. Temporal questions gain on LoCoMo but not on M,
+where the missing sessions are a recall problem of the keyword search the model cannot repair.
+
+<!-- SPEED -->
 
 ## 8. What a System-1 model costs, and why it cannot replace the search
 
