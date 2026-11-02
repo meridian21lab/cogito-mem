@@ -1,0 +1,24 @@
+// Size of one question's BM25 index as the project serialises it, and of the session text it would also store.
+// The eval adapter runs in memory, so its run files can't say. Copied into the clone as benchmark/rivals_disk.ts.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { loadLongMemEval } from "../eval/runner/load.js";
+import { sessionText } from "../eval/runner/input.js";
+import { SearchIndex } from "../src/state/search-index.js";
+
+const dataDir = process.argv[2];
+const manifest = JSON.parse(readFileSync(join(dataDir, "manifest.json"), "utf8"));
+const sizes = manifest.rows.map((r: any) => r.haystack_session_ids.length).sort((a: number, b: number) => a - b);
+const median = sizes[Math.floor((sizes.length - 1) / 2)];
+const row = manifest.rows.find((r: any) => r.haystack_session_ids.length === median);
+const [q] = loadLongMemEval(join(dataDir, "q", row.file));
+const index = new SearchIndex();
+let text = 0;
+for (const session of q.haystack) {
+  const narrative = sessionText(session);
+  text += Buffer.byteLength(narrative);
+  index.add({ id: session.id, sessionId: session.id, timestamp: session.timestamp ?? "1970-01-01T00:00:00.000Z",
+    type: "discovery", title: "", narrative, facts: [], concepts: [], files: [], importance: 5 } as any);
+}
+console.log(JSON.stringify({ question_id: q.id, sessions: q.haystack.length,
+  index_serialised_mb: +(Buffer.byteLength(index.serialize()) / 2 ** 20).toFixed(1), session_text_mb: +(text / 2 ** 20).toFixed(1) }));

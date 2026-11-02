@@ -1,0 +1,121 @@
+// Runs agentmemory's retrieval on one LongMemEval split, a question at a time. Copied into the clone as
+// benchmark/rivals_m.ts, because it imports the project's own modules.
+//
+//   --adapter bm25    the project's current eval adapter: production SearchIndex, one document per session,
+//                     text from its own loader (role-flattened, opaque ids, repeated ids coalesced). Its loader
+//                     can't read the whole 2.7 GB file, so it gets a `[question]` file per question.
+//   --adapter hybrid  its older benchmark (benchmark/longmemeval-bench.ts): SearchIndex + VectorIndex with the local
+//                     MiniLM provider on the first 512 characters of each session, weights 0.4 : 0.6. Published as 95.2.
+//
+// Only the ranking is written; scoring happens elsewhere.
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { parseArgs } from "node:util";
+import { bm25Adapter } from "../eval/runner/adapters/bm25.js";
+import { loadLongMemEval, opaqueSessionId } from "../eval/runner/load.js";
+import { HybridSearch } from "../src/state/hybrid-search.js";
+import { SearchIndex } from "../src/state/search-index.js";
+import { VectorIndex } from "../src/state/vector-index.js";
+
+interface Row { file: string; question_id: string; haystack_session_ids: string[] }
+interface Manifest { rows: Row[]; samples: Record<string, string[]> }
+
+const { values: args } = parseArgs({
+  options: {
+    "data-dir": { type: "string" }, sample: { type: "string", default: "all" }, out: { type: "string" },
+    header: { type: "string", default: "{}" }, adapter: { type: "string", default: "bm25" },
+    k: { type: "string", default: "100" },
+  },
+});
+const dataDir = args["data-dir"]!;
+const outPath = args.out!;
+const k = Number(args.k);
+
+class MockKV { // as in benchmark/longmemeval-bench.ts
+  private store = new Map<string, Map<string, unknown>>();
+  async get<T>(scope: string, key: string): Promise<T> {
+    const m = this.store.get(scope);
+    if (!m || !m.has(key)) throw new Error(`Not found: ${scope}/${key}`);
+    return m.get(key) as T;
+  }
+  async set(scope: string, key: string, value: unknown): Promise<void> {
+    if (!this.store.has(scope)) this.store.set(scope, new Map());
+    this.store.get(scope)!.set(key, value);
+  }
+  async list<T>(scope: string): Promise<T[]> {
+    const m = this.store.get(scope);
+    return m ? (Array.from(m.values()) as T[]) : [];
+  }
+  async delete(scope: string, key: string): Promise<void> { this.store.get(scope)?.delete(key); }
+}
+
+async function runBm25(row: Row): Promise<{ ranked: string[]; loadS: number; queryMs: number }> {
+  const [q] = loadLongMemEval(join(dataDir, "q", row.file));
+  const back = new Map(row.haystack_session_ids.map((sid) => [opaqueSessionId(q.id, sid), sid]));
+  const t0 = performance.now();
+  const state = await bm25Adapter.init(q.haystack, {});
+  const t1 = performance.now();
+  const hits = await bm25Adapter.query(q.question, state, k, q.timestamp);
+  const t2 = performance.now();
+  await bm25Adapter.teardown?.(state);
+  return { ranked: hits.map((h) => back.get(h.sessionId)!), loadS: (t1 - t0) / 1000, queryMs: t2 - t1 };
+}
+
+let provider: any = null;
+async function runHybrid(row: Row): Promise<{ ranked: string[]; loadS: number; queryMs: number }> {
+  if (!provider) {
+    const { LocalEmbeddingProvider } = await import("../src/providers/embedding/local.js");
+    provider = new LocalEmbeddingProvider();
+  }
+  const entry = JSON.parse(readFileSync(join(dataDir, "q", row.file), "utf8"))[0];
+  const t0 = performance.now();
+  const bm25 = new SearchIndex();
+  const vector = new VectorIndex();
+  const kv = new MockKV();
+  for (let i = 0; i < entry.haystack_sessions.length; i++) {
+    const sessionId = entry.haystack_session_ids[i];
+    const text = entry.haystack_sessions[i].map((t: any) => `${t.role}: ${t.content}`).join("\n");
+    const obs: any = {
+      id: `obs_${sessionId}`, sessionId, timestamp: new Date().toISOString(), type: "conversation",
+      title: text.slice(0, 80), facts: [], narrative: text, concepts: [], files: [], importance: 5,
+    };
+    bm25.add(obs);
+    vector.add(obs.id, sessionId, await provider.embed(text.slice(0, 512)));
+    await kv.set(`mem:obs:${sessionId}`, obs.id, obs);
+  }
+  const hybrid = new HybridSearch(bm25, vector, provider, kv as any, 0.4, 0.6, 0.0, false);
+  const t1 = performance.now();
+  const hits = await hybrid.search(entry.question, k);
+  const t2 = performance.now();
+  return { ranked: hits.map((r: any) => r.observation.id.replace(/^obs_/, "")), loadS: (t1 - t0) / 1000, queryMs: t2 - t1 };
+}
+
+async function main(): Promise<void> {
+  const manifest = JSON.parse(readFileSync(join(dataDir, "manifest.json"), "utf8")) as Manifest;
+  const selected = args.sample === "all" ? null : new Set(manifest.samples[args.sample!]);
+  if (selected && !selected.size) throw new Error("no such sample: " + args.sample);
+  const done = new Set<string>();
+  if (existsSync(outPath)) {
+    const lines = readFileSync(outPath, "utf8").split("\n").filter(Boolean);
+    if (lines.length && lines[0] !== args.header) throw new Error(outPath + " holds a run with other settings: " + lines[0]);
+    for (const line of lines.slice(1)) {
+      try { done.add(JSON.parse(line).question_id); } catch { /* a line cut short by an interruption */ }
+    }
+  }
+  if (!existsSync(outPath) || !readFileSync(outPath).length) writeFileSync(outPath, args.header + "\n");
+  const run = args.adapter === "hybrid" ? runHybrid : runBm25;
+  const start = performance.now();
+  let ran = 0;
+  for (const row of manifest.rows) {
+    if ((selected && !selected.has(row.question_id)) || done.has(row.question_id)) continue;
+    const { ranked, loadS, queryMs } = await run(row);
+    appendFileSync(outPath, JSON.stringify({
+      question_id: row.question_id, ranked_sessions: ranked, items_returned: ranked.length, load_s: loadS,
+      query_ms: queryMs, rss_mb: process.resourceUsage().maxRSS / 1024, disk_mb: 0,
+    }) + "\n");
+    if (++ran % 10 === 0) console.log(`${ran} questions, ${Math.round((performance.now() - start) / 1000)} s`);
+  }
+  console.log(`done: ${ran} questions run, ${Math.round((performance.now() - start) / 1000)} s`);
+}
+
+main().catch((error) => { console.error(error); process.exitCode = 1; });
