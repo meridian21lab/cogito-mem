@@ -367,6 +367,7 @@ def test_tool_output_is_captured_once_and_can_be_turned_off(tmp_path, mem, monke
     state = tmp_path / "state"
     assert claude_code.capture_transcript(mem, path, state, "sess-t") == {"added": 11, "duplicate": 0}  # 5 + 2 actions + 4
     assert claude_code.capture_transcript(mem, path, tmp_path / "lost", "sess-t") == {"added": 0, "duplicate": 11}
+    assert mem.flush(30)  # only two hold these words: the other two come from embeddings, done in the background
     found = query(mem, "passed pytest", filter={"author": "tool"}, top_k=10, max_tokens=2000)["items"]
     assert len(found) == 4
     monkeypatch.setenv("COGITO_MEM_CAPTURE_TOOL_OUTPUT", "off")
