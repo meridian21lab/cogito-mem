@@ -31,7 +31,7 @@ from cogito_mem.cli import build_parser
 REPO = Path(__file__).resolve().parents[1]
 SRC = REPO / "src" / "cogito_mem"
 # Turning a reranker on, or naming a model for one. The word alone is fine where a file only reports on it.
-TURNS_IT_ON = re.compile(r"COGITO_MEM_RERANKER|--reranker|qwen|rerank\S*\.gguf", re.IGNORECASE)
+TURNS_IT_ON = re.compile(r"COGITO_MEM_RERANKER|--reranker|--system1|system1|qwen|rerank\S*\.gguf", re.IGNORECASE)
 # What people get with the release, beyond the package: how it installs, what it runs, what it starts with.
 RELEASE_FILES = [
     "Dockerfile",
@@ -42,8 +42,13 @@ RELEASE_FILES = [
     ".github/workflows/docker.yml",
     "scripts/pin_plugin.py",
 ]
-# The only code that may read the setting and start the model. Evals pass their own --reranker.
-MAY_START_IT = {"cli.py", "runtime.py"}
+# The only code that may read the setting and start a model, and what each may name. Evals pass their own --reranker
+# or --system1, and nothing else may import the System-1 code.
+MAY_START_IT = {
+    "cli.py": {"COGITO_MEM_RERANKER", "start_reranker"},
+    "runtime.py": {"start_reranker"},
+    "system1.py": {"start_system1", "SystemOneRanker", "CachedRanker"},
+}
 
 
 def test_the_plugin_folder_knows_nothing_of_a_reranker():
@@ -51,7 +56,7 @@ def test_the_plugin_folder_knows_nothing_of_a_reranker():
     found = []
     for path in (REPO / "plugin").rglob("*"):
         if path.is_file() and path.suffix != ".png":
-            found += [f"{path.relative_to(REPO)}: {m.group()}" for m in re.finditer(r"rerank|qwen", path.read_text(encoding="utf-8"), re.IGNORECASE)]
+            found += [f"{path.relative_to(REPO)}: {m.group()}" for m in re.finditer(r"rerank|qwen|system1", path.read_text(encoding="utf-8"), re.IGNORECASE)]
     assert not found, found
 
 
@@ -69,9 +74,10 @@ def test_only_the_explicit_option_starts_it():
     found = []
     for path in SRC.rglob("*.py"):
         rel = path.relative_to(SRC)
-        if rel.parts[0] == "evals" or rel.name in MAY_START_IT:
+        if rel.parts[0] == "evals":
             continue
-        found += [f"{rel}: {m}" for m in re.findall(r"COGITO_MEM_RERANKER|start_reranker", path.read_text(encoding="utf-8"))]
+        names = re.findall(r"COGITO_MEM_RERANKER|start_reranker|start_system1|SystemOneRanker|CachedRanker", path.read_text(encoding="utf-8"))
+        found += [f"{rel}: {m}" for m in names if m not in MAY_START_IT.get(str(rel), ())]
     assert not found, found
 
 
