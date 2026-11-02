@@ -12,7 +12,7 @@ from conftest import append, query
 
 from cogito_mem.evals.longmemeval_recall import stratified_order
 from cogito_mem.memory import Config, Memory
-from cogito_mem.system1 import CachedRanker, ScoreCache, SystemOneRanker
+from cogito_mem.evals.system1 import CachedRanker, ScoreCache, SystemOneRanker
 
 
 class _FakeSystemOne(BaseHTTPRequestHandler):
@@ -185,7 +185,7 @@ def test_long_history_runs_a_system1_rerank_variant(tmp_path):
 
 
 def test_cached_ranker_sends_a_long_list_in_chunks():
-    from cogito_mem import system1
+    from cogito_mem.evals import system1
 
     class Sizes(_Counting):
         def __init__(self):

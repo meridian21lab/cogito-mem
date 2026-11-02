@@ -389,7 +389,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     embedder, rt = (None, None) if args.search == "keyword" else make_embedder(args.embedder, None)
     reranker, rr_server = None, None
     if args.reranker:
-        from ..runtime import start_reranker
+        from .rerankers import start_reranker
 
         inner, rr_server = start_reranker(args.reranker, None)
         reranker = MemoReranker(inner)
@@ -696,7 +696,7 @@ def cmd_agent(args: argparse.Namespace) -> int:
     embedder, rt = make_embedder("auto", None)
     reranker, rr_server = None, None
     if args.reranker:
-        from ..runtime import start_reranker
+        from .rerankers import start_reranker
 
         reranker, rr_server = start_reranker(args.reranker, None)
     log_path = Path(args.questions_out) if args.questions_out else None
@@ -831,7 +831,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--llm-cache", default=str(Path.home() / ".cogito-mem" / "cache" / "long-history-llm.jsonl"))
     g.add_argument("--cache", default=str(Path.home() / ".cogito-mem" / "cache" / "embeddings.sqlite3"))
     g.add_argument("--batch", type=int, default=32)
-    g.add_argument("--reranker", help="reranker GGUF path, for the model's searches and the hook")
+    g.add_argument("--reranker", help="reranker GGUF path, for the model's searches; the hook does not rerank")
     g.add_argument("--max-steps", type=int, default=6)
     g.add_argument("--query-tokens", type=int, default=1000, help="memory_query's budget when the model gives none")
     g.add_argument("--workers", type=int, default=4)

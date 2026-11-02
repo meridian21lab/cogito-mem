@@ -1,7 +1,7 @@
 """What we release runs plain hybrid search: the plugin, the package and the image never bring a reranker.
 
-This keeps installing simple. A reranker stays a manual option (``--reranker``, ``COGITO_MEM_RERANKER``) for whoever
-sets it up, and for the evals; its results are in ``evals/baselines/long-history-20261101/README.md``.
+This keeps installing simple. The service has no option for one: rerankers live under ``evals/`` for the evals, which
+start their own. The results are in ``evals/baselines/long-history-20261101/README.md``.
 
 The release workflow runs this file on the built package before it publishes, with ``COGITO_MEM_CHECK_DIST`` naming the
 folder of built files. To change the decision, change this file on purpose.
@@ -31,10 +31,12 @@ from cogito_mem.cli import build_parser
 REPO = Path(__file__).resolve().parents[1]
 SRC = REPO / "src" / "cogito_mem"
 # Turning a reranker on, or naming a model for one. The word alone is fine where a file only reports on it.
-TURNS_IT_ON = re.compile(r"COGITO_MEM_RERANKER|--reranker|--system1|system1|qwen|rerank\S*\.gguf", re.IGNORECASE)
+TURNS_IT_ON = re.compile(r"COGITO_MEM_RERANKER|--reranker|--system1|system1|qwen\S*rerank|rerank\S*\.gguf", re.IGNORECASE)
 # What people get with the release, beyond the package: how it installs, what it runs, what it starts with.
 RELEASE_FILES = [
     "Dockerfile",
+    "README.md",
+    "docs/reference.md",
     "pyproject.toml",
     "server.json",
     ".claude-plugin/marketplace.json",
@@ -42,13 +44,8 @@ RELEASE_FILES = [
     ".github/workflows/docker.yml",
     "scripts/pin_plugin.py",
 ]
-# The only code that may read the setting and start a model, and what each may name. Evals pass their own --reranker
-# or --system1, and nothing else may import the System-1 code.
-MAY_START_IT = {
-    "cli.py": {"COGITO_MEM_RERANKER", "start_reranker"},
-    "runtime.py": {"start_reranker"},
-    "system1.py": {"start_system1", "SystemOneRanker", "CachedRanker"},
-}
+# Starting a reranker, by name. Only the evals may.
+STARTS_ONE = re.compile(r"COGITO_MEM_RERANKER|start_reranker|start_system1|SystemOneRanker|CachedRanker|LlamaServerReranker|YesNoReranker|(?:from|import)\s+\S*(?:rerankers|system1)")
 
 
 def test_the_plugin_folder_knows_nothing_of_a_reranker():
@@ -70,14 +67,17 @@ def test_release_files_do_not_turn_it_on(name):
     assert not found, f"{name}: {found}"
 
 
-def test_only_the_explicit_option_starts_it():
+def test_only_the_evals_can_start_one():
     found = []
     for path in SRC.rglob("*.py"):
         rel = path.relative_to(SRC)
-        if rel.parts[0] == "evals":
-            continue
-        names = re.findall(r"COGITO_MEM_RERANKER|start_reranker|start_system1|SystemOneRanker|CachedRanker", path.read_text(encoding="utf-8"))
-        found += [f"{rel}: {m}" for m in names if m not in MAY_START_IT.get(str(rel), ())]
+        if rel.parts[0] != "evals":
+            found += [f"{rel}: {m}" for m in STARTS_ONE.findall(path.read_text(encoding="utf-8"))]
+    assert not found, found
+
+
+def test_no_code_reads_a_setting_for_one():
+    found = [str(p.relative_to(SRC)) for p in SRC.rglob("*.py") if "COGITO_MEM_RERANKER" in p.read_text(encoding="utf-8")]
     assert not found, found
 
 
@@ -88,17 +88,17 @@ def test_no_code_knows_where_to_download_one():
     assert not found, found
 
 
-def test_nothing_is_set_by_default():
-    assert build_parser().parse_args(["serve"]).reranker is None
+def test_the_service_has_no_option_for_one():
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["serve", "--reranker", "model.gguf"])
     assert inspect.signature(Memory.__init__).parameters["reranker"].default is None
 
 
-def test_the_service_starts_without_one(tmp_path):
+def test_the_service_ignores_the_old_setting(tmp_path):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    env = {k: v for k, v in os.environ.items() if k != "COGITO_MEM_RERANKER"}
-    env["PYTHONPATH"] = str(REPO / "src")
+    env = dict(os.environ, PYTHONPATH=str(REPO / "src"), COGITO_MEM_RERANKER=str(tmp_path / "no-such-model.gguf"))
     proc = subprocess.Popen(
         [sys.executable, "-m", "cogito_mem", "--root", str(tmp_path / "h"), "serve", "--embedder", "hash", "--port", str(port)],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

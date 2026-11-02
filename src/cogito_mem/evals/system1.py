@@ -29,7 +29,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Sequence
 
-from .runtime import LlamaServer, LlamaServerReranker, RuntimeUnavailable, _post, find_llama_server
+from ..runtime import LlamaServer, RuntimeUnavailable, _post, find_llama_server
+from .rerankers import LlamaServerReranker
 
 KINDS = ("rerank", "noul", "choice")
 

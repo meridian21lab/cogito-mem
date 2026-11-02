@@ -58,18 +58,11 @@ def cmd_serve(args: argparse.Namespace) -> int:
     from .server import MemoryServer, default_port
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    reranker = None
-    rerank_server = None
     root = _root(args)
-    if args.reranker or os.environ.get("COGITO_MEM_RERANKER"):
-        from .runtime import start_reranker
-
-        reranker, rerank_server = start_reranker(args.reranker or os.environ["COGITO_MEM_RERANKER"], root)
     memory = Memory(
         root,
         embedder=args.embedder,
         config=Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author, exact_lane=args.exact_lane),
-        reranker=reranker,
     )
     port = args.port if args.port is not None else default_port()
     try:
@@ -105,8 +98,6 @@ def cmd_serve(args: argparse.Namespace) -> int:
         pass
     finally:
         memory.close()
-        if rerank_server is not None:
-            rerank_server.stop()
     return 0
 
 
@@ -444,7 +435,6 @@ def build_parser() -> argparse.ArgumentParser:
                     help="put each author's name before their text for search (default: on)")  # fmt: skip
     sp.add_argument("--exact-lane", action=argparse.BooleanOptionalAction, default=False,
                     help="also rank items holding an identifier from the query word for word")  # fmt: skip
-    sp.add_argument("--reranker", help="reranker GGUF path or llama-server URL (stage-0 arm R)")
 
     sp = add("mcp", cmd_mcp, "run the MCP server on stdio")
     sp.add_argument("--namespace", help=NAMESPACE_HELP)

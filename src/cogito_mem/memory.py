@@ -44,7 +44,7 @@ class Config:
       ``"vector"`` (arm U1) or ``"keyword"``.
     - ``doc_context``: ``"previous"`` (default) embeds each item with the message before
       it in the thread (arm U3); ``"own"`` embeds it alone.
-    - ``candidates``: how many fused candidates a reranker (a System-1 model, ``system1.py``)
+    - ``candidates``: how many fused candidates a reranker (a System-1 model, ``evals/system1.py``)
       reorders (arm R); 0 means every visible item, a full scan ordered by the model alone.
     - ``rerank_context``: what the reranker reads of each candidate: ``"own"`` (author and
       text; default), ``"previous"`` (also the end of the message it follows on from) or
@@ -268,10 +268,7 @@ class Memory:
         items, tokens = ns.fill(
             candidates, req.top_k, req.max_tokens, as_of, req.filter.include_retracted, self._tokenizer
         )
-        out = {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
-        if self.reranker is not None and req.rerank != 0:
-            out["reranked"] = True  # scores are the reranker's, not fused ranks
-        return out
+        return {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
 
     def _open(self, req: OpenIn) -> dict:
         t0 = time.perf_counter()

@@ -2,6 +2,10 @@
 
 What changed in each version of Cogi (cogito-mem), for people who use it.
 
+## Unreleased
+
+- **No reranker option.** `cogito-mem serve --reranker` and `COGITO_MEM_RERANKER` are gone, and `serve --reranker` now stops with an error. Cogi runs its plain hybrid search, which needs no setup. On a slow machine or with several prompts at once, the option could leave a prompt with no memory at all.
+
 ## 0.2.1 — 21 Oct 2026
 
 **Update note:** the plugin now runs `uvx cogito-mem==0.2.1`, so you need [uv](https://docs.astral.sh/uv/) on your PATH. Restart Claude Code after updating.

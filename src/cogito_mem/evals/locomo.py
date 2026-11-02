@@ -236,7 +236,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
     reranker = rr_server = None
     if args.reranker:
-        from ..runtime import start_reranker
+        from .rerankers import start_reranker
 
         reranker, rr_server = start_reranker(args.reranker, None)
     elif args.system1:

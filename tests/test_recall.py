@@ -559,35 +559,24 @@ class FakeReranker:
         return [0.9 if "seven attempts" in text else 0.01 for text in texts]
 
 
-def test_a_reranked_query_says_so_and_can_be_turned_off(mem):
+def test_a_query_can_skip_the_reranker(mem):
     pointer_memory(mem)
     reranker = FakeReranker()
     mem.reranker = reranker
-    resp = mem.query("retry budget", namespace="n", rerank=2)
-    assert resp["reranked"] is True and reranker.read == 2
-    assert "reranked" not in mem.query("retry budget", namespace="n", rerank=0)
+    mem.query("retry budget", namespace="n", rerank=2)
+    assert reranker.read == 2
+    reranker.read = 0
+    mem.query("retry budget", namespace="n", rerank=0)
+    assert reranker.read == 0
     mem.reranker = None
 
 
-def test_with_a_reranker_its_score_is_the_gate(mem):
+def test_the_hook_never_asks_a_reranker(mem):
     pointer_memory(mem)
-    mem.reranker = FakeReranker()
-    mem.config.rerank_fusion = "replace"
-    shot = recall.pointers(MemClient(mem), prompt_hook("what did we settle about attempts?"), "n")
-    assert [("seven attempts" in it["text"]) for it in shot.items] == [True]
-    assert recall.pointers(MemClient(mem), prompt_hook("anything else entirely unrelated here?"), "n").text is None  # one shared word stays
+    reranker = FakeReranker()
+    mem.reranker = reranker
+    for design in recall.DESIGNS.values():
+        design(MemClient(mem), prompt_hook("what did we settle about attempts?"), "n")
+    recall.compact_context(MemClient(mem), prompt_hook("what did we settle about attempts?"), "n")
     mem.reranker = None
-
-
-def test_sibling_lines_keep_their_word_gate_under_a_reranker(mem):
-    pointer_memory(mem)
-    mem.append(
-        [{"thread_id": "parallel", "author": "user", "title": "/work/app", "text": "Lunch on the balcony, seven attempts at parking.",
-          "valid_at": timeutil.format(timeutil.now_ms() - 60_000)}],
-        namespace="n",
-    )
-    mem.flush()
-    mem.reranker = FakeReranker()
-    shot = recall.pointers(MemClient(mem), prompt_hook("what is the retry budget for the uploader, in attempts?"), "n")
-    mem.reranker = None
-    assert "other sessions of this project" not in (shot.text or "")
+    assert reranker.read == 0

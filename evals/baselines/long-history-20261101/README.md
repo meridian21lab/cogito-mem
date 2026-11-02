@@ -104,7 +104,7 @@ whole answer than shipped's, because the model then searches less.
 ## The reranker on 1M+ tokens (`m-rerank-*.json`, `m-answer-heldout-*.json`, `m-agent-rerank-heldout.json`)
 
 Qwen3-Reranker-0.6B Q8_0 (mradermacher's GGUF, 639 MB), scored by its own yes-or-no prompt because no GGUF checked has a rerank template.
-It reorders the top 100 by its score alone (`--rerank-fusion replace`, the default), at about 20 ms a text on an M5 Max. Off by default. Chosen on tuning;
+It reorders the top 100 by its score alone (`--rerank-fusion replace`, the default), at about 20 ms a text on an M5 Max. An option of the eval commands only: releases have none, and the reranked hook is at the git tag `reranker-hook-20261102`. Chosen on tuning;
 these are the 312 held-out answerable, no date cutoff.
 
 On the 158 tuning questions (`m-ggml-*.json`), ggml-org's GGUF with `--reranking` gives the same result within noise (coverage at 1,000: 74.7 against 74.1), and

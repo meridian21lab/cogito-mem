@@ -132,7 +132,7 @@ def make_system1(args):
     """(ranker or None, server or None) for the --system1 flags; the ranker caches its scores."""
     if not getattr(args, "system1", None):
         return None, None
-    from ..system1 import CachedRanker, ScoreCache, start_system1
+    from .system1 import CachedRanker, ScoreCache, start_system1
 
     ranker, server = start_system1(args.system1, args.system1_kind, threads=args.system1_threads)
     return CachedRanker(ranker, ScoreCache(args.system1_cache)), server

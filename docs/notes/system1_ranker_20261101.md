@@ -3,6 +3,11 @@
 *Spec and measurements, 1 Nov 2026. Stage-0 arm R of [`requirements.md`](../requirements.md) §7, widened to
 "System-1" decision models and to search with no embeddings at all.*
 
+*Update, 2 Nov 2026: decided not to ship. Releases run plain hybrid search and have no option for a reranker, so that
+installing stays simple; the code lives under `src/cogito_mem/evals/`, for the eval commands. The results below stand. The
+hook's reranked path, with the option, is at the git tag `reranker-hook-20261102`. Where this note says `dev` carries the
+option, or that the hook reranks, it describes that tag.*
+
 **In short.** A small local System-1 model that reads the question and each candidate memory together (here
 Qwen3-Reranker-0.6B, or the open Jev-style decision model vLLM-SR d3-lite, both run by llama.cpp on the same
 machine) gives the largest gain any search setting has shown on 1M+ token histories so far
@@ -82,7 +87,7 @@ Two practical findings:
 ## 3. Design
 
 Everything goes through the `Reranker` shape `Memory` already has (`score(query, texts)` → one number in [0, 1]
-per text). New code is in `src/cogito_mem/system1.py`; the search is unchanged.
+per text). New code is in `src/cogito_mem/evals/system1.py`; the search is unchanged.
 
 | Setting (`Config`) | Values | Meaning |
 |---|---|---|
