@@ -98,7 +98,7 @@ Everything has a working default. Environment variables, for when you need them:
 | `COGITO_MEM_LLAMA_SERVER` | A `llama-server` binary, or the URL of a running one. |
 | `COGITO_MEM_GPU_LAYERS` / `COGITO_MEM_THREADS` | Passed to llama.cpp as `-ngl` / `-t` (`0` layers = CPU only). |
 | `COGITO_MEM_ALLOWED_HOSTS` | Extra `Host` names the service accepts (e.g. a Docker network name). |
-| `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL, e.g. ggml-org's Qwen3-Reranker-0.6B Q8_0. Off by default: about 640 MB, and a GPU, since it takes seconds per query on a CPU. It orders the top 100 for a search and the top 30 for the prompt hook by its score; see [System-1 ranking](notes/system1_ranker_20261101.md). |
+| `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL, e.g. ggml-org's Qwen3-Reranker-0.6B Q8_0. Off by default, and the plugin, the package and the image never turn it on: about 640 MB, and a GPU, since it takes seconds per query on a CPU. It orders the top 100 for a search and the top 30 for the prompt hook by its score; see [System-1 ranking](notes/system1_ranker_20261101.md). |
 | `COGITO_MEM_RECALL_DESIGN` | What each prompt gets: `hybrid` (default), `pointers` or `shipped`. |
 | `COGITO_MEM_RECALL_HOLDOUT` | Percent of sessions kept without recall, for comparing outcomes (default 0). |
 | `COGITO_MEM_RECALL_TOOLS` | `on` adds lines about a file before an edit (default off; needs a `PostToolUse` hook). |

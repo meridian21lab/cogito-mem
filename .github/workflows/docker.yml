@@ -46,6 +46,7 @@ jobs:
             -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
             | grep -qi "mcp-session-id"
           docker exec cm /opt/llama/llama-server --version
+          curl -fs http://127.0.0.1:7327/v1/status | python3 -c "import json, sys; assert json.load(sys.stdin)['reranker'] is None, 'the image runs a reranker'"
           docker logs cm
 
   # Each architecture builds natively (compiling llama.cpp under emulation takes hours), pushes by
