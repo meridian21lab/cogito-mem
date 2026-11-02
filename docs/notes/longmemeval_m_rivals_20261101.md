@@ -225,3 +225,45 @@ Each adapter is a possible source of error, so each was run on LongMemEval-S and
 The numbers are in `results/rivals-m/` (git-ignored): one result per setting, `comparison.json`, `tables.md`, `repro-s/`, `rows/` (raw rankings, logs, run times). Each result's `meta` holds commit, settings, machine and dataset hash. Scripts are in `scripts/rivals_m/`, with paths to this session's scratchpad written into them. In order: `prepare_data.py`, `sync.sh`, `jobs.sh <setting>:<data>:<sample>`, `final_all.sh`, `repro_compare.py`, `note_tables.py`. `.txt` files are copied into the clones, since they import project internals.
 
 Fixed before any rival ran: `sample100` and `pilot20` (seed 7, stratified by type, in `manifest_m.json`). Only the pilot was used in the end, since the slowest full run took about 1.5 hours against the 12-hour limit.
+
+# Matched token budgets
+
+Added 2 Nov 2026. **Question:** of what each system returns within 1,000, 2,500 and 5,000 tokens, are all the messages holding the answer present?
+
+## Rules, written before anything was scored
+
+This section was committed before any coverage was computed for any system. Results follow below it.
+
+**Evidence and denominator.** The `has_answer` turns of each question's answer sessions, skipping empty turns, as Cogi's loader does. Reported on all questions with such labels (479 on Cogi's turn table) and on the 470 answerable.
+
+**Shared token counter.** The EmbeddingGemma 2 tokenizer through llama-server's `/tokenize`, the one Cogi's budgets already use. Every reply is measured with it and cut at the budget. Only message text counts: frames, headings, ids and dates are not counted for anyone, as Cogi's metadata isn't.
+
+**Present.** A message is present if the reply shares at least 30 consecutive characters with it (lowercased, whitespace collapsed), or holds all of it if it is shorter. A question is covered when all its evidence messages are present. This is the text form of Cogi's rule, which counts a message if any piece of it is returned, even a piece without the answer. Cogi is scored both by message id, to reproduce its row, and by this rule; paired differences use this rule on both sides. **Sensitivity:** whole, meaning 95% of the message's 30-character windows are in the reply.
+
+**Cogi.** Default settings, no reranker, frozen source `data/frozen/src-b904848`, no date cutoff, as in the row being reproduced. Rivals have no date cutoff either. If the row doesn't reproduce, this stops and is reported.
+
+**Rule 1, as it ships.** Each project's real output, from reading its code:
+
+| System | What it really returns | Budget option | How each budget is filled |
+|---|---|---|---|
+| Cogi | Pieces of messages, at most 256 tokens each | `max_tokens` | Its own |
+| hippo recall | Whole sessions, as stored here | `recall --budget N`, counted as characters / 4; keeps the first result even when it's over | Real output at `--budget N`, cut at N by the shared counter |
+| agentmemory | Whole sessions as stored here, the first clipped to fit; 20 results | `token_budget` on `mem::search`, counted as JSON length / 3 | `buildRecallResponse`, format `full`, called directly on its ranking; no daemon |
+| deja-vu | `deja recall`: snippets from 5 sessions, 4 KB a page | None; `--offset` for later pages | Real CLI pages in order, walked by `--offset`, cut at N |
+| MemPalace, product | `mine --mode convos` then search: drawers of up to 800 characters; 5 results by default | None; `--results` | 50 drawers asked for, in rank order, cut at N. Run on all 500 only if under the 12-hour limit, otherwise on `sample100`, stated plainly |
+| MemPalace, benchmark `raw` and `hybrid_v4` | The session documents its published scores rank: user turns only | None | Whole documents in ranked order, the last cut at N, from the saved rankings |
+| hippo scripts, 5 settings | Per session, its best dense turn (`content` in their rows) | None | Those turns in ranked order, the last cut at N |
+
+**Rule 2, generous. Our construction, not a product feature.** From a rival's own ranked sessions, take every non-empty message of both roles in its **top 10** sessions, rank them by plain BM25 against the question (k1 1.2, b 0.75, lowercase alphanumeric words, no stemming, statistics over those messages only, zero scores dropped), and pack the budget exactly as Cogi packs: in order, the first cut if over, later ones skipped if they don't fit. It can't see labels and doesn't use Cogi's embeddings. Rankings are those saved from the last run; for hippo recall, the lifted ranking, since its default returns about two sessions. Top 5 and top 20 are reported as a sensitivity check, so 10 isn't a choice made afterwards.
+
+**Generous, in pieces. Also our construction.** The same, but messages are first cut into consecutive 256-token pieces, Cogi's piece size, and BM25 ranks the pieces. This removes the size difference from the comparison.
+
+**Control: Cogi's own session ranking through both generous rules.** Cogi's saved ranked sessions go through the same picker. With this:
+
+- Rival generous-in-pieces minus rival as shipped: what smaller pieces alone give that rival.
+- Cogi's ranking minus rival's ranking, through the same picker: what better session ranking gives.
+- Cogi as shipped minus Cogi's ranking through the picker: what Cogi's own message-level search gives beyond that.
+
+**Query time** is recorded at each budget as each system does it, and isn't comparable across process models: hippo and deja-vu start a process per call. Load time isn't a focus and isn't re-measured for this.
+
+**Analysis.** Paired by `question_id`, Cogi minus rival, `paired_bootstrap` with 10,000 resamples of questions, seed 0.

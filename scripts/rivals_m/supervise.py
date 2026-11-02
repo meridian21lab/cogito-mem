@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import signal
 import subprocess
 import time
@@ -40,7 +41,7 @@ class Supervisor:
     def wait_quiet(self) -> None:
         t0 = time.time()
         proc = subprocess.run(["bash", self.wait], capture_output=True, text=True,
-                              env={"PATH": "/usr/bin:/bin", "WAIT_START": str(int(t0 - self.waited))})  # fmt: skip
+                              env={"PATH": "/usr/bin:/bin", "WAIT_START": os.environ.get("JOB_START", str(int(t0 - self.waited)))})  # fmt: skip
         self.waited += time.time() - t0
         say(f"wait ended: {proc.stdout.strip()}")
         if proc.returncode:
@@ -56,7 +57,8 @@ class Supervisor:
             say(f"{job}: already finished")
             return
         log = open(self.base / "rows" / f"{setting}-{data}-{sample}.log", "a")
-        cmd = ["bash", str(self.base / "adapters" / "run_one.sh"), setting, data, sample]
+        runner = "budget_one.sh" if setting.startswith("budget-") else "run_one.sh"
+        cmd = ["bash", str(self.base / "adapters" / runner), setting, data, sample]
         while True:
             found = self.busy()
             if found:
@@ -67,7 +69,7 @@ class Supervisor:
             say(f"{job}: start")
             t0 = time.time()
             proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
-                                    env={"PATH": "/usr/bin:/bin", "RIVALS_BASE": str(self.base)})  # fmt: skip
+                                    env={"PATH": "/usr/bin:/bin", "RIVALS_BASE": str(self.base), "HOME": os.environ.get("HOME", "")})  # fmt: skip
             stopped = None
             while proc.poll() is None:
                 try:

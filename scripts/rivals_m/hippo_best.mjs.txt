@@ -23,7 +23,7 @@ import { buildCorpus } from '../../dist/domain/search/bm25.js';
 const { values: args } = parseArgs({
   options: {
     'data-dir': { type: 'string' }, work: { type: 'string' }, 'out-prefix': { type: 'string' },
-    suffix: { type: 'string' }, 'header-json': { type: 'string', default: '{}' },
+    suffix: { type: 'string' }, 'header-json': { type: 'string', default: '{}' }, 'turn-out': { type: 'string' },
   },
 });
 const SETTINGS = [
@@ -114,7 +114,7 @@ const sessionIds = [...bySession.keys()];
 const sessionIndex = new Map(sessionIds.map((sid, i) => [sid, i]));
 const turnCorpus = buildCorpus(turnText);
 const sessionCorpus = buildCorpus(sessionIds.map((sid) => bySession.get(sid).map((i) => turnText[i]).join('\n')));
-turnText.length = 0;
+if (!args['turn-out']) turnText.length = 0;
 console.log(`corpora: turns N=${turnCorpus.N} avgLen=${turnCorpus.avgLen.toFixed(2)}; sessions N=${sessionCorpus.N} avgLen=${sessionCorpus.avgLen.toFixed(2)}`);
 
 function bm25Score(corpus, docIdx, queryTerms) {
@@ -134,6 +134,53 @@ function bm25Score(corpus, docIdx, queryTerms) {
 }
 
 const byScoreThenId = (a, b) => (b[1] !== a[1] ? b[1] - a[1] : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+
+// With --turn-out: what the scripts' rows carry as `content`, each ranked session's best dense turn, for every setting. Then stop.
+if (args['turn-out']) {
+  const path = args['turn-out'];
+  const done2 = new Set();
+  if (existsSync(path)) for (const line of readFileSync(path, 'utf8').split('\n').slice(1)) {
+    try { done2.add(JSON.parse(line).question_id); } catch { /* cut short or blank */ }
+  } else writeFileSync(path, args['header-json'] + '\n');
+  let c2 = 0;
+  for (const q of questions) {
+    if (done2.has(q.question_id)) continue;
+    const t1 = performance.now();
+    const qv = new Float32Array((await pipe(q.question, { pooling: 'mean', normalize: true })).data);
+    const denseBest = [], turnBest = [], sessionBest = [];
+    const bestIdx = new Map();
+    const terms = tokenize(q.question);
+    for (const sid of q.hay) {
+      const idxs = bySession.get(sid) ?? [];
+      let best = -Infinity, bi = -1, bestTurn = 0;
+      for (const i of idxs) {
+        let s = 0;
+        const off = i * DIM;
+        for (let j = 0; j < DIM; j++) s += mat[off + j] * qv[j];
+        if (s > best) { best = s; bi = i; }
+        const b = bm25Score(turnCorpus, i, terms);
+        if (b > bestTurn) bestTurn = b;
+      }
+      if (idxs.length) { denseBest.push([sid, best]); bestIdx.set(sid, bi); }
+      if (bestTurn > 0) turnBest.push([sid, bestTurn]);
+      const ss = sessionIndex.has(sid) ? bm25Score(sessionCorpus, sessionIndex.get(sid), terms) : 0;
+      if (ss > 0) sessionBest.push([sid, ss]);
+    }
+    const denseSids = denseBest.sort(byScoreThenId).map((x) => x[0]);
+    const turnSids = turnBest.sort(byScoreThenId).map((x) => x[0]);
+    const sessionSids = sessionBest.sort(byScoreThenId).map((x) => x[0]);
+    const settings = {};
+    for (const s of SETTINGS) {
+      const fused = rrfFuse([s.level === 'turn' ? turnSids : sessionSids, denseSids], [s.bm25, s.dense], { k: RRF_K });
+      const ranked = [...fused.entries()].sort(byScoreThenId).slice(0, TOP_K).map((x) => x[0]);
+      settings[s.name] = ranked.map((sid) => turnText[bestIdx.get(sid)]);
+    }
+    appendFileSync(path, JSON.stringify({ question_id: q.question_id, query_ms: performance.now() - t1, settings }) + '\n');
+    if (++c2 % 50 === 0) console.log(`${c2} questions`);
+  }
+  console.log(`done: ${c2} questions run`);
+  process.exit(0);
+}
 const outFor = (s) => `${args['out-prefix']}_${s.name}-${args.suffix}.jsonl`;
 const finished = new Set();
 SETTINGS.forEach((s, si) => {
