@@ -201,3 +201,15 @@ def test_cached_ranker_sends_a_long_list_in_chunks():
     scores = CachedRanker(inner, ScoreCache(None)).score("q", texts)
     assert inner.calls == [system1.POINTWISE_CHUNK, system1.POINTWISE_CHUNK, 6]
     assert scores[-1] == 0.9 and len(scores) == len(texts)
+
+
+def test_pick_returns_only_what_the_model_says_yes_to():
+    inner = _Counting()  # 0.9 for texts naming Biscuit, 0.1 for the rest
+    with Memory(None, embedder="hash", reranker=inner, config=Config(search="keyword", candidates=0, pick=0.5)) as m:
+        items(m)
+        got = query(m, "dog names")["items"]
+        assert [i["text"] for i in got] == ["We adopted a beagle and named him Biscuit"]
+        assert got[0]["score"] == 0.9
+    with Memory(None, embedder="hash", reranker=_Counting(), config=Config(search="keyword", pick=0.95)) as m:
+        items(m)
+        assert query(m, "dog names")["items"] == []  # nothing reaches the threshold: the model abstains

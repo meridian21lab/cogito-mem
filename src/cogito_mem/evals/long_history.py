@@ -71,6 +71,10 @@ VARIANTS: dict[str, dict] = {
     "exact+session": {"exact_lane": True, "session_boost": 0.5},
     "rerank": {},  # with --reranker or --system1, these two are the only variants that use it
     "rerank100": {"candidates": 100},
+    # the System-1 model picks: only the candidates it says yes to (probability at least 0.3, 0.5, 0.7) are returned
+    "pick30": {"pick": 0.3},
+    "pick50": {"pick": 0.5},
+    "pick70": {"pick": 0.7},
 }
 
 
@@ -129,6 +133,7 @@ def search_arm(mem: Memory, q: dict, want_turns: set[str], want_sessions: set[st
         "session": score(sessions, want_sessions) if want_sessions else None,
         "turn": score(turns, want_turns) if want_turns else None,
         "evidence_ranks": sorted(turns.index(t) + 1 for t in want_turns if t in turns),
+        "returned": len(turns),
         "budgets": {},
     }
     for n in BUDGETS:
@@ -213,7 +218,7 @@ def evaluate(mem: Memory, q: dict, variants: dict[str, Config], contexts=None, r
     shipped = mem.config
     for name, cfg in variants.items():
         mem.config = cfg
-        mem.reranker = reranker if name.startswith("rerank") else None
+        mem.reranker = reranker if name.startswith(("rerank", "pick")) else None
         stats = getattr(mem.reranker, "stats", None)
         before = dict(stats) if stats else None
         row["search"][name] = {c: search_arm(mem, q, want_turns, want_sessions, as_of) for c, as_of in cutoffs.items()}

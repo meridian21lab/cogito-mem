@@ -50,6 +50,8 @@ class Config:
       text; default), ``"previous"`` (also the end of the message it follows on from) or
       ``"dated"`` (``"previous"`` with the message's date first). With ``"previous"`` the reply
       after an answer carries the answer in its context and is ranked above it.
+    - ``pick``: a probability; when set, the System-1 model picks instead of ordering: only the candidates
+      it gives at least this probability of helping are returned (none, if none reaches it).
     - ``rerank_fusion``: ``"replace"`` (default) orders the candidates by the reranker's score
       alone; ``"rrf"`` fuses its ranks with the search's by reciprocal rank, which does worse at
       small budgets on 1M+ token histories (docs/notes/system1_ranker_20261101.md).
@@ -72,6 +74,7 @@ class Config:
     rerank_fusion: str = "replace"
     exact_lane: bool = False
     session_boost: float = 0.0
+    pick: float | None = None
 
     def __post_init__(self) -> None:
         if self.search not in ("hybrid", "vector", "keyword"):
@@ -80,6 +83,8 @@ class Config:
             raise ValueError(f"doc_context must be own or previous, not {self.doc_context!r}")
         if self.rerank_context not in ("own", "previous", "dated"):
             raise ValueError(f"rerank_context must be own, previous or dated, not {self.rerank_context!r}")
+        if self.pick is not None and not 0.0 <= self.pick <= 1.0:
+            raise ValueError(f"pick must be a probability between 0 and 1, not {self.pick!r}")
         if self.rerank_fusion not in ("replace", "rrf"):
             raise ValueError(f"rerank_fusion must be replace or rrf, not {self.rerank_fusion!r}")
 
@@ -299,6 +304,11 @@ class Memory:
             return cands
         head = cands if candidates <= 0 else cands[:candidates]
         scores = self.reranker.score(req.text, ns.rank_texts([c.row for c in head], cfg.rerank_context))
+        if cfg.pick is not None:
+            # The System-1 model decides: a candidate is returned only if its probability of helping reaches
+            # ``pick``, most confident first; the rest, and everything it did not read, are left out.
+            kept = sorted((i for i in range(len(head)) if scores[i] >= cfg.pick), key=lambda i: (-scores[i], i))
+            return [Candidate(head[i].row, float(scores[i]), head[i].similarity) for i in kept]
         # A full scan has no search order to fuse with (items past the keyword matches come oldest first).
         if cfg.rerank_fusion == "rrf" and candidates > 0:
             by_model = sorted(range(len(head)), key=lambda i: (-scores[i], i))
