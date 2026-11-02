@@ -46,6 +46,9 @@ CHOICE_INSTRUCTION = (
 # A d3 prompt is evaluated in one batch, so a Choice over many long candidates must fit in it.
 CHOICE_MAX_OPTIONS = 255
 DECISION_UBATCH = 16384
+# A pointwise model is sent at most this many texts a request: a full scan or a long candidate list on a CPU would
+# otherwise run past the HTTP timeout (about 400 tokens a second for a 0.6B model on 4 cores).
+POINTWISE_CHUNK = 32
 
 
 class SystemOneRanker:
@@ -165,7 +168,12 @@ class CachedRanker:
         self.stats["cached"] += len(texts) - len(todo)
         if todo:
             t0 = time.perf_counter()
-            new = self.ranker.score(query, [texts[i] for i in todo])
+            if self.listwise:  # a Choice's probabilities depend on the whole list
+                new = self.ranker.score(query, [texts[i] for i in todo])
+            else:
+                new = []
+                for start in range(0, len(todo), POINTWISE_CHUNK):
+                    new += self.ranker.score(query, [texts[i] for i in todo[start : start + POINTWISE_CHUNK]])
             self.stats["model_s"] += time.perf_counter() - t0
             self.stats["scored"] += len(todo)
             self.cache.put_many([(keys[i], float(v)) for i, v in zip(todo, new)])

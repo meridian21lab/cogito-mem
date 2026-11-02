@@ -114,7 +114,7 @@ def add_system1_args(p) -> None:
     g.add_argument("--rerank-context", default="own", choices=["own", "previous", "dated"],
                    help="what the model reads of a candidate (default: own, its author and text)")  # fmt: skip
     g.add_argument("--rerank-fusion", default="replace", choices=["replace", "rrf"],
-                   help="rrf: fuse the model's ranks with the search's (default); replace: the model's order alone")  # fmt: skip
+                   help="replace: the model's order alone (default); rrf: fuse the model's ranks with the search's")  # fmt: skip
     g.add_argument("--system1-cache", help="SQLite file of scores already computed (reruns read them back)")
     g.add_argument("--system1-threads", type=int, help="CPU threads of the System-1 llama-server")
 
