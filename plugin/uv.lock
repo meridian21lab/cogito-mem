@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -9,28 +9,28 @@ resolution-markers = [
 
 [[package]]
 name = "cogito-mem"
-version = "0.2.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e8/be/184b2474fdf309a14b83d425ff0e9503152d3c2d94e6350c4857c8adfe29/cogito_mem-0.2.1.tar.gz", hash = "sha256:8b8fb8b085583eb79bddeccd5f70090774915e1939d1547b617143a894d188b7", size = 470552, upload-time = "2026-10-21T19:58:55.485Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/99/3b/a33546b902ccdd8a4a58a566d6b68de271cbeb2e80140002500c2e2bb3c7/cogito_mem-0.3.0.tar.gz", hash = "sha256:f567f9a4c4b12cb72b4bcfebc650a47d962c62990e4986c76d3114391c49c358", size = 2653306, upload-time = "2026-11-03T10:09:23.189Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/08/1edaf3a72a227c11cd557d86d20854fb4fd73b10025d63b3a2907e23cd36/cogito_mem-0.2.1-py3-none-any.whl", hash = "sha256:17306fa548ef4aedbc0ed134650ade9f15a3fee5d27cfb7d6a3912e54559dc6a", size = 116362, upload-time = "2026-10-21T19:58:54.188Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/96/d415b407ad00ee1ba6495de8cf2874093b0e098632581f148b593b0ac04c/cogito_mem-0.3.0-py3-none-any.whl", hash = "sha256:f889fc90cc72269f22981466587b572233b404f0c31ac8ff9545c3e131689571", size = 161935, upload-time = "2026-11-03T10:09:21.322Z" },
 ]
 
 [[package]]
 name = "cogito-mem-plugin"
-version = "0.2.1"
+version = "0.3.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cogito-mem" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cogito-mem", specifier = "==0.2.1" }]
+requires-dist = [{ name = "cogito-mem", specifier = "==0.3.0" }]
 
 [[package]]
 name = "numpy"
