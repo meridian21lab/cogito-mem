@@ -40,6 +40,8 @@ jobs:
       - name: Download llama.cpp and the model
         run: uvx cogito-mem==0.3.0 setup
       - name: Doctor
+        # reports, does not gate: the plugin needs no launcher, and the model may still be loading
+        continue-on-error: true
         run: uvx cogito-mem==0.3.0 doctor
       - name: Save a message (starts the background service)
         run: uvx cogito-mem==0.3.0 append "Let's call the staging server acorn."
