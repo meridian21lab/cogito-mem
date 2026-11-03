@@ -32,72 +32,95 @@
   <main>
     <p class="eyebrow">Safety</p>
     <h1>What you install</h1>
-    <p class="lead">Cogi runs on your computer and never sends your conversations anywhere. Here is everything it
-      adds, downloads and stores, so you can check for yourself.</p>
+    <p class="lead">Cogi runs on your computer and never sends your conversations anywhere. Here is all of it, so you
+      can check.</p>
 
     <div class="cards">
-      <div class="card"><h3>Your computer only</h3><p>The service answers only on <code>127.0.0.1</code>, and it refuses requests from web pages.</p></div>
-      <div class="card"><h3>No cloud, no tracking</h3><p>No account, no API key, no analytics. After setup, Cogi makes no network calls.</p></div>
-      <div class="card"><h3>Open source</h3><p>Every line is <a href="https://github.com/meridian21lab/cogito-mem">on GitHub</a>, under the MIT license.</p></div>
+      <div class="card"><h3>Your computer only</h3><p>It answers only on <code>127.0.0.1</code> and refuses requests from web pages.</p></div>
+      <div class="card"><h3>No cloud, no tracking</h3><p>No account, no API key, no analytics. No network calls after setup.</p></div>
+      <div class="card"><h3>Open source</h3><p>Every line is <a href="https://github.com/meridian21lab/cogito-mem">on GitHub</a>, MIT license.</p></div>
     </div>
+    <ul class="toc">
+      <li><a href="#saves">What it saves</a></li>
+      <li><a href="#control">Your controls</a></li>
+      <li><a href="#files">Files and downloads</a></li>
+      <li><a href="#check">Check it</a></li>
+      <li><a href="#remove">Remove it</a></li>
+    </ul>
 
-    <h2>What the plugin adds to Claude Code</h2>
-    <p>Small files, each linked to its source:</p>
+    <h2 id="saves">What Cogi saves, and what it skips</h2>
+    <div class="two">
+      <div class="card"><h3>Saves</h3>
+        <ul class="list-yes">
+          <li>your messages and Claude's replies, with their dates</li>
+          <li>commands Claude ran and files it touched</li>
+          <li>what each sub-agent reported</li>
+          <li>a few lines of command output: errors, metrics, how a run ended</li>
+        </ul></div>
+      <div class="card"><h3>Skips</h3>
+        <ul class="list-no">
+          <li>files Claude reads</li>
+          <li>API keys, tokens, private keys and passwords, swapped for <code>[redacted]</code></li>
+          <li>anything inside <code>&lt;private&gt;…&lt;/private&gt;</code></li>
+          <li>sessions from before you installed it, unless you ask</li>
+        </ul></div>
+    </div>
+    <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>Redaction works by patterns,</strong> so an unusual
+      secret can slip through, and a command's output can quote a line from a file. Wrap anything sensitive in
+      <code>&lt;private&gt;</code>.</p></div>
+
+    <h2 id="control">Your controls</h2>
     <div class="table">
       <table>
-        <tr><th>File</th><th>What it tells Claude Code</th></tr>
-        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/.claude-plugin/plugin.json"><code>plugin.json</code></a></td><td>Start an MCP server called <code>cogi</code> with the two tools, and ask for your memory's name.</td></tr>
-        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/hooks/hooks.json"><code>hooks.json</code></a></td><td>After each answer and at the end of a session, save the new messages. At the start of a session and with each prompt, add relevant memories.</td></tr>
-        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/pyproject.toml"><code>pyproject.toml</code></a>, <a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/uv.lock"><code>uv.lock</code></a></td><td>Every command above runs <code>uvx cogito-mem==&lt;version&gt;</code>: the released Cogi from PyPI, at the exact version the plugin pins. The lockfile lists that release and numpy with their checksums.</td></tr>
+        <tr><th>To</th><th>Set or run</th></tr>
+        <tr><td>Pause saving</td><td><code>COGITO_MEM_CAPTURE=off</code></td></tr>
+        <tr><td>Keep no command output</td><td><code>COGITO_MEM_CAPTURE_TOOL_OUTPUT=off</code></td></tr>
+        <tr><td>Keep messages only</td><td>also <code>COGITO_MEM_CAPTURE_ACTIONS=off</code> and <code>COGITO_MEM_CAPTURE_SUBAGENTS=off</code></td></tr>
+        <tr><td>Add your past sessions, once</td><td><code>cogito-mem capture claude-code --all</code></td></tr>
+        <tr><td>Add them automatically</td><td><code>COGITO_MEM_BACKFILL=on</code>: at each session start, at most hourly</td></tr>
       </table>
     </div>
+    <p class="small muted">Old sessions may hold secrets that redaction misses.</p>
 
-    <h2>What gets downloaded, once</h2>
+    <h2 id="files">Files and downloads</h2>
+    <h3>Added to Claude Code</h3>
+    <div class="table">
+      <table>
+        <tr><th>File</th><th>What it does</th></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/.claude-plugin/plugin.json"><code>plugin.json</code></a></td><td>Starts the <code>cogi</code> memory tools and asks for your memory's name</td></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/hooks/hooks.json"><code>hooks.json</code></a></td><td>Saves new messages after each answer; adds related memories with each prompt</td></tr>
+        <tr><td><a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/pyproject.toml"><code>pyproject.toml</code></a>, <a href="https://github.com/meridian21lab/cogito-mem/blob/main/plugin/uv.lock"><code>uv.lock</code></a></td><td>Pin the exact Cogi release from PyPI, with checksums</td></tr>
+      </table>
+    </div>
+    <h3>Downloaded once, over HTTPS</h3>
     <div class="table">
       <table>
         <tr><th>What</th><th>From</th></tr>
-        <tr><td>Cogi itself (Python) and its one dependency, numpy</td><td><a href="https://pypi.org/project/cogito-mem/">PyPI</a>, by uv; the source of every release is <a href="https://github.com/meridian21lab/cogito-mem">this repository</a></td></tr>
-        <tr><td>llama.cpp's <code>llama-server</code>, which runs the model (skipped if you already have it)</td><td><a href="https://github.com/ggml-org/llama.cpp/releases">llama.cpp's official releases</a></td></tr>
-        <tr><td>The model, EmbeddingGemma 2 (310 MB, the big one)</td><td><a href="https://huggingface.co/ggml-org/embeddinggemma-2-GGUF">Hugging Face, ggml-org</a></td></tr>
+        <tr><td>Cogi and numpy</td><td><a href="https://pypi.org/project/cogito-mem/">PyPI</a></td></tr>
+        <tr><td><code>llama-server</code>, which runs the model (skipped if you have it)</td><td><a href="https://github.com/ggml-org/llama.cpp/releases">llama.cpp releases</a></td></tr>
+        <tr><td>The model, EmbeddingGemma 2 (310 MB)</td><td><a href="https://huggingface.co/ggml-org/embeddinggemma-2-GGUF">Hugging Face, ggml-org</a></td></tr>
       </table>
     </div>
-    <p class="small muted">Everything comes over HTTPS from its official source. After that, nothing is downloaded again.</p>
-
-    <h2>What is stored, and where</h2>
+    <h3>Stored in <code>~/.cogito-mem/</code></h3>
     <div class="table">
       <table>
-        <tr><th>In <code>~/.cogito-mem/</code></th><th>What</th></tr>
-        <tr><td><code>memory/yourname-hollow/</code></td><td>your messages, and a short note of what each turn did, in one SQLite file</td></tr>
-        <tr><td><code>cache/</code></td><td>the numbers that make messages findable by meaning</td></tr>
+        <tr><th>Folder or file</th><th>Holds</th></tr>
+        <tr><td><code>memory/</code></td><td>your messages, in one SQLite file per memory</td></tr>
+        <tr><td><code>cache/</code></td><td>what makes messages findable by meaning</td></tr>
         <tr><td><code>models/</code>, <code>bin/</code></td><td>the model and llama.cpp</td></tr>
-        <tr><td><code>run/</code></td><td>logs, and the service's address while it runs</td></tr>
+        <tr><td><code>run/</code></td><td>logs, and the service's address</td></tr>
         <tr><td><code>config.json</code></td><td>your memory's name</td></tr>
       </table>
     </div>
-    <p>Before anything is stored, common forms of API keys, tokens, private keys and passwords are replaced with
-      <code>[redacted]</code>. This goes by patterns, so others can get through. Of Claude's work, Cogi keeps the command lines and file names, what each sub-agent
-      reports back, and a few lines of command output: the end of a failed command, lines with an error or a metric,
-      the last lines of a long run (at most 800 characters per command). Files Claude reads with its Read tool are not
-      stored, and a command that only shows files keeps at most the line that says why it failed. Other commands can
-      print a line from a file, and that line can be kept. <code>COGITO_MEM_CAPTURE_TOOL_OUTPUT=off</code> keeps no command output.</p>
-    <p>Cogi does not read sessions from before you installed it unless you ask: run
-      <code>cogito-mem capture claude-code --all</code> once. <code>COGITO_MEM_BACKFILL=on</code> does it when a session
-      starts, then at most hourly, and that also picks up sessions from while capture was paused. Old sessions may hold
-      secrets the redaction misses.</p>
-    <p>Put anything you want kept out inside <code>&lt;private&gt;…&lt;/private&gt;</code>. To pause capture, set
-      <code>COGITO_MEM_CAPTURE=off</code>; to keep messages only, set <code>COGITO_MEM_CAPTURE_ACTIONS</code>,
-      <code>COGITO_MEM_CAPTURE_SUBAGENTS</code> and <code>COGITO_MEM_CAPTURE_TOOL_OUTPUT</code> to <code>off</code>.</p>
 
-    <h2>Check it yourself</h2>
-    <p>See that Cogi listens only on your own computer:</p>
+    <h2 id="check">Check it yourself</h2>
 <div class="cmd"><span class="label">Terminal</span><pre><code>lsof -nP -iTCP:7327 -sTCP:LISTEN</code></pre></div>
     <p class="see"><code>127.0.0.1:7327 (LISTEN)</code>, never <code>*:7327</code></p>
     <p>Or switch off Wi-Fi: Cogi keeps saving and finding as before.</p>
 
-    <h2>Remove everything</h2>
-<div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin uninstall cogito-mem@cogito-mem</code></pre></div>
-<div class="cmd"><span class="label">Terminal</span><pre><code>rm -rf ~/.cogito-mem</code></pre></div>
-    <p class="small muted">The first removes the plugin; the second erases your memories, the model and llama.cpp.</p>
+    <h2 id="remove">Remove everything</h2>
+<div class="cmd"><span class="label">Remove the plugin</span><pre><code>claude plugin uninstall cogito-mem@cogito-mem</code></pre></div>
+<div class="cmd"><span class="label">Erase your memories, the model and llama.cpp</span><pre><code>rm -rf ~/.cogito-mem</code></pre></div>
 
     <div class="next"><a href="api.html">← API &amp; MCP</a><a href="index.html">Home →</a></div>
   </main>

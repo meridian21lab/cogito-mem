@@ -4,11 +4,13 @@ The short version, with charts, is on the [Results page](https://meridian21lab.g
 This page has every number, how it was measured and the commands to reproduce it. Everything was measured on the
 author's laptop (MacBook Pro, Apple M5 Max, 18 cores) with the model that ships, EmbeddingGemma 2 (Q8_0) in
 llama.cpp: LoCoMo with gpt-4o-mini and speed on 19 Oct 2026, LoCoMo with current models and LongMemEval-S on 20 Oct
-2026, the 5,000-token budgets on 1 Nov 2026. These are our own runs, not leaderboard entries.
+2026, the 5,000-token budgets on 1 Nov 2026, LongMemEval_M with four other local memories on 1–3 Nov 2026. These
+are our own runs, not leaderboard entries.
 
 - [At a glance](#at-a-glance)
 - [Setup](#setup)
 - [LongMemEval-S: finding the right session](#longmemeval-s-finding-the-right-session)
+- [LongMemEval_M: over a million tokens](#longmemeval_m-over-a-million-tokens)
 - [LoCoMo: answering from the memory](#locomo-answering-from-the-memory)
   - [With current answering models](#with-current-answering-models)
   - [The 2025 protocol: gpt-4o-mini, as in the Mem0 paper](#the-2025-protocol-gpt-4o-mini-as-in-the-mem0-paper)
@@ -20,6 +22,8 @@ llama.cpp: LoCoMo with gpt-4o-mini and speed on 19 Oct 2026, LoCoMo with current
 
 | Test | What it measures | cogito-mem | Next to |
 |---|---|---|---|
+| LongMemEval_M, 500 questions, about 1.2M tokens each | a session holding the answer is among the first 5 found; no LLM | **93.0 %** | four other local memory plugins, run by us at their best settings: 86.6–89.8 % |
+| LongMemEval_M, 479 questions | every message an answer needs is in a 2,500-token reply | **70.6 %** | the same four, their own search at its default: 1.9–61.2 % |
 | LongMemEval-S, 500 questions | a session holding the answer is among the first 5 found; no LLM | **99.0 %** (95.0 % as of the question date) | other local memory plugins published 95.2–98.0 % (20 Oct 2026) |
 | LoCoMo, 1,540 questions | current models (GPT-5 mini, Claude Haiku 5.5, gpt-oss-120b, Qwen3) answer from 1,000 tokens of memory, GPT-5 mini grades | **85.6–89.9 %**, 95–96 % of the whole-conversation score, from 9 times fewer tokens | the whole conversation: 89.0–94.5 %, 3.4–4.7 points higher |
 | LoCoMo, 1,540 questions | gpt-4o-mini answers from 1,000 tokens of memory, gpt-4o-mini grades (2025 protocol) | **74.7 %**, 98 % of the whole-conversation score | Mem0 92 %, Mem0g 94 %, Zep 91 % of theirs (Mem0 paper) |
@@ -37,10 +41,10 @@ difference).
 | | |
 |---|---|
 | Machine | MacBook Pro, Apple M5 Max (18 cores), macOS 26.5, Python 3.12 |
-| Software | cogito-mem 0.2.0 for LongMemEval, 0.1.0 for LoCoMo and speed, 0.2.1 for the 1 Nov 2026 runs (they match the 0.1.0 retrieval scores at 100, 300 and 1,000 tokens to within one question); llama.cpp as `cogito-mem setup` installs it |
+| Software | cogito-mem 0.2.0 for LongMemEval-S, 0.1.0 for LoCoMo and speed, 0.2.1 for the 1 Nov 2026 runs (they match the 0.1.0 retrieval scores at 100, 300 and 1,000 tokens to within one question); for LongMemEval_M, commit `b904848`, rerun on 3 Nov 2026 at `524d1f9` with every question's result unchanged; llama.cpp as `cogito-mem setup` installs it |
 | Model | EmbeddingGemma 2 (308M parameters), Q8_0 GGUF; Metal unless a row says CPU only |
 | Memory | a fresh one per LongMemEval question and per LoCoMo conversation; one item per message, embedded with its author and the message it replies to |
-| LongMemEval data | `longmemeval_s_cleaned.json`, sha256 `d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442` |
+| LongMemEval data | `longmemeval_s_cleaned.json`, sha256 `d6f21ea9d60a0d56f34a05b609c79c88a451d2ae03597821ea3d5a9678c3a442`; `longmemeval_m_cleaned.json`, sha256 `9d79e5524794a2e6900a3aa9cb7d9152c5a3e8319c9a87c25494ba1eacee495f` |
 | LoCoMo data | `locomo10.json` from [snap-research/locomo](https://github.com/snap-research/locomo), sha256 `79fa87e90f04081343b8c8debecb80a9a6842b76a7aa537dc9fdf651ea698ff4` |
 | LLM calls (LoCoMo answers only) | gpt-4o-mini through [OpenRouter](https://openrouter.ai), temperature 0, every call cached |
 
@@ -172,6 +176,62 @@ cogito-mem eval longmemeval-recall compare results/lme-recall/keyword.json resul
 
 Loading a question's history takes 4.7 s with an empty embedding cache, so the first hybrid run takes about 40 minutes
 and a rerun about 3. Rerunning with the same `--questions-out` file resumes an interrupted run.
+
+## LongMemEval_M: over a million tokens
+
+The long split gives each of the same 500 questions about 480 past sessions, 1.13–1.30M tokens (characters ÷ 4) per
+question, and asks the same thing: is a session holding the answer among the first five found? No AI model is
+involved, and nothing has a date cutoff (`--as-of none`).
+
+| | R@1 | R@5 | R@10 | all@5 | all@10 | NDCG@10 |
+|---|---:|---:|---:|---:|---:|---:|
+| cogito-mem, 500 questions | 74.4 % | **93.0 %** | 96.0 % | 76.0 % | 85.0 % | 0.818 |
+
+From the short split to the long one, R@5 falls 6.0 points. The LongMemEval paper's best on this split, 76.2 %, is
+about level with cogito-mem's all@5 of 77.7 % on the same 470 answerable questions (the paper indexes user turns
+only).
+
+### Next to other local memories, run by us
+
+No other local memory plugin had published a score on this split, so we ran four of them on the same 500 questions,
+at their defaults and at the best settings they publish, on 1–2 Nov 2026. Each ran in a sandbox with no network.
+Before running at this size, each setup was checked against the project's own published LongMemEval-S score.
+
+| Plugin, best setting | R@5 | R@10 | all@5 | cogito-mem minus it, R@5 (95 % CI) |
+|---|---:|---:|---:|---|
+| **cogito-mem** | **93.0 %** | **96.0 %** | **76.0 %** | |
+| hippo-memory 3.1.0, benchmark script `turn_sym` | 89.8 % | 93.8 % | 69.4 % | +3.2 (+1.2 to +5.4) |
+| deja-vu `064f9ba`, default | 89.0 % | 92.2 % | 69.8 % | +4.0 (+1.6 to +6.4) |
+| MemPalace 3.12.0, `hybrid_v4` | 87.8 % | 94.0 % | 66.6 % | +5.2 (+2.6 to +7.8) |
+| agentmemory 0.9.31, default (BM25) | 86.6 % | 91.2 % | 67.2 % | +6.4 (+4.0 to +9.0) |
+
+cogito-mem is clearly ahead of each at R@5 and all@5. At R@10, MemPalace `hybrid_v4` is level (+2.0, −0.2 to +4.2).
+hippo-memory's best setting is a benchmark script, not its `recall` command (88.2 % with the budget lifted, 68.2 % at
+its default 4,000-token budget), and was picked after the run, which favours it. MemPalace's default scores 81.4 %.
+
+### What Claude actually reads
+
+A ranking isn't what reaches Claude; the text that fits in a reply is. With the same token budget for every plugin,
+counted by the same tokenizer, this is the share of 479 questions whose reply holds every message the answer needs:
+
+| Plugin, its own search at its default | 1,000 tokens | 2,500 tokens | 5,000 tokens |
+|---|---:|---:|---:|
+| **cogito-mem** | **57.0 %** | **70.6 %** | **81.2 %** |
+| MemPalace (`mine`, then search) | 47.4 % | 61.2 % | 67.2 % |
+| hippo-memory (`recall --budget`) | 19.2 % | 23.8 % | 25.7 % |
+| agentmemory (its recall response) | 13.4 % | 21.3 % | 24.6 % |
+| deja-vu (`recall`) | 1.9 % | 1.9 % | 1.9 % |
+
+cogito-mem is ahead of MemPalace at every budget (+9.6, +9.4 and +14.0 points, each 95 % CI above zero). Most of the
+larger gaps come from what each plugin returns, not how well it ranks: hippo-memory and agentmemory return about one
+whole session, and deja-vu a few short snippets, since it is built for 1–3 exact words followed by a deeper read.
+Picking the best-matching 256-token pieces from each plugin's own top 10 sessions brings every one of them level
+with cogito-mem at 1,000 tokens, and cogito-mem stays ahead of all of them at 2,500 and 5,000. The same picker over
+cogito-mem's own sessions scores 60.5 % at 1,000 tokens, above cogito-mem's search: room to improve.
+
+**Limits.** These are our runs, with our scoring, and no maintainer has reviewed them. agentmemory and hippo-memory
+stored whole sessions, as their benchmarks do; in normal use they store shorter notes. The data is chat, not coding
+sessions. Every setting, check and script: [`notes/longmemeval_m_rivals_20261101.md`](notes/longmemeval_m_rivals_20261101.md).
 
 ## LoCoMo: answering from the memory
 
@@ -418,8 +478,7 @@ for Metal; add `--top-k 100 --budget 5000` for the larger replies).
 
 ## Not measured yet
 
-- **The long LongMemEval (`longmemeval_m`).** About 500 sessions and 1.5M tokens per question, against about 50
-  sessions and 115k tokens in the -S split above. It is the quality test `requirements.md` §5 sets for v0, as coverage
-  at 300 tokens (every answer turn inside the first 300 returned tokens), and stage 0 has not run it. The -S numbers
-  above are an easier task: one right session among about 50, with no token budget.
+- **Answer accuracy on LongMemEval_M next to other memories.** The comparison above stops at what reaches Claude, not
+  whether its answers are right.
+- **BEAM at 1M and 10M tokens**, where other memories publish scores.
 - **Answer accuracy on LongMemEval-S** (the QA number memory services publish).

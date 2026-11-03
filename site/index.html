@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cogi · memory for Claude Code</title>
-  <meta name="description" content="Cogi the squirrel saves every message you and Claude exchange, on your computer, and brings back what Claude forgot.">
+  <meta name="description" content="Cogi the squirrel saves every message you and Claude exchange, on your computer, and finds the right one again in over a million tokens of history.">
   <meta property="og:title" content="Cogi · memory for Claude Code">
-  <meta property="og:description" content="Cogi the squirrel saves every message you and Claude exchange, on your computer, and brings back what Claude forgot.">
+  <meta property="og:description" content="Cogi the squirrel saves every message you and Claude exchange, on your computer, and finds the right one again in over a million tokens of history.">
   <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
   <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/">
   <meta name="twitter:card" content="summary_large_image">
@@ -35,7 +35,8 @@
         <p class="eyebrow">Memory for Claude Code</p>
         <h1>Claude forgets.<br>Cogi doesn't.</h1>
         <p class="lead">Cogi the squirrel keeps every message you and Claude say, like nuts in its hollow.
-          When something drops out of Claude's memory, Cogi brings it back.</p>
+          When a long session compacts, or last month's idea matters again, Claude asks Cogi and gets your exact
+          words back.</p>
         <div class="actions">
           <a class="btn primary" href="start.html">Install in 2 minutes</a>
           <a class="btn" href="results.html">See how well it works</a>
@@ -58,14 +59,27 @@
 
     <section class="band">
       <p class="eyebrow">Tested, not promised</p>
-      <h2>Most of the answers, a ninth of the reading</h2>
-      <p>On the LoCoMo benchmark, with GPT-5 mini answering, the 1,000 tokens Cogi hands back get
-        <strong>89.4%</strong> of questions right. Rereading the whole conversation, nine times more to read, gets
-        94.1%. On LongMemEval, the past session with the answer is among the first five Cogi finds for
-        <strong>99.0%</strong> of questions.</p>
+      <h2>The longer your history, the further ahead</h2>
+      <p>A long project soon holds more than Claude can read at once. In LongMemEval's long test, each question
+        hides its answer in about 480 past sessions, some 1.2 million tokens in all. Cogi puts the right session among
+        its first five for <strong>93%</strong> of the 500 questions, ahead of four other local memory plugins
+        tested on the same questions.</p>
+      <div class="chart">
+        <h3>Questions where the right conversation was missed</h3>
+        <p class="sub">LongMemEval long test, 500 questions, 1.2M tokens of history each · fewer is better</p>
+        <div class="bars">
+          <span class="name me">Cogi</span><div class="track" title="465 of 500 found"><div class="fill me" style="width:50.0%"></div><span class="val" style="left:50.0%">35 · 93.0%</span></div>
+          <span class="name">hippo-memory</span><div class="track" title="449 of 500 found"><div class="fill" style="width:72.86%"></div><span class="val" style="left:72.86%">51 · 89.8%</span></div>
+          <span class="name">deja-vu</span><div class="track" title="445 of 500 found"><div class="fill" style="width:78.57%"></div><span class="val" style="left:78.57%">55 · 89.0%</span></div>
+          <span class="name">MemPalace</span><div class="track" title="439 of 500 found"><div class="fill" style="width:87.14%"></div><span class="val" style="left:87.14%">61 · 87.8%</span></div>
+          <span class="name">agentmemory</span><div class="track" title="433 of 500 found"><div class="fill" style="width:95.71%"></div><span class="val" style="left:95.71%">67 · 86.6%</span></div>
+        </div>
+        <p class="note">We ran each project ourselves, at its best setting, in November 2026. On the short test, with
+          about 50 sessions per question, Cogi and the next two are level at 97–99%.</p>
+      </div>
       <div class="cards">
-        <div class="card"><div class="big">95%</div><p>of the answers rereading everything gets, from 9× fewer tokens</p></div>
-        <div class="card"><div class="big">99.0%</div><p>right session in the top 5 on LongMemEval, no AI model involved</p></div>
+        <div class="card"><div class="big">93%</div><p>right session in the top 5, in 1.2 million tokens of history</p></div>
+        <div class="card"><div class="big">95%</div><p>of the answers rereading everything gets, from 9× fewer tokens (LoCoMo)</p></div>
         <div class="card"><div class="big">26 ms</div><p>to search 10 million tokens, on a laptop CPU</p></div>
         <div class="card"><div class="big">$0</div><p>per message: no account, no API key, no AI calls to save</p></div>
       </div>
@@ -75,8 +89,8 @@
     <h2>Why Cogi</h2>
     <div class="cards">
       <div class="card"><h3>Private</h3><p>Your hollow is a folder on your computer. No cloud, no account.</p></div>
-      <div class="card"><h3>Exact</h3><p>You get the original words and when they were said. Cogi never makes things up.</p></div>
-      <div class="card"><h3>Automatic</h3><p>It saves after each answer and hands Claude what's relevant with each prompt.</p></div>
+      <div class="card"><h3>Exact</h3><p>You get the original words and the date they were said, never an AI's summary.</p></div>
+      <div class="card"><h3>Automatic</h3><p>It saves after every answer, with nothing to do. Ask Claude “do you remember…?” and it searches all of it.</p></div>
     </div>
 
     <h2>Get started</h2>
@@ -88,7 +102,7 @@
     <div class="table">
       <table>
         <tr><th>App</th><th>Works?</th><th>What you get</th></tr>
-        <tr><td>Claude Code, in a terminal or an IDE</td><td class="yes">Yes</td><td>Everything: saves and brings things back on its own</td></tr>
+        <tr><td>Claude Code, in a terminal or an IDE</td><td class="yes">Yes</td><td>Everything: saves on its own, and Claude searches it when needed</td></tr>
         <tr><td>Claude Code in the desktop app</td><td class="yes">Yes</td><td>The same plugin (we are still testing it there)</td></tr>
         <tr><td>Codex</td><td class="yes">Yes</td><td>Saves every turn; searches when asked (<a href="start.html#other-ways">one-line installer</a>)</td></tr>
         <tr><td>Claude Desktop chat</td><td class="part">Partly</td><td>Save and search tools, but no automatic saving</td></tr>
