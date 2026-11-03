@@ -173,7 +173,7 @@ if (args['turn-out']) {
     for (const s of SETTINGS) {
       const fused = rrfFuse([s.level === 'turn' ? turnSids : sessionSids, denseSids], [s.bm25, s.dense], { k: RRF_K });
       const ranked = [...fused.entries()].sort(byScoreThenId).slice(0, TOP_K).map((x) => x[0]);
-      settings[s.name] = ranked.map((sid) => turnText[bestIdx.get(sid)]);
+      settings[s.name] = ranked.map((sid) => ({ s: sid, t: turnText[bestIdx.get(sid)] }));
     }
     appendFileSync(path, JSON.stringify({ question_id: q.question_id, query_ms: performance.now() - t1, settings }) + '\n');
     if (++c2 % 50 === 0) console.log(`${c2} questions`);

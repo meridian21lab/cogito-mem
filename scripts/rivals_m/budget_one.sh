@@ -35,7 +35,14 @@ case $system in
     ;;
   mempalace-mine)
     H=$(head mempalace 4f7745afbd9d0197c6475b4c7ac846d4932eaeda "mine --mode convos + search: drawers of up to 800 characters; no budget option; 50 asked for")
-    "${sb[@]}" mempalace "$B/mempalace/env/bin/python" "$A/budget_mempalace.py" --data-dir "$dir" --work "$B/mempalace/tmp/budget" --sample "$sample" --out "$out" --header "$H"
+    # About 56 s a question, so 6 processes; each writes its own rows file, merged when scored.
+    n=${MEMPALACE_SHARDS:-6}
+    for ((i = 0; i < n; i++)); do
+      "${sb[@]}" mempalace "$B/mempalace/env/bin/python" "$A/budget_mempalace.py" --data-dir "$dir" --work "$B/mempalace/tmp/budget" --sample "$sample" --shard "$i/$n" --out "$out.shard$i" --header "$H" &
+    done
+    status=0
+    for job in $(jobs -p); do wait "$job" || status=1; done
+    exit $status
     ;;
   hippo)
     export RIVALS_PATH=/usr/local/bin:/usr/bin:/bin

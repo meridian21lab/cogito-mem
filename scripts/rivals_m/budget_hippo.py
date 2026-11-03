@@ -38,10 +38,13 @@ def run_question(bin_path: str, data_dir: Path, work: Path, row: dict) -> dict:
     if str(inst / "work" / ".hippo") not in out:
         raise RuntimeError(f"{qid}: store did not land in its own folder: {out.strip()[:300]}")
     sids = q["haystack_session_ids"]
+    ids: dict[str, str] = {}
     for i in sorted(range(len(sids)), key=lambda i: (when(q["haystack_dates"][i]), i)):
         text = "\n".join(turn["content"] for turn in q["haystack_sessions"][i])
-        if not REMEMBERED.search(hippo(bin_path, inst, ["remember", "-"], stdin=text)):
+        match = REMEMBERED.search(hippo(bin_path, inst, ["remember", "-"], stdin=text))
+        if not match:
             raise RuntimeError(f"{qid}: no new memory id for session {sids[i]}")
+        ids[match.group(1)] = sids[i]
     load_s = time.perf_counter() - t0
     replies = {}
     for n in BUDGETS:
@@ -51,7 +54,7 @@ def run_question(bin_path: str, data_dir: Path, work: Path, row: dict) -> dict:
         res = json.loads(hippo(bin_path, run, ["recall", q["question"], "--json", "--budget", str(n)]))
         ms = (time.perf_counter() - t1) * 1000
         shutil.rmtree(run)
-        replies[str(n)] = {"passages": [r["content"] for r in res["results"]], "query_ms": ms,
+        replies[str(n)] = {"passages": [{"s": ids[r["id"]], "t": r["content"]} for r in res["results"]], "query_ms": ms,
                            "hippo_tokens": sum(r["tokens"] for r in res["results"])}  # fmt: skip
     shutil.rmtree(root)
     return {"question_id": qid, "load_s": load_s, "replies": replies}

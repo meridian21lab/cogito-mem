@@ -6,22 +6,20 @@
 Writes each haystack as Claude-format transcripts, as its scripts/longmemeval does, points DEJA_CLAUDE_ROOT and DEJA_INDEX_DIR
 at them and runs the real CLI: `deja recall -- "<question>"`, five hits to a page within 4 KB, then --offset 5, 10... until enough
 text is held for the largest budget or it says there are no more. It has no token-budget option, so the pages are
-the output and the scorer cuts them at each budget. The frame and each hit's heading line are dropped, as Cogi's metadata isn't
-counted either. DEJA_RECALL_GLOBAL=1 because no session here belongs to a project in the current directory.
+the output; the raw pages are kept here and the scorer parses and cuts them. DEJA_RECALL_GLOBAL=1 because no session here
+belongs to a project in the current directory.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-HEAD = re.compile(r"^\d+\. \[[A-Za-z0-9_.-]+\]")
 ENOUGH_CHARS = 5000 * 6  # well over the largest budget, measured later by the shared counter
 MAX_PAGES = 30
 
@@ -45,16 +43,6 @@ def write_transcripts(q: dict, root: Path) -> None:
                     content = [{"type": "text", "text": turn["content"]}]
                 f.write(json.dumps({"type": turn["role"], "sessionId": sid, "timestamp": (ts + timedelta(minutes=ti)).strftime("%Y-%m-%dT%H:%M:%SZ"),
                                     "message": {"role": turn["role"], "content": content}}) + "\n")  # fmt: skip
-
-
-def body(page: str) -> str:
-    out = []
-    for line in page.split("\n"):
-        s = line.strip()
-        if s.startswith(("<deja-recall", "</deja-recall")) or HEAD.match(s) or not s:
-            continue
-        out.append(s)
-    return "\n".join(out)
 
 
 def main() -> int:
@@ -103,15 +91,14 @@ def main() -> int:
                 ms = (time.perf_counter() - t0) * 1000
                 if proc.returncode != 0:
                     raise RuntimeError(f"{qid}: deja recall exited {proc.returncode}: {proc.stderr[:300]}")
-                if "No more " in proc.stdout or (offset == 0 and not proc.stdout.strip()):
+                if "No more " in proc.stdout or not proc.stdout.strip():
                     stop = proc.stdout.strip()[:120]
                     break
-                text = body(proc.stdout)
-                pages.append(text)
+                pages.append(proc.stdout)
                 page_ms.append(ms)
-                held += len(text)
+                held += len(proc.stdout)
                 offset += 5
-            log.write(json.dumps({"question_id": qid, "ranked": pages, "page_ms": page_ms, "stop": stop}) + "\n")
+            log.write(json.dumps({"question_id": qid, "pages": pages, "page_ms": page_ms, "stop": stop}) + "\n")
             log.flush()
             ran += 1
             if ran % 10 == 0:

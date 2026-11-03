@@ -8,7 +8,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { sessionText } from "../eval/runner/input.js";
-import { loadLongMemEval } from "../eval/runner/load.js";
+import { loadLongMemEval, opaqueSessionId } from "../eval/runner/load.js";
 import { buildRecallResponse } from "../src/functions/recall-response.js";
 import { HybridSearch } from "../src/state/hybrid-search.js";
 import { SearchIndex } from "../src/state/search-index.js";
@@ -44,9 +44,10 @@ class MockKV {
 }
 
 let provider: any = null;
-async function ranker(row: any): Promise<{ question: string; search: () => Promise<any[]> }> {
+async function ranker(row: any): Promise<{ question: string; search: () => Promise<any[]>; back: (id: string) => string }> {
   if (args.adapter === "bm25") {
     const [q] = loadLongMemEval(join(dataDir, "q", row.file));
+    const opaque = new Map(row.haystack_session_ids.map((sid: string) => [opaqueSessionId(q.id, sid), sid]));
     const index = new SearchIndex();
     const byId = new Map<string, any>();
     for (const session of q.haystack) {
@@ -58,6 +59,7 @@ async function ranker(row: any): Promise<{ question: string; search: () => Promi
     return {
       question: q.question,
       search: async () => index.search(q.question, LIMIT).map((r: any) => ({ observation: byId.get(r.sessionId), score: r.score, sessionId: r.sessionId })),
+      back: (id: string) => opaque.get(id) as string,
     };
   }
   if (!provider) {
@@ -81,6 +83,7 @@ async function ranker(row: any): Promise<{ question: string; search: () => Promi
   return {
     question: entry.question,
     search: async () => (await hybrid.search(entry.question, LIMIT)).map((r: any) => ({ observation: r.observation, score: r.score, sessionId: r.observation.sessionId })),
+    back: (id: string) => id,
   };
 }
 
@@ -107,7 +110,7 @@ async function main(): Promise<void> {
       const results = await r.search();
       const resp: any = buildRecallResponse(results, "full", b);
       const ms = performance.now() - t0;
-      replies[String(b)] = { query_ms: ms, passages: resp.results.map((x: any) => x.observation.narrative), its_tokens: resp.tokens_used,
+      replies[String(b)] = { query_ms: ms, passages: resp.results.map((x: any) => ({ s: r.back(x.sessionId), t: x.observation.narrative })), its_tokens: resp.tokens_used,
         truncated: resp.truncated, excluded: resp.excluded_by_budget };
     }
     appendFileSync(outPath, JSON.stringify({ question_id: row.question_id, replies }) + "\n");

@@ -28,7 +28,9 @@ def main() -> int:
     p.add_argument("--sample", default="all")
     p.add_argument("--out", required=True)
     p.add_argument("--header", default="{}")
+    p.add_argument("--shard", default="0/1", help="i/n: run every nth question, for parallel processes")
     args = p.parse_args()
+    shard, shards = map(int, args.shard.split("/"))
     from mempalace.convo_miner import mine_convos
     from mempalace.searcher import search_memories
 
@@ -50,12 +52,12 @@ def main() -> int:
     start = time.perf_counter()
     ran = 0
     with open(out, "a", encoding="utf-8") as log:
-        for row in manifest["rows"]:
+        for position, row in enumerate(manifest["rows"]):
             qid = row["question_id"]
-            if qid in done or (selected is not None and qid not in selected):
+            if position % shards != shard or qid in done or (selected is not None and qid not in selected):
                 continue
             q = json.loads((data_dir / "q" / row["file"]).read_text(encoding="utf-8"))[0]
-            root = work / "current"
+            root = work / f"current{shard}"
             if root.exists():
                 shutil.rmtree(root)
             convos = root / "convos"
@@ -78,7 +80,8 @@ def main() -> int:
             if res.get("error"):
                 raise RuntimeError(f"{qid}: {res}")
             hits = res.get("results") or []
-            log.write(json.dumps({"question_id": qid, "ranked": [h.get("text") or h.get("content") or "" for h in hits], "query_ms": ms, "load_s": load_s}) + "\n")
+            ranked = [{"s": Path(str(h.get("source_file") or "")).stem, "t": h.get("text") or h.get("content") or ""} for h in hits]
+            log.write(json.dumps({"question_id": qid, "ranked": ranked, "query_ms": ms, "load_s": load_s, "first_hit_keys": sorted(hits[0]) if hits else []}) + "\n")
             log.flush()
             ran += 1
             print(f"{ran} questions, {time.perf_counter() - start:.0f} s, load {load_s:.1f} s, hits {len(hits)}", flush=True)

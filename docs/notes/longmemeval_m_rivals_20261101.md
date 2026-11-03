@@ -242,6 +242,8 @@ This section was committed before any coverage was computed for any system. Resu
 
 **Cogi.** Default settings, no reranker, frozen source `data/frozen/src-b904848`, no date cutoff, as in the row being reproduced. Rivals have no date cutoff either. If the row doesn't reproduce, this stops and is reported.
 
+**Changed after Cogi's row, before any rival was scored.** The "present" rule above failed its check. Against Cogi's message ids, the 30-character match said yes when the message wasn't returned on 126 of 1,437 checks: evidence text was matching boilerplate in other sessions, which inflated coverage about 9 points. Tried on Cogi's replies only: same-session 30 characters (52 wrong), 60 (10), 100 (3, no false negatives). **The rule is now: passages from the evidence message's own session share at least 100 consecutive characters with it, or hold all of it if it's shorter.** "Whole" means 95% of its 100-character windows. Every adapter now keeps each passage's session. This rule could undercount a system whose passages are short: deja-vu's snippets are the shortest, and its pilot's were about 300 characters.
+
 **Rule 1, as it ships.** Each project's real output, from reading its code:
 
 | System | What it really returns | Budget option | How each budget is filled |
@@ -267,3 +269,144 @@ This section was committed before any coverage was computed for any system. Resu
 **Query time** is recorded at each budget as each system does it, and isn't comparable across process models: hippo and deja-vu start a process per call. Load time isn't a focus and isn't re-measured for this.
 
 **Analysis.** Paired by `question_id`, Cogi minus rival, `paired_bootstrap` with 10,000 resamples of questions, seed 0.
+
+## Results: matched token budgets
+
+Run 2 to 3 Nov 2026. Every number is from `results/rivals-m/budget/comparison.json`; `scripts/rivals_m/budget_tables.py` prints `results/rivals-m/budget/tables.md` from it. **Denominator:** 479 questions with message-level labels (9 of them abstention), and the 470 answerable. Token counter: EmbeddingGemma 2 (`embeddinggemma-2-Q8_0.gguf`) via `/tokenize`.
+
+**Cogi's row reproduces.** The source of 56.4 / 70.0 / 81.1 is `results/long-history/m-final.json` (and `m-full.json`): `search.base.none.coverage`, 470 answerable, no date cutoff, commit `59ce22d`. Rerun from the frozen source `b904848` with the same dataset hash, scored by message id: 56.4 / 70.0 / 81.1, with **470 of 470 questions agreeing at each budget**. Under the text rule used for everyone: 56.4 / 70.2 / 81.1 on 470 and **57.0 / 70.6 / 81.2 on 479**. It differs from the id rule on 3 of 1,437 question-budgets, all in Cogi's favour by one question.
+
+### Rows that match or beat Cogi
+
+- **As it ships, MemPalace's benchmark `hybrid_v4` documents match Cogi at 2,500 tokens:** 67.2 against 70.6, Cogi minus it +3.3 [-1.7, +8.3]. Cogi leads it at 1,000 (+7.3 [+2.1, +12.3]) and at 5,000 (+5.4 [+0.8, +10.0]). These are its benchmark's session documents, user turns only, not what `mempalace search` returns.
+- **Our generous construction at 1,000 tokens matches Cogi from almost every rival's ranking.** Through BM25 over messages, the intervals reach zero for deja-vu, agentmemory BM25, MemPalace `hybrid_v4` and hippo (recall ranking and both scripts). Through 256-token pieces, deja-vu's ranking is above Cogi (58.9 against 57.0, -1.9 [-5.6, +1.9]), as are hippo's recall ranking and MemPalace `hybrid_v4` (57.6 each). agentmemory BM25 (56.8) and hippo `turn_sym` (57.0) tie it. At 2,500 and 5,000, Cogi leads every rival's generous row with intervals above zero.
+- **Cogi's own session ranking, through the same neutral picker, beats Cogi as it ships at 1,000:** 60.5 against 57.0 on 479, and on the 470 answerable -4.0 [-7.9, -0.2], an interval below zero. At 2,500 they match (+2.5 [-0.8, +5.8]), and Cogi as it ships leads at 5,000 (+7.3 [+4.4, +10.4]). **At 1,000 tokens, plain BM25 over 256-token pieces of Cogi's top 10 sessions finds the evidence more often than Cogi's own search does.** Nothing was tuned on this.
+
+### As it ships
+
+Coverage on 479, then the share with every evidence message whole in brackets.
+
+| System | 1,000 | 2,500 | 5,000 |
+|---|---:|---:|---:|
+| **Cogi** | 57.0 (54.7) | 70.6 (68.5) | 81.2 (80.6) |
+| MemPalace, benchmark `hybrid_v4` documents | 49.7 (48.4) | 67.2 (66.6) | 75.8 (75.2) |
+| MemPalace, benchmark raw documents | 41.8 (40.3) | 59.3 (58.7) | 70.3 (69.7) |
+| MemPalace, `mine` + search drawers (product path) | 47.4 (39.2) | 61.2 (53.9) | 67.2 (59.1) |
+| hippo scripts, `turn_sym` best turns | 24.4 (23.4) | 25.9 (24.8) | 26.7 (25.7) |
+| hippo scripts, `session_sym` best turns | 23.6 (22.6) | 25.1 (24.0) | 26.9 (25.9) |
+| hippo, `recall --budget` | 19.2 (17.9) | 23.8 (23.8) | 25.7 (25.7) |
+| agentmemory, recall response on BM25 | 13.4 (10.2) | 21.3 (21.1) | 24.6 (24.6) |
+| agentmemory, recall response on older hybrid | 13.2 (10.0) | 16.7 (16.7) | 19.4 (19.4) |
+| deja-vu, `recall` pages | 1.9 (0.6) | 1.9 (0.6) | 1.9 (0.6) |
+
+The other three hippo script settings fall between 22.3 and 25.9. The 470-answerable version is in `tables.md`, within 1 point of this table everywhere.
+
+**Paired, as it ships, 479:** points, Cogi minus row [95% interval]
+
+| Row | 1,000 | 2,500 | 5,000 |
+|---|---|---|---|
+| MemPalace `hybrid_v4` documents | +7.3 [+2.1, +12.3] | **+3.3 [-1.7, +8.3]** | +5.4 [+0.8, +10.0] |
+| MemPalace raw documents | +15.2 [+9.8, +20.7] | +11.3 [+6.0, +16.7] | +10.9 [+5.8, +15.9] |
+| MemPalace `mine` + search | +9.6 [+5.4, +13.8] | +9.4 [+5.6, +13.2] | +14.0 [+10.2, +17.8] |
+| hippo scripts `turn_sym` | +32.6 [+27.6, +37.4] | +44.7 [+39.7, +49.5] | +54.5 [+49.5, +59.3] |
+| hippo scripts `session_sym` | +33.4 [+28.4, +38.2] | +45.5 [+40.7, +50.3] | +54.3 [+49.3, +59.1] |
+| hippo `recall --budget` | +37.8 [+33.2, +42.4] | +46.8 [+42.2, +51.4] | +55.5 [+50.9, +59.9] |
+| agentmemory BM25 | +43.6 [+39.0, +48.2] | +49.3 [+44.7, +53.6] | +56.6 [+52.0, +61.0] |
+| agentmemory older hybrid | +43.8 [+39.2, +48.6] | +53.9 [+49.3, +58.2] | +61.8 [+57.4, +66.2] |
+| deja-vu `recall` | +55.1 [+50.5, +59.7] | +68.7 [+64.5, +72.9] | +79.3 [+75.6, +83.1] |
+
+### Generous: our construction, not a product feature
+
+BM25 over the messages, or 256-token pieces, of each ranking's top 10 sessions, packed as Cogi packs. Coverage on 479.
+
+| From the ranking of | Messages 1,000 | 2,500 | 5,000 | Pieces 1,000 | 2,500 | 5,000 |
+|---|---:|---:|---:|---:|---:|---:|
+| **Cogi as it ships, for reference** | 57.0 | 70.6 | 81.2 | 57.0 | 70.6 | 81.2 |
+| Cogi's session ranking (control) | 57.8 | 64.5 | 68.9 | 60.5 | 68.1 | 73.9 |
+| deja-vu | 54.3 | 61.4 | 65.5 | 58.9 | 66.2 | 70.8 |
+| hippo scripts, `turn_sym` | 56.0 | 61.6 | 66.8 | 57.0 | 65.5 | 72.0 |
+| MemPalace `hybrid_v4` | 55.7 | 61.4 | 66.4 | 57.6 | 64.3 | 69.7 |
+| hippo recall ranking (lifted) | 54.3 | 59.9 | 66.0 | 57.6 | 64.5 | 68.3 |
+| hippo scripts, `session_sym` | 54.3 | 60.5 | 64.9 | 56.0 | 63.9 | 68.5 |
+| agentmemory BM25 | 53.2 | 60.3 | 63.9 | 56.8 | 62.8 | 68.9 |
+| agentmemory older hybrid | 50.1 | 57.2 | 61.2 | 52.8 | 59.7 | 66.2 |
+| MemPalace raw | 48.6 | 55.1 | 59.5 | 51.6 | 57.4 | 62.0 |
+
+**Paired, generous in pieces, 479:** Cogi as it ships minus row
+
+| From the ranking of | 1,000 | 2,500 | 5,000 |
+|---|---|---|---|
+| Cogi's session ranking (control) | -3.5 [-7.5, +0.4] | +2.5 [-0.8, +5.8] | +7.3 [+4.4, +10.4] |
+| deja-vu | -1.9 [-5.6, +1.9] | +4.4 [+1.0, +7.7] | +10.4 [+7.3, +13.6] |
+| hippo scripts, `turn_sym` | +0.0 [-4.2, +4.0] | +5.0 [+1.7, +8.3] | +9.2 [+6.0, +12.5] |
+| MemPalace `hybrid_v4` | -0.6 [-4.6, +3.3] | +6.3 [+2.7, +9.8] | +11.5 [+7.9, +15.0] |
+| hippo recall ranking | -0.6 [-4.6, +3.1] | +6.0 [+2.7, +9.4] | +12.9 [+9.6, +16.3] |
+| hippo scripts, `session_sym` | +1.0 [-2.9, +5.0] | +6.7 [+3.3, +10.0] | +12.7 [+9.6, +16.1] |
+| agentmemory BM25 | +0.2 [-3.8, +4.2] | +7.7 [+4.4, +11.1] | +12.3 [+9.2, +15.7] |
+| agentmemory older hybrid | +4.2 [+0.0, +8.3] | +10.9 [+6.9, +14.8] | +15.0 [+11.3, +18.8] |
+| MemPalace raw | +5.4 [+1.2, +9.6] | +13.2 [+9.2, +17.1] | +19.2 [+15.4, +23.0] |
+
+The messages version, the 470 set and the top-5 / top-20 check are in `tables.md`. Top 5 or top 20 instead of 10 moves most rows by under 3 points and changes no conclusion. MemPalace's two rankings and agentmemory's hybrid move most, up to 11 points, gaining from more sessions.
+
+### Where Cogi's lead comes from
+
+Each lead over a rival as it ships splits exactly into three parts. Labelled set, points:
+
+1. **Pieces and picker:** the rival's own ranking through the neutral picker, minus the rival as it ships. This is the effect of returning smaller pieces of both roles instead of what it returns.
+2. **Better session ranking:** Cogi's ranking through the same picker, minus the rival's ranking through it.
+3. **Cogi's own search within sessions:** Cogi as it ships, minus Cogi's ranking through the picker.
+
+| Rival as it ships | Budgets 1,000 / 2,500 / 5,000 | Lead | 1. Pieces and picker | 2. Session ranking | 3. Cogi's search within |
+|---|---|---|---|---|---|
+| hippo `recall --budget` | | +37.8 / +46.8 / +55.5 | +38.4 / +40.7 / +42.6 | +2.9 / +3.5 / +5.6 | -3.6 / +2.5 / +7.3 |
+| hippo scripts `turn_sym` | | +32.6 / +44.7 / +54.5 | +32.6 / +39.7 / +45.3 | +3.6 / +2.5 / +1.9 | -3.6 / +2.5 / +7.3 |
+| agentmemory BM25 | | +43.6 / +49.3 / +56.6 | +43.4 / +41.5 / +44.3 | +3.8 / +5.2 / +5.0 | -3.6 / +2.5 / +7.3 |
+| deja-vu `recall` | | +55.1 / +68.7 / +79.3 | +57.0 / +64.3 / +68.9 | +1.7 / +1.9 / +3.1 | -3.6 / +2.5 / +7.3 |
+| MemPalace `hybrid_v4` documents | | +7.3 / +3.3 / +5.4 | +7.9 / -2.9 / -6.0 | +2.9 / +3.8 / +4.2 | -3.6 / +2.5 / +7.3 |
+| MemPalace raw documents | | +15.2 / +11.3 / +10.9 | +9.8 / -1.9 / -8.3 | +9.0 / +10.6 / +11.9 | -3.6 / +2.5 / +7.3 |
+
+agentmemory's older hybrid follows the same pattern as its BM25 (pieces +39.7 to +46.8, ranking +7.7 to +8.4). `tables.md` has every pair.
+
+**In plain terms:**
+
+- **Against hippo, agentmemory and deja-vu as they ship, nearly all of Cogi's lead comes from returning smaller pieces, not from better ranking.** They return one or two whole sessions, a single best turn per session, or a few snippets. Give their own rankings the neutral piece picker, and the gap to Cogi becomes -2 to +4 points at 1,000 (deja-vu's ranking comes out ahead), 4 to 11 at 2,500 and 9 to 15 at 5,000.
+- **Better session ranking accounts for about 2 to 6 points** against hippo, deja-vu and agentmemory BM25. Against MemPalace raw it accounts for 9 to 12, and against agentmemory's older hybrid 8.
+- **Cogi's own search within sessions costs 3.6 points at 1,000 and adds 2.5 at 2,500 and 7.3 at 5,000,** against plain BM25 pieces of the same sessions. At the smallest budget, the neutral picker does better.
+- **MemPalace's benchmark documents are the exception.** User-turn-only session documents are already compact, so the neutral picker doesn't help them at 2,500 and 5,000 (-2 to -8). There, Cogi's lead comes from ranking and from its own search.
+
+### What each project really returns, as measured
+
+| System | Measured |
+|---|---|
+| Cogi | Pieces up to 256 tokens; fills each budget (median 1,000 / 2,500 / 5,000 tokens) |
+| hippo `recall --budget` | Median 1, 1 and 2 whole sessions. The first is kept even when over budget, and was cut by the shared counter. Median 4,125 tokens at 5,000 |
+| agentmemory recall response | Median 1 result, its first session clipped. Its JSON-length / 3 count leaves it using 615 / 1,595 / 3,036 of the shared tokens |
+| deja-vu `recall` | About 10 pages to exhaust 50 ranked sessions, but only a few hits per page carry a snippet: a median of 428 tokens in all, whatever the budget |
+| MemPalace `mine` + search | Drawers up to 800 characters, exchange pairs split across drawers; fills each budget |
+| hippo scripts | One best dense turn per ranked session; fills each budget |
+
+### Query time
+
+Each as the system runs, not comparable across process models. Median / p95 ms, 479.
+
+| System | 1,000 | 2,500 | 5,000 | Note |
+|---|---:|---:|---:|---|
+| Cogi | 1.0 / 1.4 | 1.0 / 1.3 | 1.0 / 1.3 | After one query that embeds the question: 23.0 ms median, 25.1 p95. In process |
+| agentmemory BM25 | 6.1 / 7.8 | 0.7 / 1.6 | 0.6 / 1.3 | In process; the first budget's call warms Node |
+| agentmemory older hybrid | 8.5 / 10.9 | 2.7 / 4.5 | 3.1 / 5.3 | In process |
+| hippo scripts | 45.9 / 49.1 | same | same | One question's in-memory vectors and BM25 |
+| MemPalace benchmark raw / `hybrid_v4` | 71.8 / 74.4; 143 / 308 | same | same | From the last run |
+| MemPalace `mine` + search | 153 / 206 | same | same | Six processes at once |
+| hippo `recall` | 249 / 262 | 249 / 264 | 249 / 262 | A Node process per call |
+| deja-vu `recall` | 2,254 / 3,260 | same | same | Its first call builds its index (median 1,789 ms, really load time); later pages take 53 ms each |
+
+### Failures, gaps and limits of this part
+
+- **The "present" rule was changed once,** after it failed its check on Cogi and before any rival was scored (see the rules). The final rule still gives Cogi 3 extra question-budgets in 1,437 against its ids.
+- **deja-vu is measured off its intended use.** Its `recall` wants 1 to 3 exact terms, and an agent is meant to follow up with `deja context <id>`. With the whole question as the query it ranked sessions only by wording, and printed few snippets. Its saved ranking is strong: generous, in pieces, it matches Cogi at 1,000. `DEJA_RECALL_GLOBAL=1` was set, since no session belonged to the current project.
+- **agentmemory and hippo store whole sessions here.** In use, agentmemory stores compressed observations from tool events and hippo short notes, so their real outputs would be shorter pieces. This tests the stores the published benchmarks build.
+- **MemPalace's product path took 5.9 hours in 6 processes,** so its query time was measured under that load. Its benchmark documents are not its product output.
+- **Three jobs failed once** because my copy step left new files out of the clones, and were rerun from scratch: agentmemory both settings, hippo scripts.
+- **One overlap.** Cogi's run shared up to 5 minutes with another session's job (before 21:28 UTC on 2 Nov), was stopped, waited 15 minutes and resumed. Coverage isn't affected; a few of its query times may be.
+- **Not run:** agentmemory's daemon, deja-vu's `context`, hippo's MiniLM recall, any reranker, anything paid. No new models were downloaded.
+- **Same caveats as above:** single machine, one dataset of chat histories, our own scoring, and no maintainer review.
