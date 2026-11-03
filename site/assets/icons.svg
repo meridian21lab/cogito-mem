@@ -42,6 +42,19 @@
     <circle cx="38" cy="9" r="2.5" fill="#B85E1C"/>
     <circle cx="11" cy="38" r="2" fill="#D9772B"/>
   </symbol>
+  <symbol id="lock" viewBox="0 0 48 48">
+    <path d="M15 22 V15 A9 9 0 0 1 33 15 V22" fill="none" stroke="#6B4423" stroke-width="5"/>
+    <rect x="8" y="20" width="32" height="25" rx="6" fill="#D9772B"/>
+    <ellipse cx="24" cy="34" rx="4.2" ry="5" fill="#FBE7C6"/>
+    <path d="M19.2 32 Q24 25 28.8 32 Z" fill="#6B4423"/>
+  </symbol>
+  <symbol id="quote" viewBox="0 0 48 48">
+    <path d="M10 7 H38 Q44 7 44 13 V27 Q44 33 38 33 H22 L12 41 V33 H10 Q4 33 4 27 V13 Q4 7 10 7 Z" fill="#D9772B"/>
+    <circle cx="17.5" cy="21.5" r="4" fill="#FBE7C6"/>
+    <path d="M13.6 21 C13.6 16.5 15.5 14 19 13" fill="none" stroke="#FBE7C6" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="30.5" cy="21.5" r="4" fill="#FBE7C6"/>
+    <path d="M26.6 21 C26.6 16.5 28.5 14 32 13" fill="none" stroke="#FBE7C6" stroke-width="3" stroke-linecap="round"/>
+  </symbol>
   <symbol id="ask" viewBox="0 0 48 48">
     <path d="M10 7 H38 Q44 7 44 13 V27 Q44 33 38 33 H22 L12 41 V33 H10 Q4 33 4 27 V13 Q4 7 10 7 Z" fill="#FBE7C6" stroke="#B85E1C" stroke-width="3" stroke-linejoin="round"/>
     <path d="M19.5 16 Q19.5 12 24 12 Q28.5 12 28.5 16 Q28.5 19 24 20.5 V23" fill="none" stroke="#B85E1C" stroke-width="3" stroke-linecap="round"/>

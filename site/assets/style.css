@@ -257,6 +257,11 @@ details > :last-child { margin-bottom: 16px; }
 #os-win:checked ~ .unix, #os-win:checked ~ * .unix,
 #os-mac:checked ~ .not-mac, #os-mac:checked ~ * .not-mac { display: none; }
 
+.band.agent { display: flex; gap: 18px; align-items: flex-start; }
+.band.agent > .ico { flex: none; width: 56px; height: 56px; }
+.band.agent > div { min-width: 0; }
+@media (max-width: 560px) { .band.agent { display: block; padding: 20px; } }
+
 /* ---------------------------------------------------------------- a short chat (install: try it) */
 .chat { display: grid; gap: 8px; margin: 12px 0 16px; }
 .chat p { margin: 0; padding: 9px 14px; border-radius: 16px; max-width: 85%; }
