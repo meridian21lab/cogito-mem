@@ -25,6 +25,8 @@ machine) gives the largest gain any search setting has shown on 1M+ token histor
   the search found. Reading every message is 117 s a query on 19k tokens here, about 80 minutes at 1.2M.
 - **Speed:** 17 s for 30 candidates on a 4-core CPU (the search: 33 ms), about 0.6 s on the M5 Max. Off by default;
   worth distilling into the search (stage 1) so the quality fits the CPU budget.
+- **Keyword search + a tiny System-1 picker under 100 ms** (§11): only bekko-system-one-17m is small enough (52 ms
+  for 10 messages); it finds one needed message earlier but not several, and stays well below hybrid search.
 - **Settings:** the model reads the candidate alone, not the message before it (that one moves a reply above the
   answer it follows). On 20 S dev questions fusing its ranks with the search's (RRF) looked better, but on M's 158
   tuning questions with hybrid candidates its score alone beats RRF by 10.8 points at 300 tokens (3.8 to 17.7) and
@@ -459,7 +461,61 @@ What to do next, in order:
 4. Measure a smaller relevance model (ettin-reranker-68m or -32m, Apache-2.0; its GGUFs on Hugging Face lack the
    classifier head, so ONNX for now) for the CPU path, and the reranker's latency inside the real hook on a laptop CPU.
 
-## 11. Reproduce
+## 11. Keyword search and a tiny System-1 picker, under 100 ms (3 Nov 2026)
+
+The question asked next: **keyword search (BM25) returns a list, a System-1 decision model picks the relevant
+messages, and the whole query stays under 100 ms**, with no embeddings and no reranker. For now a pick is a number
+of messages (the first k), not a token budget.
+
+**What it costs.** Keyword search over a 1.2M-token LongMemEval_M history (4,937 messages) takes 0.4 ms, so the model
+has the whole budget. The models of §2 cannot meet it on a CPU:
+
+| Model (CPU, 4 cores) | Per message it reads | Fits 100 ms |
+|---|---|---|
+| Qwen3-Reranker-0.6B (llama.cpp) | about 0.57 s | no message |
+| vLLM-SR d3-lite 0.85B (llama.cpp `/v1/systemone`), best setting found: messages cut to 200 characters, all decisions in one request | about 0.9 s | no message |
+| **bekko-system-one-v0-17m** (4M active parameters; PyTorch, the model's own code) | **about 3 ms** as one Choice over the list; about 12 ms as one yes/no per message | **30 messages of 64 tokens (90 ms), or 10 of 128 (81 ms)** |
+| bekko-system-one-v0-68m (42M active) | about 29 ms (Choice) | no: 10 messages take 289 ms |
+
+The bekko and Qwen times are from the 2.1 GHz Xeon of §7, the d3-lite time from a 2.8 GHz Xeon the VM moved to
+(the container restarts on whatever host it gets). AMX would speed up the llama.cpp models on the Xeon, but the VM's kernel does not allow it ("AMX is not ready to be
+used"). "System-1 models are fast" holds on a GPU (d3-lite: 13.6 ms a request on an AMD MI325X; Qwen3-Reranker:
+about 20 ms a message on the M5 Max) and against generating models; on 4 CPU cores a 0.6–0.85B model reads about 400
+tokens a second, so 100 ms buys about 40 tokens. Only a model in bekko-17m's class fits. bekko is an experimental
+"open Jev" ([model card](https://huggingface.co/hotchpotch/bekko-system-one-v0-17m)): English only, no licence given
+(evaluation only), and well below Jev on its own generalization benchmark (S1MB 27.6 against Jev 1.13's 59.6).
+
+**What it finds.** LongMemEval_M, the 74 answerable of the 80 test questions, no date cutoff; any@k / all@k: an /
+every needed message among the first k returned:
+
+| | any@5 | all@5 | all@10 | all@20 | Model time, median |
+|---|---|---|---|---|---|
+| Hybrid search, shipped (published `m-final.json`) | **78.4** | **44.6** | **59.5** | **75.7** | — (33 ms the query) |
+| Keyword search alone | 64.9 | 41.9 | 58.1 | 60.8 | — (0.4 ms) |
+| Keyword top 10 → bekko-17m Choice, 64 tokens | 73.0 (+8.1 [+3, +15]) | 41.9 | 58.1 | 60.8 | **52 ms** |
+| Keyword top 30 → bekko-17m Choice, 64 tokens | 74.3 (+9.5 [+3, +18]) | 35.1 | 51.4 (−6.8) | 59.5 | 111 ms |
+| Keyword top 100 → bekko-17m Choice, 64 tokens | 66.2 | 29.7 | 43.2 (−14.9 [−27, −3]) | 58.1 | 341 ms |
+| Keyword top 10 → bekko-17m, a yes/no per message | 64.9 | 31.1 | 58.1 | 60.8 | 121 ms |
+| Keyword top 30 → bekko-17m, a yes/no per message | 54.1 | 21.6 | 35.1 (−23.0) | 59.5 | 230 ms |
+| Keyword top 10 → bekko-68m Choice, 128 tokens | 71.6 | 48.6 | 58.1 | 60.8 | 510 ms |
+
+- **Within 100 ms the tiny picker helps a little and only at the top:** from keyword search's top 10 it puts a needed
+  message among the first five for 8 more questions in 100, in 52 ms.
+- **It does not pick several messages.** Its Choice is a softmax trained to name the one best option, so a second
+  evidence message falls back; a longer list makes that worse (all@10 −15 at 100). Its yes/no head, which could
+  pick several, is worse than keyword search alone (all@5 31.1 against 41.9), as its card's general Noul score (15)
+  warns. Cross-session questions need exactly the several-message case.
+- **It does not come near hybrid search**, which needs no picker: −4 to −24 at any@5 and −15 to −18 at all@20 across
+  the arms above, and the hybrid query (33 ms) is faster than the picker alone.
+
+So with the open System-1 models available on 3 Nov 2026, **keyword search plus a System-1 picker does not beat
+the shipped hybrid search within 100 ms on a CPU**. Making it work needs a picker of bekko-17m's size that judges
+relevance the way a 0.6B model does: trained, or distilled from the slower models' decisions on our own questions
+(the stage-1 route of §10). Prompt wording and other languages were not tried for bekko: its instructions are
+editable, but it is an English model, and no wording changes a head that names one option. The per-question rows
+and the scripts are in `evals/baselines/system1-20261101/bekko/`.
+
+## 12. Reproduce
 
 Every run behind this note, with per-question rows to pair against, is in
 [`evals/baselines/system1-20261101/`](../../evals/baselines/system1-20261101/README.md).
