@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import http.server
 import json
 import os
 import signal
@@ -178,6 +179,35 @@ def test_session_start_replaces_an_older_service(running_service, monkeypatch):
     while (info := client.status()) is None or info["pid"] == old:
         assert time.monotonic() < deadline, "the older service was not replaced"
         time.sleep(0.1)
+
+
+@pytest.mark.slow
+def test_a_client_stops_only_the_service_its_run_file_names(tmp_path, monkeypatch):
+    """Whatever answers on the port can claim to be an old Cogi; its pid is not a reason to kill anything."""
+    victim = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+
+    class Impostor(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"status": "ok", "pid": victim.pid, "version": "0.0.1"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    impostor = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Impostor)
+    threading.Thread(target=impostor.serve_forever, daemon=True).start()
+    monkeypatch.setenv("COGITO_MEM_PORT", str(impostor.server_address[1]))
+    monkeypatch.setattr(client_module, "__version__", "99.0.0")
+    try:
+        assert not Client(root=tmp_path / "home").start_in_background()
+        assert victim.poll() is None
+    finally:
+        impostor.shutdown()
+        victim.kill()
+        victim.wait()
 
 
 @pytest.mark.parametrize(

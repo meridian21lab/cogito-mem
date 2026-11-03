@@ -179,12 +179,16 @@ class Client:
     def _running_current(self) -> bool:
         """True if a service runs that is not older than this client. An older one is stopped.
 
+        Only the service this root's run file names is stopped: anything can answer on the port
+        and report a pid, so a pid the run file does not hold is never signalled.
         Call it holding ``start.lock``, so two clients never replace the same service at once.
         """
         info = self.status()
         if info is None:
             return False
         if not is_older(info.get("version"), __version__):
+            return True
+        if info.get("pid") is None or info.get("pid") != self._run_info().get("pid"):
             return True
         self.stop_server()
         return False
