@@ -2,6 +2,10 @@
 
 What changed in each version of Cogi (cogito-mem), for people who use it.
 
+## Unreleased
+
+- **Updates take effect when you restart.** Cogi's background service used to keep running the old version after an update, until it sat idle for an hour (12 hours in 0.3.0). A newer Cogi now replaces an older service the first time it runs. An older Cogi, in a session you haven't restarted yet, leaves a newer service alone.
+
 ## 0.3.0 — 3 Nov 2026
 
 **Update note:** Cogi now keeps a few lines of command output and what each sub-agent reports, where 0.2 kept neither. To keep messages only, set `COGITO_MEM_CAPTURE_TOOL_OUTPUT=off` and `COGITO_MEM_CAPTURE_SUBAGENTS=off`. Restart Claude Code after updating.
