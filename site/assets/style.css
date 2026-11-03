@@ -150,6 +150,7 @@ main.wide { max-width: 1080px; }
 .see::before { content: "✓"; color: var(--ok); font-weight: 700; }
 .see code { white-space: nowrap; }
 pre.out { margin: 6px 0 18px; padding: 12px 14px; background: var(--tint); border-radius: 12px; overflow-x: auto; font: .85rem/1.5 var(--mono); color: var(--ink-2); }
+pre.out i { font-style: normal; color: var(--accent); } /* notes beside the output */
 
 /* ---------------------------------------------------------------- steps */
 .steps { counter-reset: step; list-style: none; padding: 0; margin: 24px 0; }
@@ -211,9 +212,26 @@ details > :last-child { margin-bottom: 16px; }
 /* ---------------------------------------------------------------- flow picture (how it works) */
 .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 10px; align-items: stretch; margin: 20px 0; }
 .flow .arrow { align-self: center; color: var(--accent); font-size: 1.6rem; }
+.flow .card { text-align: center; }
+.flow .ico { width: 64px; height: 64px; margin: 0 auto 6px; }
 @media (max-width: 720px) {
   .flow { grid-template-columns: 1fr; }
   .flow .arrow { justify-self: center; transform: rotate(90deg); }
+}
+
+/* ---------------------------------------------------------------- Cogi's icons (assets/icons.svg) */
+.ico { display: block; width: 44px; height: 44px; margin-bottom: 8px; }
+.row { display: flex; gap: 18px; align-items: flex-start; }
+.row > .ico { flex: none; width: 64px; height: 64px; }
+.hero.small { grid-template-columns: 1fr auto; padding: 0; }
+.hero.small img { max-width: 160px; }
+.outro { text-align: center; margin: 56px 0 0; }
+.outro img { width: 84px; display: block; margin: 0 auto 6px; }
+.outro p { font: 600 1.15rem var(--round); }
+@media (max-width: 720px) {
+  .hero.small { grid-template-columns: 1fr; }
+  .hero.small img { max-width: 130px; }
+  .row > .ico { width: 48px; height: 48px; }
 }
 
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
