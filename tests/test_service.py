@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 
 from cogito_mem import ApiError, Client, Memory
+from cogito_mem.api import DEFAULT_TOP_K
+from cogito_mem.cli import build_parser
 from cogito_mem.mcp_server import INSTRUCTIONS, PROTOCOL_VERSIONS, McpServer
 from cogito_mem.server import MemoryServer
 
@@ -58,9 +60,9 @@ def test_http_append_and_query(server):
 
 
 def test_http_errors_use_aip_codes(server):
-    assert post(server, {"op": "query", "text": "x", "top_k": 500}) == (
+    assert post(server, {"op": "query", "text": "x", "top_k": 5000}) == (
         400,
-        {"error": {"code": "invalid_argument", "message": "top_k must be between 1 and 100, got 500"}},
+        {"error": {"code": "invalid_argument", "message": "top_k must be between 1 and 1000, got 5000"}},
     )
     status, body = post(server, b"{not json")
     assert status == 400 and body["error"]["code"] == "invalid_argument"
@@ -151,6 +153,17 @@ def test_service_stops_when_idle(tmp_path):
             pytest.fail("serve did not stop when idle:\n" + log.read_text())
 
 
+def test_the_service_waits_out_a_working_day_unless_told_otherwise(monkeypatch):
+    from cogito_mem.cli import _idle_timeout, build_parser
+
+    serve = build_parser().parse_args(["serve"])
+    assert _idle_timeout(serve) == 12 * 3600
+    assert _idle_timeout(build_parser().parse_args(["serve", "--idle-timeout", "0"])) == 0  # never
+    monkeypatch.setenv("COGITO_MEM_KEEP_ALIVE", "off")
+    assert _idle_timeout(serve) == 3600
+    assert _idle_timeout(build_parser().parse_args(["serve", "--idle-timeout", "5"])) == 5
+
+
 # --------------------------------------------------------------------------- MCP
 
 
@@ -175,9 +188,9 @@ def test_mcp_initialize_and_tools(mem):
     unknown = rpc(srv, "initialize", {"protocolVersion": "1999-01-01"})["result"]
     assert unknown["protocolVersion"] == PROTOCOL_VERSIONS[0]
     tools = {t["name"]: t for t in rpc(srv, "tools/list")["result"]["tools"]}
-    assert set(tools) == {"memory_append", "memory_query"}
+    assert set(tools) == {"memory_append", "memory_query", "memory_open"}
     assert set(tools["memory_append"]["inputSchema"]["properties"]) == {"text", "title"}
-    assert set(tools["memory_query"]["inputSchema"]["properties"]) == {"text", "valid_after", "valid_before", "max_tokens"}
+    assert set(tools["memory_query"]["inputSchema"]["properties"]) == {"text", "valid_after", "valid_before", "max_tokens", "this_session"}
     assert "a week ago" in tools["memory_query"]["description"]
     assert rpc(srv, "ping")["result"] == {}
     assert rpc(srv, "no/such")["error"]["code"] == -32601
@@ -196,6 +209,19 @@ def test_mcp_tool_calls_fill_in_server_side_keys(mem):
     item = resp["items"][0]
     assert item["author"] == "claude-code" and item["thread_id"] == "session-42"
     assert item["source"]["title"] == "release"
+
+
+def test_mcp_query_is_limited_by_the_budget_not_a_count(mem):
+    srv = McpServer(mem.handle)
+    for i in range(150):
+        mem.handle({"op": "append", "items": [{"author": "a", "text": f"walnut {i}"}]})
+    args = {"text": "walnut", "max_tokens": 100_000}
+    res = rpc(srv, "tools/call", {"name": "memory_query", "arguments": args})["result"]
+    assert len(res["structuredContent"]["items"]) == 150
+
+
+def test_cli_query_uses_the_api_default_top_k():
+    assert build_parser().parse_args(["query", "walnut"]).top_k == DEFAULT_TOP_K
 
 
 def test_mcp_tool_errors_are_results_not_crashes(mem):
@@ -251,7 +277,7 @@ def test_mcp_with_the_official_python_sdk_client(tmp_path):
                 init = await session.initialize()
                 assert attr(init, "server_info", "serverInfo").name == "cogito-mem"
                 tools = await session.list_tools()
-                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_query"]
+                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_open", "memory_query"]
                 res = await session.call_tool("memory_append", {"text": "The SDK client saved this idea."})
                 assert not attr(res, "is_error", "isError")
                 res = await session.call_tool("memory_query", {"text": "SDK idea", "max_tokens": 100})
@@ -301,7 +327,7 @@ def test_mcp_over_http(server):
     assert status == 403
     status, body, _ = mcp_post(server, {"jsonrpc": "2.0", "id": 6, "method": "tools/list"}, session,
                                {"Origin": "http://localhost:3000"})  # fmt: skip
-    assert status == 200 and len(body["result"]["tools"]) == 2
+    assert status == 200 and len(body["result"]["tools"]) == 3
     conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=10)
     conn.request("GET", "/mcp")
     assert conn.getresponse().status == 405
@@ -319,7 +345,7 @@ def test_mcp_over_http_with_the_official_sdk(server):
             async with mcp.ClientSession(read, write) as session:
                 await session.initialize()
                 tools = await session.list_tools()
-                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_query"]
+                assert sorted(t.name for t in tools.tools) == ["memory_append", "memory_open", "memory_query"]
                 await session.call_tool("memory_append", {"text": "The SDK reached the memory over HTTP."})
                 res = await session.call_tool("memory_query", {"text": "SDK over HTTP"})
                 payload = json.loads(res.content[0].text)

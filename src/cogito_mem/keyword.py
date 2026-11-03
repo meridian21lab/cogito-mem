@@ -44,6 +44,17 @@ class BM25Index:
             postings.append(row)
             postings.append(min(tf, 2**31 - 1))
 
+    def rows_with(self, words: list[str], n_rows: int) -> np.ndarray:
+        """The rows, below ``n_rows``, that hold every one of ``words``."""
+        postings = [self._postings.get(w) for w in dict.fromkeys(words)]
+        if not postings or any(p is None for p in postings):
+            return np.empty(0, np.int64)
+        postings.sort(key=len)
+        rows = np.frombuffer(postings[0], dtype=np.int32)[::2]
+        for other in postings[1:]:
+            rows = rows[np.isin(rows, np.frombuffer(other, dtype=np.int32)[::2], assume_unique=True)]
+        return rows[rows < n_rows].astype(np.int64)
+
     def scores(self, query: str, n_rows: int | None = None) -> tuple[np.ndarray, np.ndarray]:
         """Return (rows, scores) of every item that shares a term with the query."""
         n = len(self._lengths) if n_rows is None else n_rows

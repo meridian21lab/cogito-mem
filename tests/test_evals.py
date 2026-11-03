@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -91,7 +92,7 @@ def test_longmemeval_run_reports_coverage_and_recall(tmp_path, data):
 def test_longmemeval_arms_and_compare(tmp_path, data, capsys):
     u1 = run(tmp_path, data, "U1")
     u3 = run(tmp_path, data, "U3", "--base", "U1")
-    assert u1["meta"]["config"] == {"search": "vector", "doc_context": "own", "doc_author": False, "candidates": 30}
+    assert u1["meta"]["config"] == {"search": "vector", "doc_context": "own", "doc_author": False, "candidates": 100}
     assert u3["meta"]["config"]["doc_context"] == "previous"
     capsys.readouterr()
     assert longmemeval.main(["compare", str(tmp_path / "U1.json"), str(tmp_path / "U3.json"), "--bootstrap", "200"]) == 0
@@ -163,6 +164,23 @@ def mini_locomo() -> list[dict]:
     return [{"sample_id": "mini-1", "conversation": conv, "qa": qa}]
 
 
+def test_query_past_top_k_limit(tmp_path):
+    from cogito_mem.api import MAX_TOP_K
+    from cogito_mem.errors import ApiError
+    from cogito_mem.evals.common import query_past_top_k_limit
+    from cogito_mem.memory import Config, Memory
+
+    n = MAX_TOP_K + 20
+    items = [{"author": "ana", "text": f"note {i} about the beach"} for i in range(n)]
+    with Memory(None, config=Config(search="keyword")) as mem:
+        for i in range(0, n, 500):
+            mem.append(items[i : i + 500], namespace="c")
+        body = {"op": "query", "namespace": "c", "text": "beach", "top_k": n, "max_tokens": 50000}
+        assert len(query_past_top_k_limit(mem, body)["items"]) == n
+        with pytest.raises(ApiError):
+            mem.handle(body)  # the API itself keeps its limit
+
+
 def test_locomo_run(tmp_path, capsys):
     from cogito_mem.evals import locomo
 
@@ -176,6 +194,7 @@ def test_locomo_run(tmp_path, capsys):
     s = result["summary"]
     assert s["questions"] == 3  # the adversarial question is left out
     assert s["coverage"]["1000"] == 1.0
+    assert set(s["coverage"]) == {"100", "300", "1000", "2500", "5000"}
     assert s["baseline_recent"]["100"] == 0.0  # the answers are not in the last 100 tokens
     assert set(s["by_category@300"]) == {"single-hop", "multi-hop"}
     assert locomo.evidence_ids(["D1:1; D2:1", "D:11:26", "D"]) == ["D1:1", "D2:1", "D11:26"]
@@ -244,6 +263,23 @@ def test_locomo_qa_run_and_cache(tmp_path, capsys, protocol, context):
         assert json.loads(capsys.readouterr().out)["difference_points"] == 0.0
     finally:
         srv.shutdown()
+
+
+def test_locomo_qa_memory_limit_keeps_the_best_ranked(monkeypatch):
+    from cogito_mem.evals import locomo_qa
+    from cogito_mem.memory import Config, Memory
+
+    def ask(protocol):
+        args = argparse.Namespace(context="memory", protocol=protocol, top_k=100, budget=5000)
+        with Memory(None, config=Config(search="keyword")) as mem:
+            _, rows = locomo_qa.retrieve(mem, mini_locomo()[0], args)
+        return rows[0]["items"]
+
+    everything = ask("mem0-2025")
+    assert len(everything) > 1
+    monkeypatch.setattr(locomo_qa, "BENCH_MEMORY_LIMIT", 1)
+    assert len(ask("mem0-2025")) == len(everything)  # the limit belongs to the 2026 protocol
+    assert len(ask("mem0-2026")) == 1
 
 
 def test_locomo_qa_helpers(tmp_path):
@@ -334,3 +370,253 @@ def test_locomo_qa_llm_retries_a_dropped_body():
         assert _DropsFirstBody.calls == 2
     finally:
         srv.shutdown()
+
+
+def lme_question(chars: int) -> dict:
+    return {"haystack_sessions": [[{"role": "user", "content": "x" * chars}], [{"role": "assistant", "content": "y" * chars}]]}
+
+
+def test_full_context_sizes():
+    from cogito_mem.evals import full_context as fc
+
+    tokens = [fc.history_chars(lme_question(n)) // fc.CHARS_PER_TOKEN for n in (1_000_000, 3_000_000)]
+    assert tokens == [500_000, 1_500_000]
+    s = fc.summarize_sizes(tokens)
+    assert s["share_over"]["1000000"] == 0.5 and s["share_over"]["200000"] == 1.0
+    assert s["tokens"]["max"] == 1_500_000
+
+
+def test_full_context_history_text_is_real_turns_cut_to_size():
+    from cogito_mem.evals import full_context as fc
+
+    text = fc.history_text([lme_question(50), lme_question(50)], 150)
+    assert len(text) == 150 and text.startswith("user: xxx") and "assistant: yyy" in text
+    with pytest.raises(ValueError):
+        fc.history_text([lme_question(5)], 1000)
+
+
+def test_full_context_probe_stops_at_first_acceptance_and_at_max_cost():
+    from cogito_mem.evals import full_context as fc
+
+    def fake(model, text):
+        if len(text) > 100:
+            return {"accepted": False, "status": 400, "error": "too long"}
+        return {"accepted": True, "cost_usd": 1.0}
+
+    rows, spent = fc.probe(["a", "b"], (50, 200, 500), lambda n: "x" * n, fake, max_cost=10)
+    assert [(r["model"], r["sent_tokens_approx"], r["accepted"]) for r in rows] == [
+        ("a", 500, False), ("a", 200, False), ("a", 50, True), ("b", 500, False), ("b", 200, False), ("b", 50, True)]  # fmt: skip
+    assert spent == 2.0
+    rows, spent = fc.probe(["a", "b"], (50,), lambda n: "x" * n, fake, max_cost=1)
+    assert spent == 1.0 and rows[-1] == {"model": "b", "sent_tokens_approx": 50, "skipped": "max cost reached"}
+
+
+def test_full_context_send_reports_a_refusal_as_a_result():
+    from cogito_mem.evals import full_context as fc
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            assert body["transforms"] == []  # nothing may be silently compressed
+            too_long = len(body["messages"][0]["content"]) > 200
+            reply = ({"error": {"code": 400, "message": "Provider returned error", "metadata": {"raw": "prompt is too long"}}}
+                     if too_long else
+                     {"choices": [{"message": {"content": "OK"}}], "provider": "p", "usage": {"prompt_tokens": 42, "cost": 0.5}})  # fmt: skip
+            self.send_response(400 if too_long else 200)
+            self.end_headers()
+            self.wfile.write(json.dumps(reply).encode())
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        no = fc.send(base, "k", "m", "x" * 500, 10, 5)
+        assert no["accepted"] is False and no["status"] == 400 and no["error"] == "prompt is too long"
+        yes = fc.send(base, "k", "m", "x", 10, 5)
+        assert yes["accepted"] is True and yes["billed_prompt_tokens"] == 42 and yes["cost_usd"] == 0.5
+    finally:
+        server.shutdown()
+
+
+def test_full_context_sessions_count_tokens_and_forks_once(tmp_path, capsys):
+    from cogito_mem.evals import full_context as fc
+
+    project = tmp_path / "p"
+    project.mkdir()
+
+    def write(name, boundaries, context):
+        lines = [{"type": "system", "subtype": "compact_boundary", "uuid": u, "compactMetadata": {"preTokens": t}, "content": "secret"}
+                 for u, t in boundaries]  # fmt: skip
+        lines.append({"type": "assistant", "message": {"content": "secret", "usage": {"input_tokens": 1, "cache_read_input_tokens": context}}})
+        (project / name).write_text("\n".join(json.dumps(x) for x in lines) + "\nnot json\n")
+
+    write("a.jsonl", [("u1", 900_000), ("u2", 800_000)], 100)
+    write("fork.jsonl", [("u1", 900_000)], 5000)
+    assert fc.main(["sessions", "--root", str(tmp_path)]) == 0
+    s = json.loads(capsys.readouterr().out)
+    assert s["sessions"] == 2 and s["compactions"] == 2 and s["sessions_history_over_1M"] == 1
+    assert s["largest_history"] == 1_700_101
+    assert "secret" not in json.dumps(s)
+
+
+def long_history_question(qid="q1", sessions=8):
+    ids = [f"s{i}" for i in range(sessions)]
+    turns = [[{"role": "user", "content": f"session {i} is about topic number {i} and its garden"},
+              {"role": "assistant", "content": f"noted topic {i}"}] for i in range(sessions)]
+    turns[3] = [{"role": "user", "content": "My passport number ends in 4411 and the kiwi plant died.", "has_answer": True},
+                {"role": "assistant", "content": "Sorry about the kiwi plant."}]
+    return {"question_id": qid, "question_type": "single-session-user", "question": "What plant of mine died recently?",
+            "question_date": "2023/06/01 (Thu) 10:00", "answer": "the kiwi plant", "answer_session_ids": ["s3"],
+            "haystack_session_ids": ids, "haystack_dates": [f"2023/05/{i % 28 + 1:02d} (Mon) 09:{i % 60:02d}" for i in range(sessions)],
+            "haystack_sessions": turns}
+
+
+def test_long_history_measures_search_delivery_and_recency(tmp_path):
+    from cogito_mem.evals import long_history
+
+    data = tmp_path / "m.json"
+    data.write_text(json.dumps([long_history_question(sessions=60), long_history_question("q2_abs", sessions=60)]))
+    out = tmp_path / "r.json"
+    contexts = tmp_path / "c.jsonl"
+    code = long_history.main(["run", "--data", str(data), "--embedder", "hash", "--variants", "base,exact,session",
+                              "--cache", str(tmp_path / "e.sqlite3"), "--contexts-out", str(contexts), "--out", str(out)])
+    assert code == 0
+    result = json.loads(out.read_text())
+    row = result["per_question"][0]
+    assert row["evidence_turns"] == 1
+    assert row["search"]["base"]["none"]["session"]["recall_any@1"] is True
+    assert row["search"]["base"]["question"]["budgets"]["1000"]["all"] is True
+    assert set(row["delivery"]) == {"shipped", "pointers", "hybrid"}
+    assert row["recency"]["300"]["none"]["all"] is False  # session 3 of 60 is not in the last 300 tokens
+    assert result["summary"]["answerable_with_labels"] == 1
+    arms = json.loads(contexts.read_text().splitlines()[0])["arms"]
+    assert "kiwi" in " ".join(a["text"] for a in arms["oracle"]) and arms["search-1000"]
+
+
+def test_long_history_subset_keeps_the_evidence():
+    from cogito_mem.evals import long_history
+
+    q = long_history_question(sessions=40)
+    small = long_history.subset(q, 5, seed=1)
+    assert len(small["haystack_session_ids"]) == 5 and "s3" in small["haystack_session_ids"]
+    assert small == long_history.subset(q, 5, seed=1)
+    assert long_history.subset(q, 100) is q
+
+
+def test_long_history_splits_are_stable():
+    from cogito_mem.evals.long_history import split_of
+
+    assert {split_of(f"q{i}") for i in range(100)} == {"tuning", "heldout"}
+    assert split_of("q1") == split_of("q1")
+
+
+def test_identifier_lane_finds_a_token_word_for_word():
+    from cogito_mem.memory import Config, Memory
+    from cogito_mem.terms import identifiers
+
+    assert identifiers("look at src/app/run.py and --top-k 5bba30a please, GPT-5.") >= {"src/app/run.py", "--top-k", "5bba30a", "gpt-5"}
+    assert not identifiers("just some plain words here")
+    items = [{"author": "ana", "text": f"run {i} of job-{i:04d} finished without trouble"} for i in range(300)]
+    with Memory(None, embedder="hash", config=Config(search="keyword", exact_lane=True)) as mem:
+        mem.append(items, namespace="c")
+        top = mem.query("what happened with job-0137 finished", namespace="c", top_k=3)["items"]
+    assert "job-0137" in top[0]["text"]
+
+def test_locomo_qa_rejudges_other_systems_files(tmp_path):
+    from cogito_mem.evals import locomo_qa
+
+    srv = HTTPServer(("127.0.0.1", 0), _FakeChat)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        samples = mini_locomo()
+        data = tmp_path / "locomo.json"
+        data.write_text(json.dumps(samples))
+        asked = [q for q in samples[0]["qa"] if q["category"] != 5]
+        mem0 = {"evaluations": [{"conversation_idx": 0, "question": q["question"], "cutoff_results": {"top_200": {"generated_answer": "Biscuit"}}}
+                                for q in asked[:-1]]}  # fmt: skip
+        honcho = {"detailed_results": [{"question_results": [{"question": q["question"], "actual_response": "Biscuit"}
+                                                             for q in samples[0]["qa"]]}]}  # fmt: skip
+        for fmt, payload, n, missing in (("mem0", mem0, len(asked) - 1, 1), ("honcho", honcho, len(asked), 0)):
+            source, out = tmp_path / f"{fmt}.json", tmp_path / f"{fmt}-out.json"
+            source.write_text(json.dumps(payload))
+            env = tmp_path / ".env"
+            env.write_text("OPENROUTER_API_KEY=test-key\n")
+            assert locomo_qa.main(["rejudge", str(source), "--format", fmt, "--data", str(data), "--out", str(out), "--env-file", str(env),
+                                   "--llm-cache", str(tmp_path / "llm.jsonl"), "--base-url", f"http://127.0.0.1:{srv.server_address[1]}"]) == 0  # fmt: skip
+            result = json.loads(out.read_text())
+            assert result["summary"]["questions"] == n and result["summary"]["unmatched_questions"] == missing  # adversarial one left out
+            assert set(result["per_question"][0]["judgments"]) == {"mem0-2026", "mem0-2025"}
+    finally:
+        srv.shutdown()
+
+
+class _FakeHindsight(BaseHTTPRequestHandler):
+    """Just enough of Hindsight's HTTP API: retain, stats, metrics, version, recall."""
+
+    retained: list = []
+    recalls: list = []
+
+    def _send(self, payload: bytes):
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self):  # noqa: N802
+        if self.path == "/metrics":
+            self._send(b'hindsight_llm_calls_total{scope="retain_extract_facts"} ' + str(len(type(self).retained)).encode() + b".0\n")
+        else:
+            self._send(json.dumps({"total_nodes": 1, "pending_operations": 0, "api_version": "test"}).encode())
+
+    def do_POST(self):  # noqa: N802
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        if self.path.endswith("/recall"):
+            type(self).recalls.append(body)
+            self._send(json.dumps({"results": [{"text": "Rex is a dog named Biscuit", "type": "world", "mentioned_at": "2023-05-08T13:56:00+00:00"}]}).encode())
+        else:
+            type(self).retained.append(body["items"][0])
+            self._send(b"{}")
+
+    def log_message(self, *args):
+        pass
+
+
+def test_locomo_qa_hindsight_arm(tmp_path):
+    from cogito_mem.evals import locomo_qa
+
+    chat = HTTPServer(("127.0.0.1", 0), _FakeChat)
+    hs = HTTPServer(("127.0.0.1", 0), _FakeHindsight)
+    for srv in (chat, hs):
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+    _FakeHindsight.retained, _FakeHindsight.recalls, _FakeChat.bodies = [], [], []
+    url = f"http://127.0.0.1:{hs.server_address[1]}"
+    try:
+        data = tmp_path / "locomo.json"
+        data.write_text(json.dumps(mini_locomo()))
+        ingest = tmp_path / "ingest.json"
+        assert locomo_qa.main(["hindsight-ingest", "--data", str(data), "--url", url, "--out", str(ingest)]) == 0
+        assert json.loads(ingest.read_text())["llm_counters"]["hindsight_llm_calls_total|retain_extract_facts"] == len(_FakeHindsight.retained)
+        first = _FakeHindsight.retained[0]
+        assert first["timestamp"].endswith("Z") and json.loads(first["content"])[0]["speaker"]
+        env = tmp_path / ".env"
+        env.write_text("OPENROUTER_API_KEY=test-key\n")
+        out = tmp_path / "qa.json"
+        argv = ["--data", str(data), "--protocol", "mem0-2026", "--context", "hindsight", "--budget", "1000", "--hindsight-url", url,
+                "--hindsight-recall-cache", str(tmp_path / "recall.json"), "--llm-cache", str(tmp_path / "llm.jsonl"), "--env-file", str(env),
+                "--base-url", f"http://127.0.0.1:{chat.server_address[1]}", "--out", str(out)]  # fmt: skip
+        assert locomo_qa.main(argv) == 0
+        result = json.loads(out.read_text())
+        assert result["summary"]["questions"] == 3 and result["meta"]["hindsight_budget"] == "mid"
+        assert all(r["max_tokens"] == 1000 and r["budget"] == "mid" and r["include"] == {"entities": None} for r in _FakeHindsight.recalls)
+        prompt = next(b for b in _FakeChat.bodies if not b.get("response_format"))["messages"][0]["content"]
+        assert "(Monday, May 08, 2023) Rex is a dog named Biscuit" in prompt
+        recalls = len(_FakeHindsight.recalls)
+        assert recalls == 3
+        assert locomo_qa.main(argv) == 0  # the second model reads the same recalls
+        assert len(_FakeHindsight.recalls) == recalls
+    finally:
+        chat.shutdown()
+        hs.shutdown()

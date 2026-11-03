@@ -90,6 +90,28 @@ def claude_code_tool_work(session: str = "sess-t", day: str = "2026-10-12") -> l
     ]  # fmt: skip
 
 
+def claude_code_subagent(agent: str, session: str = "sess-1", day: str = "2026-10-11", handback: bool = False) -> list[dict]:
+    """One sub-agent, as in ``<session>/subagents/agent-<id>.jsonl``: its prompt, a progress note with a tool call, the
+    result, and at last its report: a reply that ends the turn, or a call of the tool it hands back with."""
+    t = lambda ss: f"{day}T09:30:{ss:02d}.000Z"  # noqa: E731
+    base = {"isSidechain": True, "agentId": agent, "cwd": "/work/app/.claude/worktrees/x", "sessionId": session}
+    report = f"Report of {agent}: the parser is slow on long lines."
+    last = [{"type": "tool_use", "id": "h1", "name": "SubagentHandback", "input": {"message": report}}] if handback else [
+        {"type": "text", "text": report}]  # fmt: skip
+    return [
+        {**base, "type": "user", "uuid": f"{agent}-u1", "timestamp": t(0), "message": {"role": "user", "content": "look at the parser"}},
+        {"type": "api-request", "sessionId": session, "message": {"content": [{"type": "text", "text": "a stored request"}]}},
+        {**base, "type": "assistant", "uuid": f"{agent}-a1", "timestamp": t(1), "message": {
+            "role": "assistant", "stop_reason": None, "content": [{"type": "text", "text": "Let me look around first."}]}},
+        {**base, "type": "assistant", "uuid": f"{agent}-a2", "timestamp": t(2), "message": {
+            "role": "assistant", "stop_reason": "tool_use", "content": [{"type": "tool_use", "id": "t1", "name": "Bash", "input": {"command": "pytest"}}]}},
+        {**base, "type": "user", "uuid": f"{agent}-r1", "timestamp": t(3), "message": {
+            "role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "1 failed in 0.1s"}]}},
+        {**base, "type": "assistant", "uuid": f"{agent}-a3", "timestamp": t(4), "message": {
+            "role": "assistant", "stop_reason": "tool_use" if handback else "end_turn", "content": last}},
+    ]  # fmt: skip
+
+
 def write_jsonl(path: Path, records: list[dict]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(_line(r) for r in records))

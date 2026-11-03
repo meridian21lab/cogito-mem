@@ -18,7 +18,7 @@ from typing import Any, Protocol, Sequence
 import numpy as np
 
 from . import __version__, timeutil
-from .api import DEFAULT_NAMESPACE, AppendIn, QueryIn, parse_append, parse_query
+from .api import DEFAULT_NAMESPACE, AppendIn, OpenIn, QueryIn, parse_append, parse_open, parse_query
 from .embedding import EmbeddingCache, Embedder, HashEmbedder, cache_key, query_prompt
 from .errors import ApiError, invalid
 from .split import PIECE_TOKENS
@@ -44,9 +44,21 @@ class Config:
       ``"vector"`` (arm U1) or ``"keyword"``.
     - ``doc_context``: ``"previous"`` (default) embeds each item with the message before
       it in the thread (arm U3); ``"own"`` embeds it alone.
-    - ``candidates``: how many fused candidates a reranker reorders (arm R).
+    - ``candidates``: how many fused candidates a reranker (a System-1 model, ``evals/system1.py``)
+      reorders (arm R); 0 means every visible item, a full scan ordered by the model alone.
+    - ``rerank_context``: what the reranker reads of each candidate: ``"own"`` (author and
+      text; default), ``"previous"`` (also the end of the message it follows on from) or
+      ``"dated"`` (``"previous"`` with the message's date first). With ``"previous"`` the reply
+      after an answer carries the answer in its context and is ranked above it.
+    - ``pick``: a probability; when set, the System-1 model picks instead of ordering: only the candidates
+      it gives at least this probability of helping are returned (none, if none reaches it).
+    - ``rerank_fusion``: ``"replace"`` (default) orders the candidates by the reranker's score
+      alone; ``"rrf"`` fuses its ranks with the search's by reciprocal rank, which does worse at
+      small budgets on 1M+ token histories (docs/notes/system1_ranker_20261101.md).
     - ``doc_author``: write the author's name before the text for embedding and keyword
       search ("Caroline: …"), so "what did Caroline say about…" finds her messages.
+    - ``exact_lane``: also rank the items holding an identifier from the query word for word.
+    - ``session_boost``: lift items whose thread has other good matches.
 
     The defaults are the best arm measured so far (LoCoMo, docs/requirements.md §15):
     hybrid search over items embedded with their author and the message before them.
@@ -55,15 +67,26 @@ class Config:
     search: str = "hybrid"
     doc_context: str = "previous"
     doc_author: bool = True
-    candidates: int = 30
+    candidates: int = 100
     rrf_k: int = 60
     piece_tokens: int = PIECE_TOKENS
+    rerank_context: str = "own"
+    rerank_fusion: str = "replace"
+    exact_lane: bool = False
+    session_boost: float = 0.0
+    pick: float | None = None
 
     def __post_init__(self) -> None:
         if self.search not in ("hybrid", "vector", "keyword"):
             raise ValueError(f"search must be hybrid, vector or keyword, not {self.search!r}")
         if self.doc_context not in ("own", "previous"):
             raise ValueError(f"doc_context must be own or previous, not {self.doc_context!r}")
+        if self.rerank_context not in ("own", "previous", "dated"):
+            raise ValueError(f"rerank_context must be own, previous or dated, not {self.rerank_context!r}")
+        if self.pick is not None and not 0.0 <= self.pick <= 1.0:
+            raise ValueError(f"pick must be a probability between 0 and 1, not {self.pick!r}")
+        if self.rerank_fusion not in ("replace", "rrf"):
+            raise ValueError(f"rerank_fusion must be replace or rrf, not {self.rerank_fusion!r}")
 
 
 class Reranker(Protocol):
@@ -206,13 +229,15 @@ class Memory:
         if not isinstance(body, dict):
             raise invalid("the request must be a JSON object")
         op = body.get("op")
-        if body.get("namespace") is None and op in ("append", "query"):
+        if body.get("namespace") is None and op in ("append", "query", "open"):
             body = {**body, "namespace": self.default_namespace()}
         if op == "append":
             return self._append(parse_append(body))
         if op == "query":
             return self._query(parse_query(body))
-        raise invalid('op must be "append" or "query"')
+        if op == "open":
+            return self._open(parse_open(body))
+        raise invalid('op must be "append", "query" or "open"')
 
     def append(self, items: list[dict], namespace: str | None = None, import_: bool = False) -> dict:
         return self.handle({"op": "append", "namespace": namespace, "import": import_, "items": items})
@@ -250,6 +275,17 @@ class Memory:
         )
         return {"items": items, "as_of": timeutil.format(as_of), "tokens": tokens, "took_ms": _ms_since(t0)}
 
+    def _open(self, req: OpenIn) -> dict:
+        t0 = time.perf_counter()
+        ns = self.namespace(req.namespace)
+        msg = ns.find_message(req.id)
+        if msg is None:
+            raise ApiError("not_found", f"no message {req.id} in namespace {req.namespace!r}")
+        items = ns.around(msg, req.before, req.after, req.max_tokens, self._tokenizer, max(timeutil.now_ms(), ns.last_live_created))
+        if items is None:
+            raise ApiError("not_found", f"no message {req.id} in namespace {req.namespace!r}")
+        return {"items": items, "took_ms": _ms_since(t0)}
+
     def candidates(self, ns: Namespace, req: QueryIn, as_of: int) -> list[Candidate]:
         cfg = self.config
         pool = max(cfg.candidates, 3 * req.top_k)
@@ -257,16 +293,35 @@ class Memory:
         if cfg.search in ("hybrid", "vector") and self._embedder is not None:
             qvec = self._embed_query(req.text, req.context)
         use_keywords = cfg.search in ("hybrid", "keyword") or qvec is None
-        cands = ns.search(req.text, qvec, req.filter, as_of, pool, use_keywords, cfg.rrf_k)
-        if self.reranker is not None and cands:
-            head = cands[: cfg.candidates]
-            scores = self.reranker.score(req.text, [ns.row_text(c.row) for c in head])
-            order = sorted(range(len(head)), key=lambda i: -scores[i])
-            floor = min(scores) if scores else 0.0
-            cands = [Candidate(head[i].row, float(scores[i]), head[i].similarity) for i in order] + [
-                Candidate(c.row, c.score * floor, c.similarity) for c in cands[len(head) :]
-            ]
-        return cands
+        cands = ns.search(req.text, qvec, req.filter, as_of, pool, use_keywords, cfg.rrf_k, cfg.exact_lane, cfg.session_boost)
+        if self.reranker is None or req.rerank == 0:
+            return cands
+        candidates = cfg.candidates if req.rerank is None else req.rerank
+        if candidates <= 0:  # full scan: the reranker reads every visible item
+            found = {c.row for c in cands}
+            cands = cands + [Candidate(int(r), 0.0) for r in ns.visible(req.filter, as_of) if int(r) not in found]
+        if not cands:
+            return cands
+        head = cands if candidates <= 0 else cands[:candidates]
+        scores = self.reranker.score(req.text, ns.rank_texts([c.row for c in head], cfg.rerank_context))
+        if cfg.pick is not None:
+            # The System-1 model decides: a candidate is returned only if its probability of helping reaches
+            # ``pick``, most confident first; the rest, and everything it did not read, are left out.
+            kept = sorted((i for i in range(len(head)) if scores[i] >= cfg.pick), key=lambda i: (-scores[i], i))
+            return [Candidate(head[i].row, float(scores[i]), head[i].similarity) for i in kept]
+        # A full scan has no search order to fuse with (items past the keyword matches come oldest first).
+        if cfg.rerank_fusion == "rrf" and candidates > 0:
+            by_model = sorted(range(len(head)), key=lambda i: (-scores[i], i))
+            model_rank = {i: r for r, i in enumerate(by_model, start=1)}
+            best = 2 / (cfg.rrf_k + 1)
+            scores = [(1 / (cfg.rrf_k + i + 1) + 1 / (cfg.rrf_k + model_rank[i])) / best for i in range(len(head))]
+        # A tie (the search and the model swapped two items) keeps the search's order: on the development
+        # questions this was a little better than letting the model break it.
+        order = sorted(range(len(head)), key=lambda i: (-scores[i], i))
+        floor = min(scores) if scores else 0.0
+        return [Candidate(head[i].row, float(scores[i]), head[i].similarity) for i in order] + [
+            Candidate(c.row, c.score * floor, c.similarity) for c in cands[len(head) :]
+        ]
 
     def _embed_query(self, text: str, context: str | None) -> np.ndarray:
         profile = getattr(self._embedder, "profile", None)
@@ -372,6 +427,9 @@ class Memory:
                 "search": self.config.search,
                 "doc_context": self.config.doc_context,
                 "doc_author": self.config.doc_author,
+                "candidates": self.config.candidates,
+                "rerank_context": self.config.rerank_context,
+                "rerank_fusion": self.config.rerank_fusion,
             },
             "reranker": getattr(self.reranker, "name", None),
             "namespaces": {name: self.namespace(name).stats() for name in self.namespaces()},

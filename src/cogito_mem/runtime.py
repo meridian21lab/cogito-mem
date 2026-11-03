@@ -153,24 +153,6 @@ class LlamaServerEmbedder:
         return finish(np.array([d["embedding"] for d in data], dtype=np.float32))
 
 
-class LlamaServerReranker:
-    """A cross-encoder reranker (stage-0 arm R) served by ``llama-server --reranking``."""
-
-    def __init__(self, base: str, name: str):
-        self.base = base
-        self.name = name
-
-    def score(self, query: str, texts: Sequence[str]) -> list[float]:
-        if not texts:
-            return []
-        res = _post(self.base, "/v1/rerank", {"query": query, "documents": list(texts), "top_n": len(texts)})
-        scores = [0.0] * len(texts)
-        for r in res["results"]:  # type: ignore[index]
-            s = float(r["relevance_score"])
-            scores[r["index"]] = s if 0.0 <= s <= 1.0 else float(1.0 / (1.0 + np.exp(-s)))
-        return scores
-
-
 # --------------------------------------------------------------------------- process management
 
 _WATCHDOG = r"""
@@ -439,7 +421,7 @@ def _safe_extract(names: Sequence[str], target: Path) -> None:
 
 
 class LlamaRuntime:
-    """Starts (or connects to) llama-server for the embedding model and, optionally, a reranker."""
+    """Starts (or connects to) llama-server for the embedding model."""
 
     def __init__(self, root: Path | None, url: str | None = None):
         self.root = root
@@ -492,19 +474,3 @@ class LlamaRuntime:
         if self.server is not None:
             self.server.stop()
             self.server = None
-
-
-def start_reranker(spec: str, root: Path | None) -> tuple[LlamaServerReranker, LlamaServer | None]:
-    """``spec`` is a reranker GGUF path or the URL of a llama-server started with ``--reranking``."""
-    if spec.startswith(("http://", "https://")):
-        return LlamaServerReranker(spec.rstrip("/"), spec), None
-    binary = find_llama_server(root)
-    if binary is None:
-        raise RuntimeUnavailable("llama-server was not found for the reranker")
-    model = Path(spec).expanduser()
-    if not model.exists():
-        raise RuntimeUnavailable(f"reranker model {model} does not exist")
-    log_path = root / "run" / "llama-reranker.log" if root is not None else None
-    server = LlamaServer(binary, model, ["--reranking"], log_path)
-    server.start()
-    return LlamaServerReranker(server.base, model.name), server

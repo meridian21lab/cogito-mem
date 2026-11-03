@@ -2,6 +2,20 @@
 
 What changed in each version of Cogi (cogito-mem), for people who use it.
 
+## 0.3.0 — 3 Nov 2026
+
+**Update note:** Cogi now keeps a few lines of command output and what each sub-agent reports, where 0.2 kept neither. To keep messages only, set `COGITO_MEM_CAPTURE_TOOL_OUTPUT=off` and `COGITO_MEM_CAPTURE_SUBAGENTS=off`. Restart Claude Code after updating.
+
+- **Searches fill their budget.** A search used to stop at 10 results, often well short of its token budget. It now returns up to 300 and lets the budget decide. `memory_query` reads 2,500 tokens when Claude gives no budget, up from 1,000.
+- **A new note with each prompt.** Recall now shows the best few matches at more length, then one-line pointers to others. `COGITO_MEM_RECALL_DESIGN=shipped` brings back the old note.
+- **New tool: `memory_open`.** Claude can open a message a pointer names and read the messages around it.
+- **Remembers command results and sub-agent reports.** From each command, the lines that say how it went: errors, metrics, how a long run ended. Files Claude reads are still not stored.
+- **Past sessions, if you want them.** `COGITO_MEM_BACKFILL=on` reads sessions from before you installed Cogi in the background, when a session starts and at most hourly.
+- **Stays up between prompts.** The service waits 12 idle hours before stopping, not one, and a prompt that finds it down starts it again.
+- **Cleaner recall.** Text Claude Code wrote, which older versions stored, no longer appears in recall.
+- **Published results on 1M+ token histories.** On LongMemEval's long test, about 1.2M tokens per question, Cogi finds the right past session in its top 5 for 93.0% of 500 questions, ahead of four other local memory plugins run on the same questions. See the [results page](https://meridian21lab.github.io/cogito-mem/results.html).
+- **No reranker option.** `cogito-mem serve --reranker` and `COGITO_MEM_RERANKER` are gone, and `serve --reranker` now stops with an error. Cogi runs its plain hybrid search, which needs no setup. On a slow machine or with several prompts at once, the option could leave a prompt with no memory at all.
+
 ## 0.2.1 — 21 Oct 2026
 
 **Update note:** the plugin now runs `uvx cogito-mem==0.2.1`, so you need [uv](https://docs.astral.sh/uv/) on your PATH. Restart Claude Code after updating.

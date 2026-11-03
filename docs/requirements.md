@@ -69,7 +69,7 @@ ago? I'd like to revisit it"*, and the assistant finds it with one memory query.
 **Transport:**
 - `POST /v1/memory` on localhost, with a JSON body that names the operation in `op`.
 - The Python library takes the same dictionary.
-- MCP (v0) exposes the same two bodies as the tools `memory_append` and `memory_query` (§3.5).
+- MCP (v0) exposes the same two bodies as the tools `memory_append` and `memory_query` (§3.5), and later `memory_open`, which reads one message whole with its neighbours.
 
 ### 3.1 append
 
@@ -136,7 +136,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
     "include_retracted": false
   },
   "as_of": null,
-  "top_k": 10,
+  "top_k": 300,
   "max_tokens": 1000
 }
 ```
@@ -147,7 +147,7 @@ background, so new text can be found by keyword at once and by meaning a moment 
 | `context` | no | Extra text that steers the search: in v0 it is joined to `text` before embedding. It is never returned. The minimum bar does not measure it (§13). |
 | `filter.*` | no | Exact filters. `null` means no filter. `kind` takes a list of kinds. `valid_after` is inclusive and `valid_before` exclusive; both apply to `valid_at`. |
 | `as_of` | no (default now) | The moment the memory is viewed from. Only items with `created_at` ≤ `as_of` are visible, and only retractions made by then apply. |
-| `top_k` | no (default 10, max 100) | The most items to return. |
+| `top_k` | no (default 300, max 1000; 10 and 100 until 1 Nov 2026, see §15 item 26) | The most items to return. By default the budget decides how much comes back; set `top_k` to return fewer. It also sets how far each search list is read (§4), so it can change the order. |
 | `max_tokens` | no (default 1000; 300 in the first draft, see §15 item 21) | The reading budget: the most tokens of returned `text`, counted with the EmbeddingGemma 2 tokenizer. |
 
 **How items are filled.** Items are taken in score order. An item that would push the total past
@@ -300,6 +300,7 @@ message.
 2. Mask the store to what `as_of` and the filters allow.
 3. Run an exact cosine search over the vectors, plus BM25 if stage 0 keeps it, and fuse the two by
    reciprocal rank.
+   Each list is read to `max(30, 3 × top_k)` items, 900 by default.
 4. Take the top 30 candidates. In stage 0 the reranker may reorder them, and in stage 1 the head.
 5. Fill items up to `top_k` and `max_tokens` (§3.2).
 
@@ -576,8 +577,11 @@ These fill gaps the sections above leave open. Each can change without touching 
    model is `embeddinggemma-2-Q8_0.gguf` (310 MB) from `ggml-org/embeddinggemma-2-GGUF`. A watchdog stops the
    server if the memory process dies.
 4. **One warm service.** `cogito-mem serve` holds the memory and the model; the MCP server, the hooks and the
-   CLI are thin clients that start it on demand. It listens on 127.0.0.1:7327, stops after one idle hour, and
+   CLI are thin clients that start it on demand. It listens on 127.0.0.1:7327, stops after 12 idle hours, and
    refuses requests whose body is not JSON or whose `Host` is not local, so a web page cannot read or write it.
+   Over 125 days of one author's 2,392 prompts, 170 waits between prompts were longer than one hour and 18 longer
+   than 12, and each costs the next prompt its recall; a prompt that finds the service down starts it for the one
+   after (`COGITO_MEM_KEEP_ALIVE=off` goes back to one hour and no restart).
 5. **The default `as_of` is the memory's clock:** max(now, the latest `created_at`). `created_at` strictly
    increases by at least 1 ms, so a burst of appends can run a few milliseconds ahead of the wall clock; with
    "now" alone, a query right after such a burst would miss the newest items.
@@ -597,11 +601,19 @@ These fill gaps the sections above leave open. Each can change without touching 
     by author `actions` per turn (the tool calls between two prompts): the command lines it ran, marked when they
     failed or did not run, and the files it read, edited or wrote, at most 800 characters
     (`COGITO_MEM_CAPTURE_ACTIONS=off` leaves it out). Its `client_ref` is the line of the turn's first tool call,
-    so capturing again from any point adds no second copy. It leaves out tool output, file contents, thinking,
-    sub-agent turns, slash-command output, injected system reminders, compaction summaries and text inside
-    `<private>…</private>`. Obvious secrets (API keys, tokens, private keys, `password=…`) are replaced with
-    `[redacted]` before they are stored. Backfills (`capture … --all`, exports) use `import`.
-    `COGITO_MEM_CAPTURE=off` pauses the hooks. Recall shows `actions` items after the messages, in the room left.
+    so capturing again from any point adds no second copy. Also from Claude Code: one item by author `subagent` per
+    report a sub-agent hands back (`COGITO_MEM_CAPTURE_SUBAGENTS=off` leaves it out), and, by rule with no model, one
+    item by author `tool` per tool result that has something to keep (`COGITO_MEM_CAPTURE_TOOL_OUTPUT=off` leaves it
+    out): the command line, then the end of a failed command's output, lines with an error or a metric, and the last
+    lines of a long output, at most 800 characters per result and 2,400 per turn, for what failed first and then the
+    newest. Nothing is kept of Read or of commands that only show files. It leaves out the rest of tool output, file contents,
+    thinking, the sub-agents' other turns, slash-command output, injected system reminders, compaction summaries and
+    text inside `<private>…</private>`. Obvious secrets (API keys, tokens, private keys, `password=…`) are replaced
+    with `[redacted]` before they are stored. Backfills (`capture … --all`, exports) use `import`; `capture … --all`
+    keeps cursors of its own, so it also reads what earlier versions left out. With `COGITO_MEM_BACKFILL=on`, `SessionStart` starts it in
+    the background the first time and at most hourly after that, for the Agent SDK runs no hook sees (off by default:
+    it reads history from before the install, and sessions from while capture was paused). `COGITO_MEM_CAPTURE=off` pauses the hooks. Recall shows `actions` items
+    after the messages, in the room left.
 11. **MCP details:** `author` is the client's name from `initialize`; `thread_id` is the Claude Code session
     (Claude Code passes `CLAUDE_CODE_SESSION_ID` to MCP servers), else `default`. Tool errors come back as tool
     results with `isError`, and every result carries the §3.2 response as text and as `structuredContent`.
@@ -673,6 +685,12 @@ These fill gaps the sections above leave open. Each can change without touching 
 20. **Arm R on CPU is far over budget:** Qwen3-Reranker-0.6B in llama.cpp scored 32 candidates in about 16 s on
     the same VM (about 0.5 s each), so R stays a GPU option, as §7 expects. Its scores also looked
     uncalibrated (0.015 for a clear match); check the GGUF's rerank template before using R's scores.
+    **Checked, 1 Nov 2026:** older Qwen3 GGUFs have no rerank template or classifier, so `--reranking` scored noise (9e-9
+    for a clear match). ggml-org's has both; `runtime.YesNoReranker` asks the others the model's own yes-or-no question, and the
+    two agree within noise. Ordering by the model's score beats fusing its ranks at small budgets on LongMemEval_M's tuning
+    questions: coverage 59.5 % against 48.7 % at 300 tokens, 74.7 % against 69.6 % at 1,000, level at 2,500, so score alone is
+    the default. On LongMemEval_M's 312 held-out answerable questions, every needed turn within 1,000 tokens goes from 56.4 %
+    to 75.6 % (+19.2, 95 % CI 14.1 to 24.4), and session R@5 from 94.9 to 96.8. Stays opt-in: 640 MB, and a GPU.
 21. **The default budget is 1,000 tokens, not 300** (author's decision, 19 Oct 2026). On LoCoMo answered by
     gpt-4o-mini and judged by an LLM, 300 tokens scored 8.7 points below the whole conversation (−12.5 to −4.7),
     while 1,000 was level with it (−1.8, −5.5 to +1.8), and 1,000 tokens is small next to a chat client's context.
@@ -729,3 +747,26 @@ These fill gaps the sections above leave open. Each can change without touching 
     locked launch reads (`uv run` is not), and `plugin/uv.lock` lists that release and numpy with their hashes. A
     release now reaches plugin users in two steps: PyPI first, then `scripts/pin_plugin.py` (docs/development.md). A
     warm hook start measured 119 ms with `uvx` against 97 ms with `uv run --frozen`.
+26. **`top_k` defaults to 300 and may go up to 1,000, so the budget decides how much comes back** (1 Nov 2026). With
+    the old default of 10, most replies stopped before the 1,000-token budget. Of 20 queries on a real memory (about
+    100 tokens per item), 14 stopped at 10 items, with a median of 952 tokens and as few as 372; from `top_k` 50 up,
+    all 20 used at least 991 tokens. LoCoMo's turns are shorter, about 28 tokens, so its replies stopped at about 280
+    tokens. Share of LoCoMo questions with every needed turn in the reply, and median query time on 10M tokens (random
+    vectors, Metal, a budget of 1,000):
+
+    | `top_k` | 300 tokens | 1,000 tokens | 2,500 tokens | 5,000 tokens | query |
+    |---|---|---|---|---|---|
+    | 10 | 59.5 % | 63.1 % | 63.1 % | 63.1 % | 13.2 ms |
+    | 100 | 56.5 % | 72.5 % | 81.3 % | 82.5 % | 13.9 ms |
+    | **300** | 56.6 % | **74.1 %** | 82.4 % | 89.5 % | 15.0 ms |
+    | 1,000 | 56.6 % | 74.1 % | 82.4 % | 89.5 % | 18.9 ms |
+
+    300 is the smallest value tried that loses nothing at these budgets, and 300 turns of even LoCoMo's length hold
+    about 8,400 tokens. The maximum rises to 1,000, since 100 such turns hold only about 2,750 and `max_tokens` goes up
+    to 100,000. Part of the gain at 1,000 tokens is not the count: no reply reaches 100 items there, but `top_k` also
+    sets how far each search list is read. On LoCoMo the 900 items of the default read a whole conversation. Two costs:
+    a caller asking for 300 tokens without a `top_k` now gets 56.6 % instead of 59.5 %, because the longer lists change
+    the order; and `max_tokens` counts only `text`, while each item adds about 430 characters of JSON, so more short
+    items make a larger reply. On the real memory, the default now fills the budget (median 13 items and 1,000 tokens,
+    at least 997); the median reply went from 6,800 to 9,000 characters and the largest from 7,800 to 18,300. LongMemEval-S is unchanged at 99.0 % session R@5. Recall (hooks) keeps its own `top_k` of 20, because it
+    filters to a few precise items rather than filling a budget.

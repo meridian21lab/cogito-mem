@@ -214,3 +214,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local eval data, results and internal notes
+/data/
+/results/
+/reports/
+/research_notes/
+.*.swp

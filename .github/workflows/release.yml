@@ -38,6 +38,11 @@ jobs:
         run: sed -i "s#](site/assets/#](https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_REF_NAME}/site/assets/#g" README.md
       - name: Build
         run: uv build
+      - name: Check that what we built has no reranker
+        env:
+          COGITO_MEM_CHECK_DIST: dist
+          COGITO_MEM_NO_DOWNLOAD: "1"
+        run: uv run --extra test pytest -q tests/test_release_has_no_reranker.py
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
       - name: Publish to the MCP Registry

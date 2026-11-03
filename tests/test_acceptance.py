@@ -108,7 +108,7 @@ def test_setup_in_one_command(machine):
     session = McpSession(entry)
     try:
         tools = session.request("tools/list", {})["tools"]
-        assert {t["name"] for t in tools} == {"memory_append", "memory_query"}
+        assert {t["name"] for t in tools} == {"memory_append", "memory_query", "memory_open"}
         saved = session.tool("memory_append", text="Decision: we keep the memory local-first.")
         assert saved["items"][0]["status"] == "added"
         answer = session.tool("memory_query", text="what did we decide about local-first?")

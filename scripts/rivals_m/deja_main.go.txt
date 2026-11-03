@@ -1,0 +1,268 @@
+// Command rivalsm runs deja's production retrieval path on one LongMemEval split, a question at a time,
+// and writes each question's ranked sessions as JSON lines. Copied into the clone as scripts/rivalsm/main.go,
+// because deja's packages are internal to its module.
+//
+// runQuestion below follows scripts/longmemeval/main.go at the pinned commit line for line: one Claude-format
+// transcript per haystack session, index.Ensure, then search with the verbatim question and the CLI's code path.
+// What differs: it reads a per-question file instead of the whole dataset (a resume needs this; json.Unmarshal of
+// the 2.7 GB file is also heavy), it keeps the whole ranking, not only the rank of the first hit, and it times the
+// index build. Scoring happens elsewhere.
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"syscall"
+	"time"
+
+	"github.com/vshulcz/deja-vu/internal/index"
+	"github.com/vshulcz/deja-vu/internal/search"
+)
+
+type lmeTurn struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type lmeQuestion struct {
+	QuestionID        string      `json:"question_id"`
+	QuestionType      string      `json:"question_type"`
+	Question          string      `json:"question"`
+	QuestionDate      string      `json:"question_date"`
+	HaystackDates     []string    `json:"haystack_dates"`
+	HaystackSessionID []string    `json:"haystack_session_ids"`
+	HaystackSessions  [][]lmeTurn `json:"haystack_sessions"`
+}
+
+type manifest struct {
+	Rows []struct {
+		File       string `json:"file"`
+		QuestionID string `json:"question_id"`
+	} `json:"rows"`
+	Samples map[string][]string `json:"samples"`
+}
+
+func parseLMEDate(s string) time.Time {
+	t, err := time.Parse("2006/01/02 (Mon) 15:04", s)
+	if err != nil {
+		return time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+	return t
+}
+
+func fatal(err error) {
+	fmt.Fprintln(os.Stderr, "rivalsm:", err)
+	os.Exit(1)
+}
+
+func dirSize(root string) int64 {
+	var total int64
+	_ = filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if info, ierr := d.Info(); ierr == nil {
+				total += info.Size()
+			}
+		}
+		return nil
+	})
+	return total
+}
+
+func maxRSSMB() float64 {
+	var ru syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &ru); err != nil {
+		return 0
+	}
+	return float64(ru.Maxrss) / (1 << 20) // bytes on darwin
+}
+
+type row struct {
+	QuestionID string   `json:"question_id"`
+	Ranked     []string `json:"ranked_sessions"`
+	Items      int      `json:"items_returned"`
+	LoadS      float64  `json:"load_s"`
+	QueryMS    float64  `json:"query_ms"`
+	RSSMB      float64  `json:"rss_mb"`
+	DiskMB     float64  `json:"disk_mb"`
+	Tier       string   `json:"tier"`
+}
+
+func runQuestion(q lmeQuestion) (row, error) {
+	out := row{QuestionID: q.QuestionID}
+	tmp, err := os.MkdirTemp("", "lme")
+	if err != nil {
+		return out, err
+	}
+	defer os.RemoveAll(tmp)
+	claudeRoot := filepath.Join(tmp, "claude")
+	proj := filepath.Join(claudeRoot, "-work-lme")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		return out, err
+	}
+	for si, turns := range q.HaystackSessions {
+		id := q.HaystackSessionID[si]
+		ts := parseLMEDate(q.HaystackDates[si])
+		f, err := os.Create(filepath.Join(proj, id+".jsonl"))
+		if err != nil {
+			return out, err
+		}
+		enc := json.NewEncoder(f)
+		for ti, turn := range turns {
+			var content any = turn.Content
+			if turn.Role == "assistant" {
+				content = []any{map[string]any{"type": "text", "text": turn.Content}}
+			}
+			line := map[string]any{
+				"type":      turn.Role,
+				"sessionId": id,
+				"timestamp": ts.Add(time.Duration(ti) * time.Minute).UTC().Format(time.RFC3339),
+				"message":   map[string]any{"role": turn.Role, "content": content},
+			}
+			if err := enc.Encode(line); err != nil {
+				_ = f.Close()
+				return out, err
+			}
+		}
+		if err := f.Close(); err != nil {
+			return out, err
+		}
+	}
+	dir := filepath.Join(tmp, "index.db")
+	_ = os.Setenv("DEJA_CLAUDE_ROOT", claudeRoot)
+	_ = os.Setenv("DEJA_INDEX_DIR", dir)
+	t0 := time.Now()
+	if err := index.Ensure(dir, "claude", true, nil); err != nil {
+		return out, err
+	}
+	out.LoadS = time.Since(t0).Seconds()
+	out.DiskMB = float64(dirSize(dir)) / (1 << 20)
+
+	o := search.Options{Query: q.Question, All: true}
+	if t, perr := time.Parse("2006/01/02 (Mon) 15:04", q.QuestionDate); perr == nil {
+		o.Now = t
+	}
+	t1 := time.Now()
+	result, err := index.SearchWithRecoveryDetailed(dir, o, nil)
+	if err != nil {
+		return out, err
+	}
+	o.Tier = result.Tier
+	if result.Stemmed {
+		o.Stemmed = true
+		o.FuzzyVariants = result.Variants
+	} else if result.Fuzzy {
+		o.FuzzyVariants = result.Variants
+	}
+	var hits []search.Hit
+	if result.Tier == search.TierError {
+		hits = search.ErrorHits(result.Sessions, o.Query)
+	} else if result.Tier == search.TierRelevance {
+		hits = search.RelevanceHits(result.Sessions, index.RelevanceTerms(q.Question))
+	} else if hits, err = search.Run(result.Sessions, o); err != nil {
+		return out, err
+	}
+	out.QueryMS = float64(time.Since(t1).Microseconds()) / 1000
+	out.Tier = result.Tier
+	out.Items = len(hits)
+	out.Ranked = make([]string, 0, len(hits))
+	for _, h := range hits {
+		out.Ranked = append(out.Ranked, h.Session.ID)
+	}
+	return out, nil
+}
+
+func main() {
+	dataDir := flag.String("data-dir", "", "folder with manifest.json and q/")
+	sample := flag.String("sample", "all", "all, or a sample name in the manifest")
+	outPath := flag.String("out", "", "JSON lines; a rerun skips the questions already in it")
+	header := flag.String("header", "{}", "settings, as JSON, written as the first line")
+	flag.Parse()
+
+	raw, err := os.ReadFile(filepath.Join(*dataDir, "manifest.json"))
+	if err != nil {
+		fatal(err)
+	}
+	var m manifest
+	if err := json.Unmarshal(raw, &m); err != nil {
+		fatal(err)
+	}
+	selected := map[string]bool{}
+	if *sample != "all" {
+		ids, ok := m.Samples[*sample]
+		if !ok {
+			fatal(fmt.Errorf("no sample %q", *sample))
+		}
+		for _, id := range ids {
+			selected[id] = true
+		}
+	}
+
+	done := map[string]bool{}
+	if f, err := os.Open(*outPath); err == nil {
+		sc := bufio.NewScanner(f)
+		sc.Buffer(make([]byte, 1<<20), 1<<26)
+		first := true
+		for sc.Scan() {
+			if first {
+				first = false
+				if sc.Text() != *header {
+					fatal(fmt.Errorf("%s holds a run with other settings: %s", *outPath, sc.Text()))
+				}
+				continue
+			}
+			var r struct {
+				QuestionID string `json:"question_id"`
+			}
+			if json.Unmarshal(sc.Bytes(), &r) == nil && r.QuestionID != "" {
+				done[r.QuestionID] = true
+			}
+		}
+		_ = f.Close()
+	}
+	log, err := os.OpenFile(*outPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		fatal(err)
+	}
+	defer log.Close()
+	if info, _ := log.Stat(); info.Size() == 0 {
+		fmt.Fprintln(log, *header)
+	}
+
+	start := time.Now()
+	ran := 0
+	for _, r := range m.Rows {
+		if (*sample != "all" && !selected[r.QuestionID]) || done[r.QuestionID] {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(*dataDir, "q", r.File))
+		if err != nil {
+			fatal(err)
+		}
+		var qs []lmeQuestion
+		if err := json.Unmarshal(data, &qs); err != nil {
+			fatal(err)
+		}
+		out, err := runQuestion(qs[0])
+		if err != nil {
+			fatal(fmt.Errorf("question %s: %w", r.QuestionID, err))
+		}
+		out.RSSMB = maxRSSMB()
+		line, err := json.Marshal(out)
+		if err != nil {
+			fatal(err)
+		}
+		if _, err := log.Write(append(line, '\n')); err != nil {
+			fatal(err)
+		}
+		ran++
+		if ran%10 == 0 {
+			fmt.Printf("%d questions, %.0f s\n", ran, time.Since(start).Seconds())
+		}
+	}
+	fmt.Printf("done: %d questions run, %.0f s\n", ran, time.Since(start).Seconds())
+}

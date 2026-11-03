@@ -1,0 +1,242 @@
+#!/usr/bin/env node
+// hippo-memory's five benchmark-script settings, the source of its published 98.0, on one LongMemEval split.
+// Copied into the clone as benchmarks/longmemeval/rivals_best.mjs, because it imports hippo's built modules.
+//
+//   node --max-old-space-size=30000 rivals_best.mjs --data-dir <split> --work <dir> --out-prefix <rows/hippo-best> --header-json '{...}'
+//
+// Follows chunk_per_turn_embed.mjs, chunk_per_turn_bm25_index.mjs and chunk_per_turn_hybrid_retrieve.mjs --per-haystack:
+// a MiniLM vector per distinct turn, BM25 term and length statistics over every distinct session (or turn) in the whole
+// file, each question ranked within its own haystack, sessions scored by their best turn, RRF with k 60, top 100.
+//
+// Why those scripts can't be run as they are at this size: they read the dataset and write their BM25 corpora as one
+// string each, and Node refuses strings over about 512 MB. So this holds the corpora in memory instead of in JSON, reads a
+// file per question, keeps vectors in a flat binary file (resumable), and uses a session -> indices table rather than a
+// scan over every turn for each question (same candidates, and ties are broken by id, so the same order).
+// buildCorpus, tokenize and rrfFuse are hippo's own, from its build.
+import { appendFileSync, existsSync, mkdirSync, openSync, closeSync, readFileSync, ftruncateSync, statSync, writeFileSync, writeSync } from 'node:fs';
+import { join } from 'node:path';
+import { parseArgs } from 'node:util';
+import { tokenize } from '../../dist/base/util/tokenize.js';
+import { rrfFuse, RRF_K } from '../../dist/domain/search/rrf.js';
+import { buildCorpus } from '../../dist/domain/search/bm25.js';
+
+const { values: args } = parseArgs({
+  options: {
+    'data-dir': { type: 'string' }, work: { type: 'string' }, 'out-prefix': { type: 'string' },
+    suffix: { type: 'string' }, 'header-json': { type: 'string', default: '{}' }, 'turn-out': { type: 'string' },
+  },
+});
+const SETTINGS = [
+  { name: 'dense_only', level: 'turn', bm25: 0, dense: 1 },
+  { name: 'turn_sym', level: 'turn', bm25: 0.5, dense: 0.5 },
+  { name: 'turn_asym', level: 'turn', bm25: 0.2, dense: 0.8 },
+  { name: 'session_sym', level: 'session', bm25: 0.5, dense: 0.5 },
+  { name: 'session_asym', level: 'session', bm25: 0.2, dense: 0.8 },
+];
+const TOP_K = 100;
+const BM25_K1 = 1.5; // chunk_per_turn_hybrid_retrieve.mjs
+const BM25_B = 0.75;
+const DIM = 384;
+
+const dataDir = args['data-dir'];
+const work = args.work;
+mkdirSync(work, { recursive: true });
+const manifest = JSON.parse(readFileSync(join(dataDir, 'manifest.json'), 'utf8'));
+
+// ---- distinct turns, in the scripts' order: first appearance across the file
+const seen = new Set();
+const turnSid = [];
+const turnText = [];
+let conflicts = 0;
+const firstText = new Map();
+const questions = [];
+for (const row of manifest.rows) {
+  const q = JSON.parse(readFileSync(join(dataDir, 'q', row.file), 'utf8'))[0];
+  questions.push({ question_id: q.question_id, question: q.question, hay: new Set(q.haystack_session_ids) });
+  for (let si = 0; si < q.haystack_session_ids.length; si++) {
+    const sid = q.haystack_session_ids[si];
+    const sess = q.haystack_sessions[si];
+    for (let ti = 0; ti < sess.length; ti++) {
+      const key = `${sid}|${ti}`;
+      if (seen.has(key)) {
+        if (firstText.get(key) !== sess[ti].content.length) conflicts++;
+        continue;
+      }
+      seen.add(key);
+      firstText.set(key, sess[ti].content.length);
+      turnSid.push(sid);
+      turnText.push(sess[ti].content);
+    }
+  }
+}
+firstText.clear();
+const N = turnSid.length;
+console.log(`distinct turns ${N}, repeated ids whose text differs ${conflicts}`);
+
+// ---- embed, resumable
+const vecPath = join(work, 'turns.f32');
+const { pipeline, env } = await import('@huggingface/transformers');
+env.cacheDir = process.env.HIPPO_MODEL_CACHE;
+env.localModelPath = process.env.HIPPO_MODEL_CACHE;
+env.allowRemoteModels = false;
+const pipe = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+let done = existsSync(vecPath) ? Math.floor(statSync(vecPath).size / (DIM * 4)) : 0;
+const fd = openSync(vecPath, 'a');
+if (existsSync(vecPath)) ftruncateSync(fd, done * DIM * 4);
+const t0 = Date.now();
+let last = t0;
+const start = done;
+for (; done < N; done++) {
+  const res = await pipe(turnText[done], { pooling: 'mean', normalize: true });
+  if (res.data.length !== DIM) throw new Error(`vector of ${res.data.length} dimensions`);
+  writeSync(fd, Buffer.from(new Float32Array(res.data).buffer));
+  const now = Date.now();
+  if (now - last > 60_000) {
+    const rate = (done + 1 - start) / ((now - t0) / 1000);
+    console.log(`embedded ${done + 1}/${N}, ${rate.toFixed(1)}/s, ${((N - done - 1) / rate / 60).toFixed(0)} min left`);
+    last = now;
+  }
+}
+closeSync(fd);
+const embedS = (Date.now() - t0) / 1000;
+console.log(`embedding finished, ${embedS.toFixed(0)} s this run`);
+writeFileSync(join(work, 'embed.json'), JSON.stringify({ turns: N, seconds_last_run: embedS, turns_this_run: N - start }));
+const buf = readFileSync(vecPath);
+const mat = new Float32Array(buf.buffer, buf.byteOffset, N * DIM);
+
+// ---- BM25 corpora over every distinct turn and session in the file
+const bySession = new Map();
+for (let i = 0; i < N; i++) {
+  if (!bySession.has(turnSid[i])) bySession.set(turnSid[i], []);
+  bySession.get(turnSid[i]).push(i);
+}
+const sessionIds = [...bySession.keys()];
+const sessionIndex = new Map(sessionIds.map((sid, i) => [sid, i]));
+const turnCorpus = buildCorpus(turnText);
+const sessionCorpus = buildCorpus(sessionIds.map((sid) => bySession.get(sid).map((i) => turnText[i]).join('\n')));
+if (!args['turn-out']) turnText.length = 0;
+console.log(`corpora: turns N=${turnCorpus.N} avgLen=${turnCorpus.avgLen.toFixed(2)}; sessions N=${sessionCorpus.N} avgLen=${sessionCorpus.avgLen.toFixed(2)}`);
+
+function bm25Score(corpus, docIdx, queryTerms) {
+  const doc = corpus.docs[docIdx];
+  if (doc.length === 0) return 0;
+  const tf = new Map();
+  for (const t of doc) tf.set(t, (tf.get(t) ?? 0) + 1);
+  let score = 0;
+  for (const term of queryTerms) {
+    const f = tf.get(term) ?? 0;
+    if (f === 0) continue;
+    const df = corpus.df.get(term) ?? 0;
+    const idf = Math.log((corpus.N - df + 0.5) / (df + 0.5) + 1);
+    score += idf * ((f * (BM25_K1 + 1)) / (f + BM25_K1 * (1 - BM25_B + BM25_B * (doc.length / corpus.avgLen))));
+  }
+  return score;
+}
+
+const byScoreThenId = (a, b) => (b[1] !== a[1] ? b[1] - a[1] : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+
+// With --turn-out: what the scripts' rows carry as `content`, each ranked session's best dense turn, for every setting. Then stop.
+if (args['turn-out']) {
+  const path = args['turn-out'];
+  const done2 = new Set();
+  if (existsSync(path)) for (const line of readFileSync(path, 'utf8').split('\n').slice(1)) {
+    try { done2.add(JSON.parse(line).question_id); } catch { /* cut short or blank */ }
+  } else writeFileSync(path, args['header-json'] + '\n');
+  let c2 = 0;
+  for (const q of questions) {
+    if (done2.has(q.question_id)) continue;
+    const t1 = performance.now();
+    const qv = new Float32Array((await pipe(q.question, { pooling: 'mean', normalize: true })).data);
+    const denseBest = [], turnBest = [], sessionBest = [];
+    const bestIdx = new Map();
+    const terms = tokenize(q.question);
+    for (const sid of q.hay) {
+      const idxs = bySession.get(sid) ?? [];
+      let best = -Infinity, bi = -1, bestTurn = 0;
+      for (const i of idxs) {
+        let s = 0;
+        const off = i * DIM;
+        for (let j = 0; j < DIM; j++) s += mat[off + j] * qv[j];
+        if (s > best) { best = s; bi = i; }
+        const b = bm25Score(turnCorpus, i, terms);
+        if (b > bestTurn) bestTurn = b;
+      }
+      if (idxs.length) { denseBest.push([sid, best]); bestIdx.set(sid, bi); }
+      if (bestTurn > 0) turnBest.push([sid, bestTurn]);
+      const ss = sessionIndex.has(sid) ? bm25Score(sessionCorpus, sessionIndex.get(sid), terms) : 0;
+      if (ss > 0) sessionBest.push([sid, ss]);
+    }
+    const denseSids = denseBest.sort(byScoreThenId).map((x) => x[0]);
+    const turnSids = turnBest.sort(byScoreThenId).map((x) => x[0]);
+    const sessionSids = sessionBest.sort(byScoreThenId).map((x) => x[0]);
+    const settings = {};
+    for (const s of SETTINGS) {
+      const fused = rrfFuse([s.level === 'turn' ? turnSids : sessionSids, denseSids], [s.bm25, s.dense], { k: RRF_K });
+      const ranked = [...fused.entries()].sort(byScoreThenId).slice(0, TOP_K).map((x) => x[0]);
+      settings[s.name] = ranked.map((sid) => ({ s: sid, t: turnText[bestIdx.get(sid)] }));
+    }
+    appendFileSync(path, JSON.stringify({ question_id: q.question_id, query_ms: performance.now() - t1, settings }) + '\n');
+    if (++c2 % 50 === 0) console.log(`${c2} questions`);
+  }
+  console.log(`done: ${c2} questions run`);
+  process.exit(0);
+}
+const outFor = (s) => `${args['out-prefix']}_${s.name}-${args.suffix}.jsonl`;
+const finished = new Set();
+SETTINGS.forEach((s, si) => {
+  const path = outFor(s);
+  const header = JSON.stringify({ settings: { ...JSON.parse(args['header-json']), setting: `hippo-best_${s.name}`, flags: `${s.level} BM25, RRF k=${RRF_K} weights ${s.bm25}:${s.dense}, top ${TOP_K}, per haystack` } });
+  if (!existsSync(path) || !statSync(path).size) writeFileSync(path, header + '\n');
+  const lines = readFileSync(path, 'utf8').split('\n').filter(Boolean);
+  if (lines[0] !== header) throw new Error(`${path} holds other settings: ${lines[0]}`);
+  const here = new Set();
+  for (const line of lines.slice(1)) {
+    try { here.add(JSON.parse(line).question_id); } catch { /* cut short */ }
+  }
+  if (si === 0) here.forEach((q) => finished.add(q));
+  else for (const q of [...finished]) if (!here.has(q)) finished.delete(q);
+});
+
+let count = 0;
+const tR = Date.now();
+for (const q of questions) {
+  if (finished.has(q.question_id)) continue;
+  const t1 = performance.now();
+  const qv = new Float32Array((await pipe(q.question, { pooling: 'mean', normalize: true })).data);
+  const denseBest = [];
+  const turnBest = [];
+  const sessionBest = [];
+  const terms = tokenize(q.question);
+  for (const sid of q.hay) {
+    const idxs = bySession.get(sid) ?? [];
+    let best = -Infinity;
+    let bestTurn = 0;
+    for (const i of idxs) {
+      let s = 0;
+      const off = i * DIM;
+      for (let j = 0; j < DIM; j++) s += mat[off + j] * qv[j];
+      if (s > best) best = s;
+      const b = bm25Score(turnCorpus, i, terms);
+      if (b > bestTurn) bestTurn = b;
+    }
+    if (idxs.length) denseBest.push([sid, best]);
+    if (bestTurn > 0) turnBest.push([sid, bestTurn]);
+    const ss = sessionIndex.has(sid) ? bm25Score(sessionCorpus, sessionIndex.get(sid), terms) : 0;
+    if (ss > 0) sessionBest.push([sid, ss]);
+  }
+  const denseSids = denseBest.sort(byScoreThenId).map((x) => x[0]);
+  const turnSids = turnBest.sort(byScoreThenId).map((x) => x[0]);
+  const sessionSids = sessionBest.sort(byScoreThenId).map((x) => x[0]);
+  const scanMs = performance.now() - t1;
+  for (const s of SETTINGS) {
+    const t2 = performance.now();
+    const fused = rrfFuse([s.level === 'turn' ? turnSids : sessionSids, denseSids], [s.bm25, s.dense], { k: RRF_K });
+    const ranked = [...fused.entries()].sort(byScoreThenId).slice(0, TOP_K).map((x) => x[0]);
+    appendFileSync(outFor(s), JSON.stringify({
+      question_id: q.question_id, ranked_sessions: ranked, items_returned: ranked.length,
+      load_s: 0, query_ms: scanMs + (performance.now() - t2), rss_mb: process.resourceUsage().maxRSS / 1024, disk_mb: 0,
+    }) + '\n');
+  }
+  if (++count % 50 === 0) console.log(`${count} questions, ${((Date.now() - tR) / 1000).toFixed(0)} s`);
+}
+console.log(`done: ${count} questions run`);

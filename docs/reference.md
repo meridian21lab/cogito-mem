@@ -11,18 +11,22 @@ The friendly version is on the [docs site](https://meridian21lab.github.io/cogit
 
 ## Use it
 
-**In a chat.** Your assistant decides when to use the two tools; you can also ask directly:
+**In a chat.** Your assistant decides when to use the tools; you can also ask directly:
 
 - *"Remember that we ship the beta to ten design partners first."* → `memory_append`
 - *"What did we decide about the beta?"*, *"What was that idea from last week?"* → `memory_query`
 
-**Without asking, in Claude Code.** Each prompt is looked up before Claude sees it, and up to 300 tokens of what
-earlier sessions said about it come along: items from the current project first, each with its date and author,
-nothing from the session you are in, and nothing at all when no match is strong enough. A new session also starts
-with how the last session in the same project ended. Recall never holds up a prompt by more than about a second.
+**Without asking, in Claude Code.** Each prompt is looked up before Claude sees it, and up to 8 lines of what was said
+about it come along, about 400 tokens: the three best matches at more length and five short excerpts, each with its date,
+author and an id that `memory_open` reads in full. A line appears once in a session. The session you are in counts only
+for what compaction has removed, and compacting also adds lines about what the summary may have lost. Recent messages from other
+sessions of the project get their own lines. Nothing comes when no match is strong enough. A new session also starts with
+how the last session in the same project ended. Recall never holds up a prompt by more than about a second.
+`COGITO_MEM_RECALL_DESIGN=shipped` goes back to at most 300 tokens of whole messages from other sessions, and `pointers`
+gives short lines only. `cogito-mem report` shows what recall added, what it cost and what Claude opened.
 To turn it off, set `COGITO_MEM_RECALL=off` (for example under `"env"` in `~/.claude/settings.json`, which also
 works for the plugin) or run `cogito-mem install claude-code --no-recall`; `COGITO_MEM_RECALL_MIN_SCORE` (default
-0.6) sets how strong a match must be.
+0.6) sets how strong a match must be in the `shipped` design.
 
 **From a terminal:**
 
@@ -72,12 +76,13 @@ Client().query("mascot")          # or through the local service, which starts o
 ```
 
 - **One warm service** holds the memory and the model. The MCP server, the hooks and the CLI are thin clients that
-  start it when needed; it stops after an idle hour.
+  start it when needed; it stops after 12 idle hours, and a prompt that finds it down starts it for the next one.
 - **Append:** long texts are split into pieces of at most 256 tokens at paragraph, then sentence, breaks; the text
   goes to the log and the keyword index and the call returns. Embedding follows in the background.
 - **Query:** the question is embedded, the memory is masked to what was known `as_of` the moment you ask about and
   to your filters, exact cosine search and BM25 are fused by reciprocal rank, and items are filled in score order
-  up to `top_k` and the token budget.
+  up to the token budget (1,000 by default). `top_k` (default 300, at most 1,000) only limits the count when you
+  want fewer items; it also sets how far each search list is read, so it can change the order.
 
 ## Settings
 
@@ -93,9 +98,15 @@ Everything has a working default. Environment variables, for when you need them:
 | `COGITO_MEM_LLAMA_SERVER` | A `llama-server` binary, or the URL of a running one. |
 | `COGITO_MEM_GPU_LAYERS` / `COGITO_MEM_THREADS` | Passed to llama.cpp as `-ngl` / `-t` (`0` layers = CPU only). |
 | `COGITO_MEM_ALLOWED_HOSTS` | Extra `Host` names the service accepts (e.g. a Docker network name). |
-| `COGITO_MEM_RERANKER` | A reranker GGUF or llama-server URL (reorders the top 30; GPU recommended). |
+| `COGITO_MEM_RECALL_DESIGN` | What each prompt gets: `hybrid` (default), `pointers` or `shipped`. |
+| `COGITO_MEM_RECALL_HOLDOUT` | Percent of sessions kept without recall, for comparing outcomes (default 0). |
+| `COGITO_MEM_RECALL_TOOLS` | `on` adds lines about a file before an edit (default off; needs a `PostToolUse` hook). |
 | `COGITO_MEM_CAPTURE` | `off` pauses capture: the hooks store nothing (`capture … --all` still runs when you ask). |
 | `COGITO_MEM_CAPTURE_ACTIONS` | `off` stops the note of each Claude Code turn's commands and files (default on). |
+| `COGITO_MEM_CAPTURE_SUBAGENTS` | `off` stops keeping what each Claude Code sub-agent reports back (default on). |
+| `COGITO_MEM_CAPTURE_TOOL_OUTPUT` | `off` stops keeping the telling lines of command output (default on). |
+| `COGITO_MEM_BACKFILL` | `on` reads past Claude Code sessions, and Agent SDK runs, in the background from `SessionStart`, at most hourly, including sessions from while capture was paused (default off). |
+| `COGITO_MEM_KEEP_ALIVE` | `off` goes back to stopping the service after one idle hour, and to leaving it down when a prompt finds it down (default on). |
 | `COGITO_MEM_NO_DOWNLOAD` | Never download anything. |
 
 ## Privacy and security
@@ -105,12 +116,17 @@ Everything has a working default. Environment variables, for when you need them:
 - The service listens on `127.0.0.1` only. It refuses requests whose `Host` or `Origin` is not local and bodies
   that are not JSON, so a web page you visit can neither read nor write it. There are no accounts: anything that
   runs as you on your machine can use it, as with any local tool.
-- Capture skips tool output, file contents, thinking, system text and the summary Claude Code writes when it
-  compacts a session; of a command it keeps only the command line. API keys, tokens, private keys and
-  `password=…` values become `[redacted]` before anything is stored.
+- Capture skips file contents, thinking, system text and the summary Claude Code writes when it compacts a
+  session. Of a command it keeps the command line and, by rule, at most 800 characters of its output: the end of
+  a failed command, lines with an error or a metric, the last lines of a long run. Of a sub-agent it keeps only
+  what the sub-agent reports back. API keys, tokens, private keys and `password=…` values become `[redacted]`
+  before anything is stored.
+- Sessions from before the install are read only when asked: `cogito-mem capture claude-code --all`, or
+  `COGITO_MEM_BACKFILL=on` to do it from `SessionStart`, at most hourly, for Agent SDK runs and whatever else no hook
+  saw, including sessions from while capture was paused. Old sessions may hold secrets the redaction misses.
 - Text inside `<private>…</private>` is not stored; the rest of the message is. `COGITO_MEM_CAPTURE=off` (for
-  example under `"env"` in `~/.claude/settings.json`) pauses capture; `COGITO_MEM_CAPTURE_ACTIONS=off` keeps
-  messages only.
+  example under `"env"` in `~/.claude/settings.json`) pauses capture; `COGITO_MEM_CAPTURE_ACTIONS=off`,
+  `COGITO_MEM_CAPTURE_SUBAGENTS=off` and `COGITO_MEM_CAPTURE_TOOL_OUTPUT=off` together keep messages only.
 - Nothing leaves your machine. The only network traffic is the one-time download of llama.cpp and the model.
 
 ## FAQ

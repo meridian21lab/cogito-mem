@@ -3,6 +3,9 @@
     cogito-mem eval locomo-qa --data locomo10.json --context memory --budget 1000 --out results/qa-1000.json
     cogito-mem eval locomo-qa --data locomo10.json --context full --out results/qa-full.json
     cogito-mem eval locomo-qa compare results/qa-full.json results/qa-1000.json
+    cogito-mem eval locomo-qa hindsight-ingest --data locomo10.json --out results/hindsight-ingest.json
+    cogito-mem eval locomo-qa --data locomo10.json --context hindsight --budget 1000 --out results/qa-hindsight-1000.json
+    cogito-mem eval locomo-qa rejudge their-results.json --format mem0 --data locomo10.json --out results/mem0-rejudged.json
 
 ``eval locomo`` measures retrieval with no model in the loop. Published memory systems (Mem0, Zep,
 LangMem, MemOS, Memobase, Letta, ...) report something else: an answering model reads what the
@@ -26,6 +29,10 @@ Context arms:
   --top-k, ``as_of`` after the last session), each item as "<date>: <author>: <text>", in date order.
 - ``full``: the whole conversation, every turn as "<session date> | <speaker>: <text>" (the paper's
   full-context baseline; it calibrates our judge against the published 72.90).
+- ``hindsight``: what a running Hindsight server (github.com/vectorize-io/hindsight, MIT) recalls for
+  the question, each fact with the date it was mentioned, in date order. Fill it first with
+  ``eval locomo-qa hindsight-ingest``. Hindsight runs in its own environment and is reached over HTTP
+  only, so it adds no dependency here.
 
 LLM calls go to any OpenAI-compatible endpoint: OpenRouter by default, keyed by OPENROUTER_API_KEY
 or OPENROUTER_AUTH_TOKEN (``--env-file`` reads either from a file). Every call is cached by its exact
@@ -52,7 +59,8 @@ from pathlib import Path
 
 from .. import timeutil
 from ..memory import Config, Memory
-from .common import record, sha256_file, utc_now
+from ..tokenizer import ApproxTokenizer, count
+from .common import query_past_top_k_limit, record, sha256_file, utc_now
 from .locomo import CATEGORIES, evidence_ids, load_conversation, sessions, turn_text
 from .longmemeval import make_embedder, paired_bootstrap
 
@@ -280,8 +288,11 @@ class LLM:
                     continue
 
     def chat(self, model: str, messages: list[dict], temperature: float | None = 0.0, json_mode: bool = False,
-             reasoning: str | None = None, max_tokens: int | None = None, providers: list[str] | None = None) -> dict:
+             reasoning: str | None = None, max_tokens: int | None = None, providers: list[str] | None = None,
+             tools: list[dict] | None = None) -> dict:
         body: dict = {"model": model, "messages": messages}
+        if tools:
+            body["tools"] = tools
         if temperature is not None:
             body["temperature"] = temperature
         if json_mode:
@@ -312,6 +323,8 @@ class LLM:
                 choice = res["choices"][0]
                 out = {"content": choice["message"].get("content") or "", "finish_reason": choice.get("finish_reason"),
                        "usage": res.get("usage") or {}, "model": res.get("model"), "provider": res.get("provider")}  # fmt: skip
+                if choice["message"].get("tool_calls"):
+                    out["tool_calls"] = choice["message"]["tool_calls"]
                 break
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", "replace")[:300]
@@ -400,13 +413,18 @@ def without_captions(sample: dict) -> dict:
     return {**sample, "conversation": conv}
 
 
+def _said(item: dict) -> str:
+    """Hindsight's facts are written in the third person and have no author."""
+    return f"{item['author']}: {item['text']}" if item.get("author") else item["text"]
+
+
 def answer_messages(protocol: str, arm: str, question: str, sample: dict, items: list[dict], cache: bool = False) -> list[dict]:
     if protocol == "mem0-2025":
         if arm == "full":
             context = "".join(f"{d} | {s}: {t}\n" for d, s, t in full_lines(sample))
             return [{"role": "system", "content": PAPER_FULL_SYSTEM},
                     {"role": "user", "content": PAPER_FULL_PROMPT.format(question=question, context=context)}]  # fmt: skip
-        memories = [f"{when_text(i['valid_at'])}: {i['author']}: {i['text']}" for i in items]
+        memories = [f"{when_text(i['valid_at'])}: {_said(i)}" for i in items]
         prompt = PAPER_ANSWER_PROMPT.format(memories=json.dumps(memories, indent=4), question=question)
         return [{"role": "system", "content": prompt}]
     conv = sample["conversation"]
@@ -416,7 +434,7 @@ def answer_messages(protocol: str, arm: str, question: str, sample: dict, items:
         lines = [f"({_dt.datetime.strptime(d, '%I:%M %p on %d %B, %Y'):%A, %B %d, %Y}) {s}: {t}"
                  for d, s, t in full_lines(sample)]  # fmt: skip
     else:
-        lines = [f"({day_text(i['valid_at'])}) {i['author']}: {i['text']}" for i in items[:BENCH_MEMORY_LIMIT]]
+        lines = [f"({day_text(i['valid_at'])}) {_said(i)}" for i in items[:BENCH_MEMORY_LIMIT]]
     text = "\n".join(["The following memories are presented in chronological order (oldest to newest).", ""] + lines)
     prompt = BENCH_ANSWER_PROMPT.format(memories=text, question=question, reference_date=reference)
     if not cache:
@@ -444,6 +462,124 @@ def extract_answer(protocol: str, content: str) -> str:
     return content.strip()
 
 
+# --------------------------------------------------------------------------- Hindsight over HTTP
+
+
+def _hindsight(url: str, method: str, path: str, body: dict | None = None, timeout: float = 600.0) -> dict:
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url.rstrip("/") + path, data=data, method=method, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read() or b"{}")
+
+
+APPROX = ApproxTokenizer()
+
+
+def hindsight_bank(sample: dict) -> str:
+    return f"locomo-{sample.get('sample_id')}"
+
+
+def hindsight_metrics(url: str) -> dict[str, float]:
+    """Hindsight's own LLM counters (Prometheus text), summed by counter and model, so that ingest can be priced."""
+    req = urllib.request.Request(url.rstrip("/") + "/metrics")
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        text = resp.read().decode()
+    out: dict[str, float] = defaultdict(float)
+    for m in re.finditer(r"^(hindsight_llm_[a-z_]*?(?:total|tokens)[a-z_]*)(\{[^}]*\})? ([0-9.e+-]+)$", text, re.M):
+        if m.group(1).endswith(("_bucket", "_sum", "_count", "_created")):
+            continue
+        scope = re.search(r'scope="([^"]*)"', m.group(2) or "")
+        out[f"{m.group(1)}|{scope.group(1) if scope else ''}"] += float(m.group(3))
+    return dict(out)
+
+
+def hindsight_items(sample: dict) -> list[dict]:
+    """One retain item per session, the turns as JSON with the session date: how Hindsight's own benchmark loads LoCoMo."""
+    conv = sample["conversation"]
+    items = []
+    for number, when, turns in sessions(conv):
+        stamp = _dt.datetime.fromtimestamp(when / 1000, tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        items.append({"content": json.dumps(turns), "timestamp": stamp, "document_id": f"{sample.get('sample_id')}_session_{number}",
+                      "context": f"Conversation between {conv.get('speaker_a')} and {conv.get('speaker_b')} (session_{number} of {sample.get('sample_id')})"})  # fmt: skip
+    return items
+
+
+def cmd_hindsight_ingest(args: argparse.Namespace) -> int:
+    """Retain every session of every conversation in a bank of its own, and wait until the work is done."""
+    samples = json.loads(Path(args.data).read_text())
+    if args.conversations:
+        samples = [samples[int(i)] for i in args.conversations.split(",")]
+    before = hindsight_metrics(args.url)
+    t0 = time.perf_counter()
+
+    def ingest(sample: dict) -> dict:
+        bank = hindsight_bank(sample)
+        t1 = time.perf_counter()
+        items = hindsight_items(sample)
+        for item in items:  # in date order, one at a time, as a user's memory would fill
+            _hindsight(args.url, "POST", f"/v1/default/banks/{bank}/memories", {"items": [item], "async": False}, timeout=3600)
+        while True:  # consolidation into observations runs in the background
+            stats = _hindsight(args.url, "GET", f"/v1/default/banks/{bank}/stats")
+            if not stats.get("pending_operations") and not stats.get("pending_consolidation"):
+                break
+            time.sleep(5)
+        done = {"bank": bank, "sessions": len(items), "seconds": round(time.perf_counter() - t1, 1), "stats": stats}
+        print(f"{bank}: {done['seconds']} s, {stats.get('total_nodes')} memories", file=sys.stderr)
+        return done
+
+    with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
+        banks = list(pool.map(ingest, samples))
+    after = hindsight_metrics(args.url)
+    llm = {k: after[k] - before.get(k, 0.0) for k in after if after[k] != before.get(k, 0.0)}
+    out = {"meta": {"url": args.url, "dataset": args.data, "dataset_sha256": sha256_file(Path(args.data)),
+                    "version": _hindsight(args.url, "GET", "/version"), "finished_utc": utc_now()},
+           "seconds": round(time.perf_counter() - t0, 1), "banks": banks, "llm_counters": llm}  # fmt: skip
+    if args.out:
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.out).write_text(json.dumps(out, indent=2))
+    print(json.dumps({k: out[k] for k in ("seconds", "llm_counters")}, indent=2))
+    return 0
+
+
+def hindsight_retrieve(sample: dict, args: argparse.Namespace) -> tuple[dict, list[dict]]:
+    """Recall for every question of categories 1-4 from the conversation's bank.
+
+    Recall is kept in --hindsight-recall-cache, so every answering model reads the same context.
+    """
+    last = sessions(sample["conversation"])[-1][1]
+    as_of = _dt.datetime.fromtimestamp(last / 1000, tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+    bank = hindsight_bank(sample)
+    types = args.hindsight_types.split(",") if args.hindsight_types else None
+    cache_path = Path(args.hindsight_recall_cache) if args.hindsight_recall_cache else None
+    cache = json.loads(cache_path.read_text()) if cache_path and cache_path.exists() else {}
+
+    def recall(qa: dict) -> dict:
+        key = json.dumps([bank, qa["question"], args.budget, args.hindsight_budget, types])
+        if key not in cache:
+            t1 = time.perf_counter()
+            resp = _hindsight(args.hindsight_url, "POST", f"/v1/default/banks/{bank}/memories/recall",
+                              {"query": qa["question"], "budget": args.hindsight_budget, "max_tokens": args.budget, "types": types,
+                               "query_timestamp": as_of, "include": {"entities": None}})  # fmt: skip
+            cache[key] = {"ms": round((time.perf_counter() - t1) * 1000, 2), "results": resp.get("results", [])}
+        return cache[key]
+
+    wanted = [(qi, qa) for qi, qa in enumerate(sample["qa"])
+              if qa.get("category") in CATEGORIES and qa["category"] != 5 and "answer" in qa]  # fmt: skip
+    with concurrent.futures.ThreadPoolExecutor(args.hindsight_recall_workers) as pool:
+        recalled = list(pool.map(lambda pair: recall(pair[1]), wanted))
+    if cache_path:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(cache))
+    rows = []
+    for (qi, qa), got in zip(wanted, recalled):
+        items = sorted(({"valid_at": r.get("mentioned_at") or r.get("occurred_start") or timeutil.format(last), "author": None,
+                         "text": r["text"], "type": r.get("type")} for r in got["results"]), key=lambda i: i["valid_at"])  # fmt: skip
+        rows.append({"sample_id": sample.get("sample_id"), "q": qi, "category": CATEGORIES[qa["category"]],
+                     "category_id": qa["category"], "question": qa["question"], "gold": str(qa["answer"]), "retrieve_ms": got["ms"],
+                     "items": items, "context_tokens": sum(count(APPROX, i["text"]) for i in items)})  # fmt: skip
+    return {"sample_id": sample.get("sample_id")}, rows
+
+
 # --------------------------------------------------------------------------- the run
 
 
@@ -464,15 +600,17 @@ def retrieve(mem: Memory, sample: dict, args: argparse.Namespace) -> tuple[dict,
                "category_id": qa["category"], "question": qa["question"], "gold": str(qa["answer"])}  # fmt: skip
         if args.context == "memory":
             t1 = time.perf_counter()
-            resp = mem.handle({"op": "query", "namespace": "c", "text": qa["question"], "as_of": as_of,
-                               "top_k": args.top_k, "max_tokens": args.budget})  # fmt: skip
+            resp = query_past_top_k_limit(mem, {"op": "query", "namespace": "c", "text": qa["question"], "as_of": as_of,
+                                                "top_k": args.top_k, "max_tokens": args.budget})  # fmt: skip
             row["retrieve_ms"] = round((time.perf_counter() - t1) * 1000, 2)
-            items = sorted(resp["items"], key=lambda i: i["valid_at"])
+            # mem0-2026 reads at most 200 memories: keep the best-ranked before going to date order
+            ranked = resp["items"][:BENCH_MEMORY_LIMIT] if args.protocol == "mem0-2026" else resp["items"]
+            items = sorted(ranked, key=lambda i: i["valid_at"])
             row["items"] = [{"valid_at": i["valid_at"], "author": i["author"], "text": i["text"],
                              "message": i["source"]["id"]} for i in items]  # fmt: skip
             row["context_tokens"] = resp["tokens"]
             want = {ids[d] for d in evidence_ids(qa.get("evidence")) if d in ids}
-            got = {i["source"]["id"] for i in resp["items"]}
+            got = {i["source"]["id"] for i in ranked}
             row["evidence_turns"] = len(want)
             row["evidence_covered"] = bool(want) and want <= got
         else:
@@ -580,8 +718,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     cfg = Config(search=args.search)
     meta = record(embedder.name if embedder is not None else None)
     meta.update({"dataset": str(data_path), "dataset_sha256": sha256_file(data_path), "protocol": args.protocol,
-                 "context": args.context, "budget": args.budget if args.context == "memory" else None,
+                 "context": args.context, "budget": args.budget if args.context != "full" else None,
                  "top_k": args.top_k if args.context == "memory" else None, "search": cfg.search,
+                 "hindsight_budget": args.hindsight_budget if args.context == "hindsight" else None,
+                 "hindsight_types": args.hindsight_types,
                  "captions": not args.no_captions,
                  "answer_model": args.answer_model, "judge_model": args.judge_model, "base_url": base, "judges": args.judges,
                  "answer_reasoning": args.answer_reasoning, "judge_reasoning": args.judge_reasoning,
@@ -591,8 +731,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     t0 = time.perf_counter()
     try:
         for i, sample in enumerate(samples):
-            with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache) as mem:
-                info, qrows = retrieve(mem, sample, args)
+            if args.context == "hindsight":
+                info, qrows = hindsight_retrieve(sample, args)
+            else:
+                with Memory(None, embedder=embedder, config=cfg, cache_path=args.cache) as mem:
+                    info, qrows = retrieve(mem, sample, args)
             if args.questions:
                 qrows = qrows[: args.questions]
             loads.append(info)
@@ -641,6 +784,73 @@ def cmd_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _external_answers(fmt: str, path: Path) -> dict[tuple[int, str], list[str]]:
+    """(conversation index, question) -> the answers another system's result file holds for it, in file order."""
+    res = json.loads(path.read_text())
+    out: dict[tuple[int, str], list[str]] = defaultdict(list)
+    if fmt == "mem0":  # mem0ai/memory-benchmarks, one cutoff per file
+        for e in res["evaluations"]:
+            cutoff = next(iter(e["cutoff_results"].values()))
+            out[(e["conversation_idx"], e["question"])].append(cutoff.get("generated_answer") or "")
+    else:  # plastic-labs/honcho-benchmarks
+        for ci, conv in enumerate(res["detailed_results"]):
+            for q in conv["question_results"]:
+                out[(ci, q["question"])].append(q.get("actual_response") or "")
+    return out
+
+
+def cmd_rejudge(args: argparse.Namespace) -> int:
+    """Our judge over the answers in another system's result file, joined to LoCoMo by conversation and question."""
+    env = dict(os.environ)
+    if args.env_file:
+        env = {**read_env_file(Path(args.env_file)), **env}
+    key = env.get(args.api_key_env) or env.get("OPENROUTER_API_KEY") or env.get("OPENROUTER_AUTH_TOKEN")
+    if not key:
+        print(f"no API key: set {args.api_key_env} or OPENROUTER_API_KEY, or pass --env-file", file=sys.stderr)
+        return 2
+    base = args.base_url or env.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api"
+    llm = LLM(base, key, Path(args.llm_cache) if args.llm_cache else None)
+    data_path, source = Path(args.data), Path(args.source)
+    answers = _external_answers(args.format, source)
+    judges = args.judges.split(",")
+    rows, missing = [], 0
+    for ci, sample in enumerate(json.loads(data_path.read_text())):
+        for qi, qa in enumerate(sample["qa"]):
+            if qa.get("category") not in CATEGORIES or qa["category"] == 5 or "answer" not in qa:
+                continue
+            found = answers.get((ci, qa["question"]))
+            if not found:
+                missing += 1
+                continue
+            rows.append({"sample_id": sample.get("sample_id"), "q": qi, "category": CATEGORIES[qa["category"]],
+                         "category_id": qa["category"], "question": qa["question"], "gold": str(qa["answer"]),
+                         "answer": found.pop(0)})  # fmt: skip
+
+    def judge(row: dict) -> dict:
+        judgments, parsed = {}, True
+        for name in judges:
+            jud = llm.chat(args.judge_model, judge_messages(name, row["question"], row["gold"], row["answer"], row["category_id"]),
+                           temperature=None, json_mode=True, reasoning=args.judge_reasoning, max_tokens=args.judge_max_tokens)  # fmt: skip
+            judgments[name], ok = judge_label(jud["content"])
+            parsed = parsed and ok
+        return {**row, "correct": judgments[judges[0]], "judgments": judgments, "judge_parsed": parsed,
+                "f1": round(token_f1(row["answer"], row["gold"]), 4)}  # fmt: skip
+
+    with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
+        done = list(pool.map(judge, rows))
+    summary = summarize(done)
+    summary["llm_cost_usd"] = round(llm.cost, 4)
+    summary["unmatched_questions"] = missing
+    meta = {"rejudged_from": str(source), "source_sha256": sha256_file(source), "format": args.format, "dataset": str(data_path),
+            "dataset_sha256": sha256_file(data_path), "judge_model": args.judge_model, "judges": judges,
+            "judge_reasoning": args.judge_reasoning, "judge_max_tokens": args.judge_max_tokens, "base_url": base,
+            "served_by": dict(llm.providers), "finished_utc": utc_now()}  # fmt: skip
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(json.dumps({"meta": meta, "summary": summary, "per_question": done}, indent=2))
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="cogito-mem eval locomo-qa", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)  # fmt: skip
@@ -652,11 +862,38 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--bootstrap", type=int, default=10_000)
     c.add_argument("--seed", type=int, default=0)
     c.set_defaults(func=cmd_compare)
+    hi = sub.add_parser("hindsight-ingest", help="retain LoCoMo in a running Hindsight server, one bank per conversation")
+    hi.add_argument("--data", required=True, help="locomo10.json")
+    hi.add_argument("--url", default="http://127.0.0.1:8888")
+    hi.add_argument("--conversations", help="comma-separated conversation indices (default: all 10)")
+    hi.add_argument("--workers", type=int, default=5, help="conversations to ingest at the same time")
+    hi.add_argument("--out")
+    hi.set_defaults(func=cmd_hindsight_ingest)
+    rj = sub.add_parser("rejudge", help="apply our judge to the answers in another system's published result file")
+    rj.add_argument("source", help="the other system's result file")
+    rj.add_argument("--format", required=True, choices=["mem0", "honcho"])
+    rj.add_argument("--data", required=True, help="locomo10.json")
+    rj.add_argument("--out", required=True)
+    rj.add_argument("--judge-model", default="openai/gpt-5-mini")
+    rj.add_argument("--judges", default="mem0-2026,mem0-2025", help="judge prompts to apply, comma-separated; the first gives J")
+    rj.add_argument("--judge-reasoning", default="minimal")
+    rj.add_argument("--judge-max-tokens", type=int, default=1500)
+    rj.add_argument("--base-url")
+    rj.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
+    rj.add_argument("--env-file")
+    rj.add_argument("--llm-cache", default=str(Path.home() / ".cogito-mem" / "cache" / "locomo-qa-llm.jsonl"))
+    rj.add_argument("--workers", type=int, default=16)
+    rj.set_defaults(func=cmd_rejudge)
     p.add_argument("--data", help="locomo10.json")
     p.add_argument("--protocol", default="mem0-2025", choices=sorted(PROTOCOLS))
-    p.add_argument("--context", default="memory", choices=["memory", "full"])
+    p.add_argument("--context", default="memory", choices=["memory", "full", "hindsight"])
     p.add_argument("--budget", type=int, default=1000, help="max_tokens of the memory's answer (memory arm)")
-    p.add_argument("--top-k", type=int, help="top_k of the query (default and maximum: 100)")
+    p.add_argument("--top-k", type=int, help="top_k of the query (default 100; may pass the API's limit)")
+    p.add_argument("--hindsight-url", default="http://127.0.0.1:8888")
+    p.add_argument("--hindsight-budget", default="mid", choices=["low", "mid", "high"], help="Hindsight's search effort (its default: mid)")
+    p.add_argument("--hindsight-types", help="fact types to recall, comma-separated (default: Hindsight's, all)")
+    p.add_argument("--hindsight-recall-cache", help="JSON file that keeps recalls, so all answering models read the same context")
+    p.add_argument("--hindsight-recall-workers", type=int, default=4)
     p.add_argument("--search", default="hybrid", choices=["hybrid", "vector", "keyword"])
     p.add_argument("--embedder", default="auto", choices=["auto", "hash"])
     p.add_argument("--no-captions", action="store_true", help="drop the photo captions (as Mem0's 2025 harness did)")

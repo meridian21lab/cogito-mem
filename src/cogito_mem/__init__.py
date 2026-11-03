@@ -8,7 +8,7 @@
 ``Client`` sends the same dictionaries to the local service instead.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = ["Memory", "Config", "Client", "ApiError", "__version__"]
 

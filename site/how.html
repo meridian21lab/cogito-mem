@@ -48,8 +48,8 @@
     <h2>Two ways nuts come back</h2>
     <div class="two">
       <div class="card"><h3>By themselves</h3>
-        <p>With each prompt, Cogi adds what earlier sessions said about it (up to 300 tokens), and nothing when
-          nothing matches well. A new session starts with how the last one in the same project ended.</p></div>
+        <p>With each prompt, Cogi adds what was said about it earlier, including what compaction removed from this session
+          (about 400 tokens, each line with an id Claude can open), and nothing when nothing matches well. A new session starts with how the last one in the same project ended.</p></div>
       <div class="card"><h3>When Claude asks</h3>
         <p>When you refer to something earlier, Claude searches the memory itself (<code>memory_query</code>)
           and reads up to 1,000 tokens. Saying <em>"check your memory"</em> makes sure it does.</p></div>
@@ -94,11 +94,13 @@
           <li>What you type</li>
           <li>Claude's answers</li>
           <li>What each turn did: the commands Claude ran (and which failed) and the files it touched</li>
+          <li>What each sub-agent reports back</li>
+          <li>A few lines of command output: errors, metrics and how a long run ended</li>
           <li>When each was said, and in which session</li>
         </ul></div>
       <div class="card"><h3>Skips</h3>
         <ul class="list-no">
-          <li>Tool output, file contents and Claude's thinking</li>
+          <li>The rest of tool output, file contents and Claude's thinking</li>
           <li>System messages and the summary of a compacted session</li>
           <li>Anything you put inside <code>&lt;private&gt;…&lt;/private&gt;</code></li>
           <li>Secrets: API keys, tokens and passwords become <code>[redacted]</code></li>

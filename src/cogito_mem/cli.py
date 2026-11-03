@@ -9,10 +9,20 @@ import os
 import signal
 import sys
 import threading
+import time
 from pathlib import Path
 
 from . import __version__
-from .api import DEFAULT_MAX_TOKENS
+from .api import DEFAULT_MAX_TOKENS, DEFAULT_TOP_K
+
+BACKFILL_NOTICE = (
+    "cogito-mem is reading the user's past Claude Code sessions into the memory, in the background, for the first "
+    "time, because COGITO_MEM_BACKFILL=on is set. Tell the user so in one line."
+)
+# Long enough to span a working day and most nights: over 125 days of one author's 2,392 prompts, 170 waits between
+# prompts were longer than an hour and 18 longer than 12 hours, and each such wait costs the next prompt its recall.
+IDLE_TIMEOUT = 12 * 3600.0
+SHORT_IDLE_TIMEOUT = 3600.0  # with COGITO_MEM_KEEP_ALIVE=off
 
 
 def _root(args: argparse.Namespace) -> Path:
@@ -48,22 +58,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
     from .server import MemoryServer, default_port
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    reranker = None
-    rerank_server = None
     root = _root(args)
-    if args.reranker or os.environ.get("COGITO_MEM_RERANKER"):
-        from .runtime import start_reranker
-
-        reranker, rerank_server = start_reranker(args.reranker or os.environ["COGITO_MEM_RERANKER"], root)
     memory = Memory(
         root,
         embedder=args.embedder,
-        config=Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author),
-        reranker=reranker,
+        config=Config(search=args.search, doc_context=args.doc_context, doc_author=args.doc_author, exact_lane=args.exact_lane),
     )
     port = args.port if args.port is not None else default_port()
     try:
-        server = MemoryServer(memory, host=args.host, port=port, idle_timeout=args.idle_timeout)
+        server = MemoryServer(memory, host=args.host, port=port, idle_timeout=_idle_timeout(args))
     except OSError as exc:
         from .client import Client
 
@@ -95,9 +98,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
         pass
     finally:
         memory.close()
-        if rerank_server is not None:
-            rerank_server.stop()
     return 0
+
+
+def _idle_timeout(args: argparse.Namespace) -> float:
+    from .capture import enabled
+
+    if args.idle_timeout is not None:
+        return args.idle_timeout
+    return IDLE_TIMEOUT if enabled("COGITO_MEM_KEEP_ALIVE") else SHORT_IDLE_TIMEOUT
 
 
 def _migrate_before_serving(root: Path) -> None:
@@ -127,7 +136,7 @@ def cmd_mcp(args: argparse.Namespace) -> int:
         namespace = _namespace(args)
     except InvalidName as exc:  # answer every tool call with the reason, so the assistant can say it
         namespace, handle = None, _refuse(str(exc))
-    McpServer(handle, namespace=namespace).run()
+    McpServer(handle, namespace=namespace, ledger_folder=_root(args) / "run").run()
     return 0
 
 
@@ -158,6 +167,14 @@ def cmd_setup(args: argparse.Namespace) -> int:
     from .install import setup
 
     return setup(_root(args), model_only=args.model_only)
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    from . import ledger, timeutil
+
+    since = timeutil.now_ms() - args.days * 86_400_000 if args.days else None
+    print(json.dumps(ledger.summarize(ledger.read(_root(args) / "run", since)), indent=2))
+    return 0
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -200,7 +217,11 @@ def cmd_capture(args: argparse.Namespace) -> int:
         from .capture import claude_code
 
         if args.all:
-            _print(claude_code.capture_all(_client(args), state, args.namespace))
+            # Cursors of its own: what the hooks read before this version left out sub-agents and tool output.
+            claude_code.mark_swept(root)
+            backfill = root / "run" / "backfill"
+            # Marked again after each file, so no session starts a second sweep while this one runs.
+            _print(claude_code.capture_all(_client(args), backfill, args.namespace, on_file=lambda: claude_code.mark_swept(root)))
             return 0
         if args.transcript is None:  # called as a hook: read its JSON, then work in the background
             try:
@@ -241,6 +262,7 @@ def cmd_recall(args: argparse.Namespace) -> int:
     from .client import Client
     from .names import InvalidName
     from .recall import TIMEOUT, _log, claude_code_hook
+    from .recall import enabled as recall_enabled
 
     root = _root(args)
     try:
@@ -248,17 +270,56 @@ def cmd_recall(args: argparse.Namespace) -> int:
     except InvalidName as exc:  # recall is a hint: say nothing, and note why
         _log(root / "run" / "recall.log", "recall", exc)
         return 0
+    body = sys.stdin.read()
     out = claude_code_hook(
-        sys.stdin.read,
+        lambda: body,
         lambda: Client(url=args.url, root=root, autostart=False, timeout=TIMEOUT),
         namespace=args.namespace,
         min_score=args.min_score,
         max_tokens=args.max_tokens,
         log=root / "run" / "recall.log",
     )
+    try:
+        notice = _sweep_past_sessions(args, root, body)
+    except Exception as exc:  # the next session tries again
+        _log(root / "run" / "recall.log", "SessionStart (reading past sessions)", exc)
+        notice = None
+    if notice and recall_enabled():
+        out = _with_notice(out, notice)
     if out:
         print(out)
     return 0
+
+
+def _sweep_past_sessions(args: argparse.Namespace, root: Path, body: str) -> str | None:
+    """On ``SessionStart``, read past sessions in the background when that is due; what to say, the first time."""
+    from .capture import claude_code, enabled
+
+    try:
+        hook = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(hook, dict) or hook.get("hook_event_name") != "SessionStart":
+        return None
+    # Asked for, never assumed: it reads history from before the install, and sessions from while capture was paused.
+    if not enabled() or os.environ.get("COGITO_MEM_BACKFILL", "off").strip().lower() not in ("1", "on", "true", "yes"):
+        return None
+    swept = claude_code.last_sweep(root)
+    if swept is not None and time.time() - swept < claude_code.SWEEP_SECONDS:
+        return None
+    argv = ["capture", "claude-code", "--all", "--namespace", args.namespace, "--root", str(root)]
+    _detach(argv + (["--url", args.url] if args.url else []), root)
+    claude_code.mark_swept(root)
+    return None if swept is not None else BACKFILL_NOTICE
+
+
+def _with_notice(out: str | None, notice: str) -> str:
+    """The hook's JSON with ``notice`` in front of what it adds to the conversation."""
+    empty = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": ""}}
+    payload = json.loads(out) if out else empty
+    context = payload["hookSpecificOutput"]
+    context["additionalContext"] = f"{notice}\n\n{context['additionalContext']}".strip()
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def cmd_import(args: argparse.Namespace) -> int:
@@ -323,6 +384,14 @@ def cmd_eval(args: argparse.Namespace) -> int:
         from .evals import locomo
 
         return locomo.main(args.eval_args[1:])
+    if args.eval_args[:1] == ["full-context"]:
+        from .evals import full_context
+
+        return full_context.main(args.eval_args[1:])
+    if args.eval_args[:1] == ["long-history"]:
+        from .evals import long_history
+
+        return long_history.main(args.eval_args[1:])
     if args.eval_args[:1] == ["longmemeval-recall"]:
         from .evals import longmemeval_recall
 
@@ -358,13 +427,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("serve", cmd_serve, "run the local service (POST /v1/memory)")
     sp.add_argument("--host", default="127.0.0.1")
     sp.add_argument("--port", type=int, default=None, help="default: $COGITO_MEM_PORT or 7327")
-    sp.add_argument("--idle-timeout", type=float, default=3600.0, help="stop after this many idle seconds (0: never)")
+    sp.add_argument("--idle-timeout", type=float, help="stop after this many idle seconds (default: 12 hours; 0: never)")
     sp.add_argument("--embedder", default="auto", choices=["auto", "hash", "none"])
     sp.add_argument("--search", default="hybrid", choices=["hybrid", "vector", "keyword"])
     sp.add_argument("--doc-context", default="previous", choices=["own", "previous"])
     sp.add_argument("--doc-author", action=argparse.BooleanOptionalAction, default=True,
                     help="put each author's name before their text for search (default: on)")  # fmt: skip
-    sp.add_argument("--reranker", help="reranker GGUF path or llama-server URL (stage-0 arm R)")
+    sp.add_argument("--exact-lane", action=argparse.BooleanOptionalAction, default=False,
+                    help="also rank items holding an identifier from the query word for word")  # fmt: skip
 
     sp = add("mcp", cmd_mcp, "run the MCP server on stdio")
     sp.add_argument("--namespace", help=NAMESPACE_HELP)
@@ -384,6 +454,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("client", choices=["claude-code", "codex", "claude-desktop"])
     sp = add("setup", cmd_setup, "download llama.cpp and the embedding model, without touching any client")
     sp.add_argument("--model-only", action="store_true")
+    sp = add("report", cmd_report, "what recall put in front of Claude, what it cost and what Claude opened")
+    sp.add_argument("--days", type=float, help="only the last N days")
+
     sp = add("doctor", cmd_doctor, "check the install and say how to fix what is missing")
     sp.add_argument("--url")
 
@@ -425,7 +498,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("query", cmd_query, "query the memory")
     sp.add_argument("text")
     sp.add_argument("--namespace", help=NAMESPACE_HELP)
-    sp.add_argument("--top-k", type=int, default=10)
+    sp.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     sp.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS)
     sp.add_argument("--json", action="store_true")
     sp.add_argument("--url")

@@ -133,19 +133,19 @@ def random_vectors(mem: Memory, seed: int = 0) -> None:
         ns.set_vectors(rows, v.astype(np.float16).astype(np.float32))
 
 
-def time_queries(mem: Memory, texts: list[str], warmup: int = 20) -> list[float]:
+def time_queries(mem: Memory, texts: list[str], warmup: int = 20, top_k: int = 10, budget: int = 300) -> list[float]:
     for t in texts[:warmup]:
         json.dumps(mem.handle({"op": "query", "namespace": "bench", "text": t + " warm-up"}))
     out = []
     for t in texts:
         t0 = time.perf_counter()
-        resp = mem.handle({"op": "query", "namespace": "bench", "text": t, "top_k": 10, "max_tokens": 300})
+        resp = mem.handle({"op": "query", "namespace": "bench", "text": t, "top_k": top_k, "max_tokens": budget})
         json.dumps(resp, ensure_ascii=False)
         out.append((time.perf_counter() - t0) * 1000)
     return out
 
 
-def time_http(mem: Memory, texts: list[str]) -> list[float]:
+def time_http(mem: Memory, texts: list[str], top_k: int = 10, budget: int = 300) -> list[float]:
     from ..server import MemoryServer
 
     server = MemoryServer(mem, port=0)
@@ -155,7 +155,7 @@ def time_http(mem: Memory, texts: list[str]) -> list[float]:
         conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=60)
         out = []
         for t in texts:
-            body = json.dumps({"op": "query", "namespace": "bench", "text": t, "top_k": 10, "max_tokens": 300})
+            body = json.dumps({"op": "query", "namespace": "bench", "text": t, "top_k": top_k, "max_tokens": budget})
             t0 = time.perf_counter()
             conn.request("POST", "/v1/memory", body=body, headers={"Content-Type": "application/json"})
             resp = conn.getresponse()
@@ -260,10 +260,10 @@ def cmd_speed(args: argparse.Namespace) -> int:
                 "random_vectors": args.random_vectors,
                 "search": args.search,
             },
-            "query_in_process": _stats(time_queries(mem, texts)),
+            "query_in_process": _stats(time_queries(mem, texts, top_k=args.top_k, budget=args.budget)),
         }
         if args.http:
-            results["query_http_round_trip"] = _stats(time_http(mem, texts[: args.http]))
+            results["query_http_round_trip"] = _stats(time_http(mem, texts[: args.http], args.top_k, args.budget))
         source = [m.text for m in ns.messages[:5000] if len(m.text) > 50] or ["filler text"]
         if args.append_sizes:
             sizes = [parse_count(s) for s in args.append_sizes.split(",")]
@@ -293,6 +293,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--data", help="a LongMemEval file to fill the memory from (default: synthetic text)")
     s.add_argument("--tokens", default="10M", help="memory size, e.g. 10M or 100M")
     s.add_argument("--queries", type=int, default=1000)
+    s.add_argument("--top-k", type=int, default=10, help="top_k of each timed query")
+    s.add_argument("--budget", type=int, default=300, help="max_tokens of each timed query")
     s.add_argument("--http", type=int, default=200, help="queries to time over HTTP (0: skip)")
     s.add_argument("--search", default="hybrid", choices=["hybrid", "vector", "keyword"])
     s.add_argument("--embedder", default="auto", choices=["auto", "hash"])

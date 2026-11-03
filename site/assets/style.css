@@ -175,6 +175,7 @@ table { border-collapse: collapse; width: 100%; font-size: .95rem; }
 th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-weight: 600; color: var(--ink-2); font-size: .85rem; }
 td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td code { overflow-wrap: anywhere; } /* long setting names wrap on a phone instead of hiding off the edge */
 tr.me td { font-weight: 650; }
 .yes { color: var(--ok); font-weight: 700; }
 .part { color: var(--accent); font-weight: 700; }

@@ -202,7 +202,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         if not args.reranker:
             print("arm R needs --reranker (a reranker GGUF or llama-server URL)", file=sys.stderr)
             return 2
-        from ..runtime import start_reranker
+        from .rerankers import start_reranker
 
         reranker, rr_server = start_reranker(args.reranker, None)
     budgets = tuple(int(b) for b in args.budgets.split(","))

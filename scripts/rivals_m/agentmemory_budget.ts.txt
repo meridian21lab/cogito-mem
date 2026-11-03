@@ -1,0 +1,122 @@
+// agentmemory's recall response at each token budget. Copied into the clone as benchmark/rivals_budget.ts.
+//
+// `mem::search` takes `token_budget` and `format` (default "full") and shapes its reply with `buildRecallResponse`, a pure
+// function, called here unchanged on the ranking of the same two paths as the last run: its eval's `bm25` adapter
+// and its older hybrid script. The default limit of 20 results comes from mem::search; the daemon and `iii` engine aren't run.
+// It counts tokens as JSON length / 3, so the scorer measures every reply with the shared counter.
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { parseArgs } from "node:util";
+import { sessionText } from "../eval/runner/input.js";
+import { loadLongMemEval, opaqueSessionId } from "../eval/runner/load.js";
+import { buildRecallResponse } from "../src/functions/recall-response.js";
+import { HybridSearch } from "../src/state/hybrid-search.js";
+import { SearchIndex } from "../src/state/search-index.js";
+import { VectorIndex } from "../src/state/vector-index.js";
+
+const BUDGETS = [1000, 2500, 5000];
+const LIMIT = 20;
+const { values: args } = parseArgs({
+  options: {
+    "data-dir": { type: "string" }, sample: { type: "string", default: "all" }, out: { type: "string" },
+    header: { type: "string", default: "{}" }, adapter: { type: "string", default: "bm25" },
+  },
+});
+const dataDir = args["data-dir"]!;
+const outPath = args.out!;
+
+class MockKV {
+  private store = new Map<string, Map<string, unknown>>();
+  async get<T>(scope: string, key: string): Promise<T> {
+    const m = this.store.get(scope);
+    if (!m || !m.has(key)) throw new Error(`Not found: ${scope}/${key}`);
+    return m.get(key) as T;
+  }
+  async set(scope: string, key: string, value: unknown): Promise<void> {
+    if (!this.store.has(scope)) this.store.set(scope, new Map());
+    this.store.get(scope)!.set(key, value);
+  }
+  async list<T>(scope: string): Promise<T[]> {
+    const m = this.store.get(scope);
+    return m ? (Array.from(m.values()) as T[]) : [];
+  }
+  async delete(scope: string, key: string): Promise<void> { this.store.get(scope)?.delete(key); }
+}
+
+let provider: any = null;
+async function ranker(row: any): Promise<{ question: string; search: () => Promise<any[]>; back: (id: string) => string }> {
+  if (args.adapter === "bm25") {
+    const [q] = loadLongMemEval(join(dataDir, "q", row.file));
+    const opaque = new Map(row.haystack_session_ids.map((sid: string) => [opaqueSessionId(q.id, sid), sid]));
+    const index = new SearchIndex();
+    const byId = new Map<string, any>();
+    for (const session of q.haystack) {
+      const obs: any = { id: session.id, sessionId: session.id, timestamp: session.timestamp ?? "1970-01-01T00:00:00.000Z", type: "discovery",
+        title: "", narrative: sessionText(session), facts: [], concepts: [], files: [], importance: 5 };
+      index.add(obs);
+      byId.set(session.id, obs);
+    }
+    return {
+      question: q.question,
+      search: async () => index.search(q.question, LIMIT).map((r: any) => ({ observation: byId.get(r.sessionId), score: r.score, sessionId: r.sessionId })),
+      back: (id: string) => opaque.get(id) as string,
+    };
+  }
+  if (!provider) {
+    const { LocalEmbeddingProvider } = await import("../src/providers/embedding/local.js");
+    provider = new LocalEmbeddingProvider();
+  }
+  const entry = JSON.parse(readFileSync(join(dataDir, "q", row.file), "utf8"))[0];
+  const bm25 = new SearchIndex();
+  const vector = new VectorIndex();
+  const kv = new MockKV();
+  for (let i = 0; i < entry.haystack_sessions.length; i++) {
+    const sessionId = entry.haystack_session_ids[i];
+    const text = entry.haystack_sessions[i].map((t: any) => `${t.role}: ${t.content}`).join("\n");
+    const obs: any = { id: `obs_${sessionId}`, sessionId, timestamp: new Date().toISOString(), type: "conversation",
+      title: text.slice(0, 80), facts: [], narrative: text, concepts: [], files: [], importance: 5 };
+    bm25.add(obs);
+    vector.add(obs.id, sessionId, await provider.embed(text.slice(0, 512)));
+    await kv.set(`mem:obs:${sessionId}`, obs.id, obs);
+  }
+  const hybrid = new HybridSearch(bm25, vector, provider, kv as any, 0.4, 0.6, 0.0, false);
+  return {
+    question: entry.question,
+    search: async () => (await hybrid.search(entry.question, LIMIT)).map((r: any) => ({ observation: r.observation, score: r.score, sessionId: r.observation.sessionId })),
+    back: (id: string) => id,
+  };
+}
+
+async function main(): Promise<void> {
+  const manifest = JSON.parse(readFileSync(join(dataDir, "manifest.json"), "utf8"));
+  const selected = args.sample === "all" ? null : new Set(manifest.samples[args.sample!]);
+  const done = new Set<string>();
+  if (existsSync(outPath)) {
+    const lines = readFileSync(outPath, "utf8").split("\n").filter(Boolean);
+    if (lines.length && lines[0] !== args.header) throw new Error(outPath + " holds other settings");
+    for (const line of lines.slice(1)) {
+      try { done.add(JSON.parse(line).question_id); } catch { /* cut short */ }
+    }
+  }
+  if (!existsSync(outPath) || !readFileSync(outPath).length) writeFileSync(outPath, args.header + "\n");
+  const start = performance.now();
+  let ran = 0;
+  for (const row of manifest.rows) {
+    if ((selected && !selected.has(row.question_id)) || done.has(row.question_id)) continue;
+    const r = await ranker(row);
+    const replies: Record<string, unknown> = {};
+    for (const b of BUDGETS) {
+      const t0 = performance.now();
+      const results = await r.search();
+      const resp: any = buildRecallResponse(results, "full", b);
+      const ms = performance.now() - t0;
+      replies[String(b)] = { query_ms: ms, passages: resp.results.map((x: any) => ({ s: r.back(x.sessionId), t: x.observation.narrative })), its_tokens: resp.tokens_used,
+        truncated: resp.truncated, excluded: resp.excluded_by_budget };
+    }
+    appendFileSync(outPath, JSON.stringify({ question_id: row.question_id, replies }) + "\n");
+    if (++ran % 10 === 0) console.log(`${ran} questions, ${Math.round((performance.now() - start) / 1000)} s`);
+  }
+  console.log(`done: ${ran} questions run, ${Math.round((performance.now() - start) / 1000)} s`);
+}
+
+main().catch((error) => { console.error(error); process.exitCode = 1; });

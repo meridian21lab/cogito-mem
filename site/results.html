@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Results · Cogi</title>
-  <meta name="description" content="Cogi finds the right past conversation 99 times in 100 on LongMemEval, and on LoCoMo gives 95% of the answer quality of rereading everything from 9 times fewer tokens. Local, free, in milliseconds.">
+  <meta name="description" content="In 1.2 million tokens of chat history, Cogi finds the right past conversation 93 times in 100, ahead of four other local memory plugins. On LoCoMo it gives 95% of the answer quality of rereading everything from 9 times fewer tokens. Local, free, in milliseconds.">
   <meta property="og:title" content="Results · Cogi">
-  <meta property="og:description" content="Cogi finds the right past conversation 99 times in 100 on LongMemEval, and on LoCoMo gives 95% of the answer quality of rereading everything from 9 times fewer tokens. Local, free, in milliseconds.">
+  <meta property="og:description" content="In 1.2 million tokens of chat history, Cogi finds the right past conversation 93 times in 100, ahead of four other local memory plugins. On LoCoMo it gives 95% of the answer quality of rereading everything from 9 times fewer tokens. Local, free, in milliseconds.">
   <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
   <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/results.html">
   <meta name="twitter:card" content="summary_large_image">
@@ -33,11 +33,12 @@
     <p class="eyebrow">Results</p>
     <h1>It remembers. We measured.</h1>
     <p class="lead">We put Cogi through the benchmarks memory tools are judged by, on a laptop, with the exact model it
-      ships with. It finds the right past conversation 99 times in 100, and from a ninth of the reading gives 95% of
-      the answers you'd get by rereading the whole chat. No account, no API key, no bill.</p>
+      ships with. In 1.2 million tokens of chat history it finds the right past conversation 93 times in 100, ahead
+      of four other local memories, and from a ninth of the reading it gives 95% of the answers you'd get by
+      rereading the whole chat. No account, no API key, no bill.</p>
 
     <div class="cards">
-      <div class="card"><div class="big">99.0%</div><p>right past conversation found, on 500 LongMemEval questions</p></div>
+      <div class="card"><div class="big">93%</div><p>right past conversation found, in 1.2 million tokens of history</p></div>
       <div class="card"><div class="big">95%</div><p>of the answer quality of rereading the whole chat, from 9× fewer tokens (LoCoMo)</p></div>
       <div class="card"><div class="big">26 ms</div><p>to search 10 million tokens on a laptop</p></div>
       <div class="card"><div class="big">$0</div><p>per message, and nothing leaves your computer</p></div>
@@ -47,13 +48,28 @@
       <a class="btn" href="https://github.com/meridian21lab/cogito-mem/blob/main/docs/benchmarks.md">See every number</a>
     </div>
 
-    <h2>Brings back the right conversation, 99 times in 100</h2>
+    <h2>Finds the right conversation in 1.2 million tokens</h2>
     <p>Each of <a href="https://github.com/xiaowu0162/LongMemEval">LongMemEval</a>'s 500 questions hides its answer in
-      about 50 past chat sessions. Cogi finds the right one among its first five for 495 of them, with no AI model in
-      the loop: just fast search on your own computer.</p>
+      past chat sessions. In its long test there are about 480 of them per question, some 1.2 million tokens: more
+      than Claude can read at once. Cogi finds the right one among its first five for 465 of the 500, with no AI
+      model in the loop.</p>
     <div class="chart">
       <h3>Questions where the right conversation was missed</h3>
-      <p class="sub">LongMemEval-S, 500 questions · local memory plugins · fewer is better</p>
+      <p class="sub">LongMemEval long test, 500 questions, about 480 sessions each · fewer is better</p>
+      <div class="bars">
+        <span class="name me">Cogi</span><div class="track" title="465 of 500 found"><div class="fill me" style="width:50.0%"></div><span class="val" style="left:50.0%">35 · 93.0%</span></div>
+        <span class="name">hippo-memory</span><div class="track" title="449 of 500 found"><div class="fill" style="width:72.86%"></div><span class="val" style="left:72.86%">51 · 89.8%</span></div>
+        <span class="name">deja-vu</span><div class="track" title="445 of 500 found"><div class="fill" style="width:78.57%"></div><span class="val" style="left:78.57%">55 · 89.0%</span></div>
+        <span class="name">MemPalace</span><div class="track" title="439 of 500 found"><div class="fill" style="width:87.14%"></div><span class="val" style="left:87.14%">61 · 87.8%</span></div>
+        <span class="name">agentmemory</span><div class="track" title="433 of 500 found"><div class="fill" style="width:95.71%"></div><span class="val" style="left:95.71%">67 · 86.6%</span></div>
+      </div>
+      <p class="note">We ran each project ourselves on the same questions, at its best setting, in November 2026.</p>
+    </div>
+    <p>On the short test, with about 50 sessions per question, every plugin does well and the top three are level.
+      The longer the history, the more Cogi's lead shows.</p>
+    <div class="chart">
+      <h3>Questions where the right conversation was missed, short test</h3>
+      <p class="sub">LongMemEval-S, 500 questions, about 50 sessions each · local memory plugins · fewer is better</p>
       <div class="bars">
         <span class="name me">Cogi</span><div class="track" title="495 of 500 found"><div class="fill me" style="width:16.67%"></div><span class="val" style="left:16.67%">5 · 99.0%</span></div>
         <span class="name">hippo-memory</span><div class="track" title="490 of 500 found"><div class="fill" style="width:33.33%"></div><span class="val" style="left:33.33%">10 · 98.0%</span></div>
@@ -63,6 +79,24 @@
         <span class="name">agentmemory</span><div class="track" title="476 of 500 found"><div class="fill" style="width:80.0%"></div><span class="val" style="left:80.0%">24 · 95.2%</span></div>
       </div>
       <p class="note">Each project's own published score, October 2026. Over 500 questions, the first three are level.</p>
+    </div>
+
+    <h2>Hands Claude the messages, not whole old sessions</h2>
+    <p>Claude doesn't read a ranking; it reads the text a memory hands back. Given the same 2,500 tokens, Cogi's reply
+      holds every message the answer needs for 71% of questions. Some other plugins hand back whole old sessions, which
+      fill the space before the part that matters.</p>
+    <div class="chart">
+      <h3>Every needed message in a 2,500-token reply</h3>
+      <p class="sub">LongMemEval long test, 479 questions · each plugin's own search, at its default · higher is better</p>
+      <div class="bars">
+        <span class="name me">Cogi</span><div class="track" title="338 of 479"><div class="fill me" style="width:70.6%"></div><span class="val" style="left:70.6%">70.6%</span></div>
+        <span class="name">MemPalace</span><div class="track" title="293 of 479"><div class="fill" style="width:61.2%"></div><span class="val" style="left:61.2%">61.2%</span></div>
+        <span class="name">hippo-memory</span><div class="track" title="114 of 479"><div class="fill" style="width:23.8%"></div><span class="val" style="left:23.8%">23.8%</span></div>
+        <span class="name">agentmemory</span><div class="track" title="102 of 479"><div class="fill" style="width:21.3%"></div><span class="val" style="left:21.3%">21.3%</span></div>
+      </div>
+      <p class="note">Run by us, November 2026. deja-vu isn't shown: its search is built for a few exact words, not
+        whole questions. Most of this gap comes from what each plugin returns; on ranking alone, the gap is the one in
+        the first chart.</p>
     </div>
 
     <h2>Most of the answers, a ninth of the reading</h2>
@@ -80,7 +114,7 @@
         <span class="name me">Qwen3 235B</span><div class="track" title="88.1 of 92.5"><div class="fill me" style="width:95.3%"></div><span class="val" style="left:95.3%">95% · 88.1 of 92.5</span></div>
         <span class="name me">gpt-oss-120b</span><div class="track" title="85.6 of 89.0"><div class="fill me" style="width:96.2%"></div><span class="val" style="left:96.2%">96% · 85.6 of 89.0</span></div>
       </div>
-      <p class="note">With GPT-5 mini: 300 tokens score 79.6 (the most Cogi adds to a prompt on its own), 2,500 tokens 92.1. Under the stricter 2025 rules each gap grows to 4–9 points.</p>
+      <p class="note">With GPT-5 mini: 300 tokens score 79.6, 2,500 tokens 92.1. Under the stricter 2025 rules each gap grows to 4–9 points.</p>
     </div>
     <p>Published memories were compared with an older model, gpt-4o-mini, which reads long contexts poorly, so
       rereading everything scored lower there. In that setup, the one in the Mem0 paper, Cogi's 1,000 tokens matched
@@ -131,8 +165,9 @@
       <p>Needs <a href="https://docs.astral.sh/uv/">uv</a> and Claude Code. <a href="start.html">Step-by-step guide →</a></p>
     </section>
 
-    <p class="small muted">Measured on a MacBook Pro (Apple M5 Max), 19–20 October 2026, with EmbeddingGemma 2, the model
-      Cogi ships with. Other memories' scores are their own published results. Every number, method and command is in
+    <p class="small muted">Measured on a MacBook Pro (Apple M5 Max), 19 October to 3 November 2026, with EmbeddingGemma 2,
+      the model Cogi ships with. On the long test we ran the other plugins ourselves; elsewhere their scores are their
+      own published results. Every number, method and command is in
       <a href="https://github.com/meridian21lab/cogito-mem/blob/main/docs/benchmarks.md">Benchmarks</a>, including what
       is not measured yet; the <a href="reports/locomo-2026-10-19.html">LoCoMo report</a> has every 2025-protocol chart.</p>
 

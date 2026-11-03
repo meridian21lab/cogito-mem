@@ -1,5 +1,5 @@
 {
-  "description": "cogito-mem: capture each turn into the local memory (in the background), and add relevant memory to each prompt and new session (set COGITO_MEM_RECALL=off to stop that)",
+  "description": "cogito-mem: capture each turn into the local memory (in the background), add relevant memory to each prompt and new session (set COGITO_MEM_RECALL=off to stop that), and read past sessions in the background when a session starts (set COGITO_MEM_BACKFILL=off to stop that)",
   "hooks": {
     "Stop": [
       {
@@ -24,7 +24,7 @@
     ],
     "SessionStart": [
       {
-        "matcher": "startup|resume",
+        "matcher": "startup|resume|compact",
         "hooks": [
           { "type": "command", "command": "uvx cogito-mem==0.2.1 recall claude-code", "timeout": 15 }
         ]
