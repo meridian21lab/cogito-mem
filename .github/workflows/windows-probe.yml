@@ -1,0 +1,62 @@
+name: windows-probe
+
+# One-off: does Cogi work on Windows? Runs only on the ci-windows-probe branch.
+on:
+  push:
+    branches: [ci-windows-probe]
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]" mcp anyio
+      - name: Test
+        env:
+          COGITO_MEM_NO_DOWNLOAD: "1"
+        run: pytest -q -rs
+
+  released:
+    # What a Windows user gets: 0.3.0 from PyPI run the way the plugin runs it (uvx), with the real
+    # llama.cpp download and model, in PowerShell.
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: astral-sh/setup-uv@v6
+      - name: Version
+        run: uvx cogito-mem==0.3.0 --version
+      - name: Download llama.cpp and the model
+        run: uvx cogito-mem==0.3.0 setup
+      - name: Doctor
+        run: uvx cogito-mem==0.3.0 doctor
+      - name: Save a message (starts the background service)
+        run: uvx cogito-mem==0.3.0 append "Let's call the staging server acorn."
+      - name: Wait until the message is findable by meaning
+        run: |
+          for ($i = 0; $i -lt 60; $i++) {
+            $s = curl.exe -s http://127.0.0.1:7327/v1/status | ConvertFrom-Json
+            $ns = @($s.namespaces.PSObject.Properties)[0].Value
+            if ($s.embedder.state -eq 'ready' -and $ns.vectors -ge 1 -and $ns.pending -eq 0) { break }
+            Start-Sleep 5
+          }
+          curl.exe -s http://127.0.0.1:7327/v1/status
+          if (-not ($s.embedder.state -eq 'ready' -and $ns.vectors -ge 1)) { throw "not findable by meaning" }
+      - name: Search by meaning
+        run: |
+          $out = uvx cogito-mem==0.3.0 query "what name did we give the test machine" --json | Out-String
+          $out
+          if ($out -notmatch 'acorn') { throw "acorn not found" }
+      - name: Stop
+        run: uvx cogito-mem==0.3.0 stop
