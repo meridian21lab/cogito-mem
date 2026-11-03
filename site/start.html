@@ -55,9 +55,11 @@
         <p>Cogi runs with <a href="https://docs.astral.sh/uv/">uv</a>. If <code>uv --version</code> already works, skip
           this.</p>
 <div class="cmd os-mac"><span class="label">Terminal</span><pre><code>brew install uv</code></pre></div>
-<div class="cmd os-linux"><span class="label">Terminal</span><pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh</code></pre></div>
-<div class="cmd os-win"><span class="label">PowerShell</span><pre><code>powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"</code></pre></div>
-        <p class="small muted os-mac">No Homebrew? Use the Linux command; it works on a Mac too.</p>
+<div class="cmd os-win"><span class="label">PowerShell</span><pre><code>winget install --id=astral-sh.uv -e</code></pre></div>
+        <p class="os-linux">Use <a href="https://docs.astral.sh/uv/getting-started/installation/">uv's installer</a>:
+          one command, or your package manager.</p>
+        <p class="small muted os-mac">No Homebrew? Use <a href="https://docs.astral.sh/uv/getting-started/installation/">uv's
+          installer</a>.</p>
         <p class="small muted not-mac">Then open a <strong>new</strong> terminal, so it finds uv.</p>
       </li>
       <li>
