@@ -1,4 +1,9 @@
-// Copy buttons for every command block. That is all the JavaScript the site needs.
+// The install page starts on the visitor's system; its picker works without this.
+const system = /Windows/.test(navigator.userAgent) ? "win" : /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) ? "linux" : null;
+const pick = system && document.getElementById("os-" + system);
+if (pick) pick.checked = true;
+
+// Copy buttons for every command block.
 document.querySelectorAll(".cmd").forEach((block) => {
   const code = block.querySelector("code");
   if (!code) return;
