@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import http.server
 import json
 import os
 import signal
@@ -16,8 +17,10 @@ from pathlib import Path
 import pytest
 
 from cogito_mem import ApiError, Client, Memory
+from cogito_mem import client as client_module
 from cogito_mem.api import DEFAULT_TOP_K
 from cogito_mem.cli import build_parser
+from cogito_mem.client import is_older
 from cogito_mem.mcp_server import INSTRUCTIONS, PROTOCOL_VERSIONS, McpServer
 from cogito_mem.server import MemoryServer
 
@@ -130,6 +133,96 @@ def test_client_starts_the_service_on_demand_and_stops_it(tmp_path, monkeypatch)
         assert client.stop_server()
     assert client.status() is None
     assert not (root / "run" / "server.json").exists()
+
+
+@pytest.fixture
+def running_service(tmp_path, monkeypatch):
+    """A service in its own process, left running the way Claude Code sessions leave it; stopped afterwards."""
+    monkeypatch.setenv("COGITO_MEM_PORT", str(free_port()))
+    monkeypatch.setenv("PYTHONPATH", SRC + os.pathsep + os.environ.get("PYTHONPATH", ""))
+    root = tmp_path / "home"
+    serve_args = ["--embedder", "hash", "--idle-timeout", "120"]
+    Client(root=root, serve_args=serve_args).start_server()
+    yield root, serve_args
+    Client(root=root).stop_server()
+
+
+@pytest.mark.slow
+def test_a_newer_client_replaces_an_older_service(running_service, monkeypatch):
+    root, serve_args = running_service
+    old = Client(root=root).status()["pid"]
+    monkeypatch.setattr(client_module, "__version__", "99.0.0")  # the plugin was updated, the service was not
+    client = Client(root=root, serve_args=serve_args)
+    client.append([{"author": "user", "text": "after the update"}])
+    assert client.status()["pid"] != old
+    assert client.query("after the update")["items"][0]["text"] == "after the update"
+
+
+@pytest.mark.slow
+def test_an_older_client_keeps_a_newer_service(running_service, monkeypatch):
+    root, serve_args = running_service
+    old = Client(root=root).status()["pid"]
+    monkeypatch.setattr(client_module, "__version__", "0.0.1")  # a session not restarted since the update
+    client = Client(root=root, serve_args=serve_args)
+    client.append([{"author": "user", "text": "before the restart"}])
+    assert client.status()["pid"] == old
+
+
+@pytest.mark.slow
+def test_session_start_replaces_an_older_service(running_service, monkeypatch):
+    root, serve_args = running_service
+    old = Client(root=root).status()["pid"]
+    monkeypatch.setattr(client_module, "__version__", "99.0.0")
+    client = Client(root=root, serve_args=serve_args)
+    assert client.start_in_background()
+    deadline = time.monotonic() + 30
+    while (info := client.status()) is None or info["pid"] == old:
+        assert time.monotonic() < deadline, "the older service was not replaced"
+        time.sleep(0.1)
+
+
+@pytest.mark.slow
+def test_a_client_stops_only_the_service_its_run_file_names(tmp_path, monkeypatch):
+    """Whatever answers on the port can claim to be an old Cogi; its pid is not a reason to kill anything."""
+    victim = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+
+    class Impostor(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = json.dumps({"status": "ok", "pid": victim.pid, "version": "0.0.1"}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    impostor = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Impostor)
+    threading.Thread(target=impostor.serve_forever, daemon=True).start()
+    monkeypatch.setenv("COGITO_MEM_PORT", str(impostor.server_address[1]))
+    monkeypatch.setattr(client_module, "__version__", "99.0.0")
+    try:
+        assert not Client(root=tmp_path / "home").start_in_background()
+        assert victim.poll() is None
+    finally:
+        impostor.shutdown()
+        victim.kill()
+        victim.wait()
+
+
+@pytest.mark.parametrize(
+    "running, ours, older",
+    [
+        ("0.2.1", "0.3.0", True),
+        ("0.9.0", "0.10.0", True),  # compared as numbers, not text
+        ("0.3.0", "0.3.0", False),
+        ("0.3.1", "0.3.0", False),
+        (None, "0.3.0", False),  # a service that does not say is left alone
+        ("unknown", "0.3.0", False),
+    ],
+)
+def test_which_running_versions_count_as_older(running, ours, older):
+    assert is_older(running, ours) is older
 
 
 @pytest.mark.slow

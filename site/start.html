@@ -30,54 +30,70 @@
     </div>
   </header>
   <main>
-    <p class="eyebrow">Install</p>
-    <h1>Cogi in Claude Code</h1>
-    <p class="lead">Four steps, about two minutes. Run one command at a time; after each you'll see what to expect.</p>
+    <input class="os-pick" type="radio" name="os" id="os-mac" checked>
+    <input class="os-pick" type="radio" name="os" id="os-linux">
+    <input class="os-pick" type="radio" name="os" id="os-win">
+
+    <section class="hero small">
+      <div>
+        <p class="eyebrow">Install</p>
+        <h1>Cogi in Claude Code</h1>
+        <p class="lead">Let your agent do it in one go, or follow three short steps. About two minutes either way.</p>
+      </div>
+      <img src="assets/cogi.svg" alt="Cogi the squirrel holding an acorn">
+    </section>
+
+    <section class="band agent">
+      <svg class="ico" aria-hidden="true"><use href="assets/icons.svg#ask"/></svg>
+      <div>
+        <h2>Let your agent do it</h2>
+        <p>Paste this into Claude Code or Codex. It checks your computer, installs what's missing and tells you what it
+          did.</p>
+<div class="cmd"><span class="label">Say to Claude or Codex</span><pre><code>Install Cogi for me: follow https://meridian21lab.github.io/cogito-mem/install.md</code></pre></div>
+        <p class="small muted"><a href="install.md">The steps it follows</a></p>
+      </div>
+    </section>
+
+    <h2>Or step by step</h2>
+    <div class="os-tabs" role="group" aria-label="Your computer">
+      <label for="os-mac">macOS</label><label for="os-linux">Linux</label><label for="os-win">Windows</label>
+    </div>
+    <div class="tip os-win"><img src="assets/cogi.svg" alt=""><p><strong>Windows is experimental.</strong> In our Windows test, Cogi
+      installs, saves and finds by meaning, but we haven't run it inside Claude Code there yet. If something goes wrong, <a href="https://github.com/meridian21lab/cogito-mem/issues">tell us</a>.</p></div>
 
     <ol class="steps">
       <li>
         <h3>Get the helper, uv</h3>
-        <p>Cogi runs with <a href="https://docs.astral.sh/uv/">uv</a>. This installs only the helper, not Cogi yet. On a
-          Mac:</p>
-<div class="cmd"><span class="label">Terminal</span><pre><code>brew install uv</code></pre></div>
-        <p class="small muted">On Linux or Windows, or without Homebrew, use <a href="https://docs.astral.sh/uv/getting-started/installation/">uv's own
-          installer</a>, then open a <strong>new</strong> terminal so it can be found. Already have it? If
-          <code>uv --version</code> works, skip this.</p>
+        <p>Cogi runs with <a href="https://docs.astral.sh/uv/">uv</a>. If <code>uv --version</code> already works, skip
+          this.</p>
+<div class="cmd os-mac"><span class="label">Terminal</span><pre><code>brew install uv</code></pre></div>
+<div class="cmd os-win"><span class="label">PowerShell</span><pre><code>winget install --id=astral-sh.uv -e</code></pre></div>
+        <p class="os-linux">Use <a href="https://docs.astral.sh/uv/getting-started/installation/">uv's installer</a>:
+          one command, or your package manager.</p>
+        <p class="small muted os-mac">No Homebrew? Use <a href="https://docs.astral.sh/uv/getting-started/installation/">uv's
+          installer</a>.</p>
+        <p class="small muted not-mac">Then open a <strong>new</strong> terminal, so it finds uv.</p>
       </li>
       <li>
         <h3>Install Cogi</h3>
 <div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem</code></pre></div>
         <p class="see">Successfully installed plugin: cogito-mem@cogito-mem (scope: user)</p>
-        <p class="small muted">Needs Claude Code 2.1.292 or newer (<code>claude --version</code>); on older versions use
-          the two commands under <em>Prefer to install from inside Claude Code?</em> below.</p>
-        <p>Cogi now remembers in every project. Your memory is called <code>yourname-hollow</code>; the note that its
-          name is "not yet set" just means that default is used. To pick another name, add
-          <code>--config memory_name=work-hollow</code>.</p>
-        <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>Stay up to date.</strong> In Claude Code, open
-          <code>/plugin</code>, go to <em>Marketplaces</em>, pick <em>cogito-mem</em> and choose <em>Enable
-          auto-update</em>.</p></div>
-      </li>
-      <li>
-        <h3>Check it</h3>
-        <p>Start Claude Code (<code>claude</code>) and type:</p>
-<div class="cmd"><span class="label">In Claude Code</span><pre><code>/mcp</code></pre></div>
-        <p class="see"><code>plugin:cogito-mem:cogi</code> ✔ 2 tools</p>
+        <p class="small muted">Needs Claude Code 2.1.292 or newer. Your memory is called <code>yourname-hollow</code>;
+          for another name, add <code>--config memory_name=work-hollow</code>.</p>
+        <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>Stay up to date:</strong> in Claude Code, open
+          <code>/plugin</code> → <em>Marketplaces</em> → <em>cogito-mem</em> → <em>Enable auto-update</em>.</p></div>
       </li>
       <li>
         <h3>Try it</h3>
-        <p>Mention something in passing:</p>
-<div class="cmd"><span class="label">Say to Claude</span><pre><code>Let's call the staging server "acorn".</code></pre></div>
-        <p>Wipe Claude's short-term memory:</p>
-<div class="cmd"><span class="label">In Claude Code</span><pre><code>/clear</code></pre></div>
-        <p>And ask:</p>
-<div class="cmd"><span class="label">Say to Claude</span><pre><code>What did we call the staging server?</code></pre></div>
-        <p class="see">Claude answers "acorn": Cogi brought it back.</p>
-        <p>Now peek into the hollow from a terminal:</p>
-<div class="cmd"><span class="label">Terminal</span><pre><code>curl -s localhost:7327/v1/status</code></pre></div>
-        <p class="see"><code>"state": "ready"</code>, and how many messages Cogi keeps</p>
+        <p>Start Claude Code (<code>claude</code>) and have this chat:</p>
+        <div class="chat">
+          <p class="you">Let's call the staging server “acorn”.</p>
+          <p class="mid"><code>/clear</code> wipes Claude's short-term memory</p>
+          <p class="you">What did we call the staging server?</p>
+          <p class="claude"><img src="assets/cogi.svg" alt="">“acorn”: Cogi brought it back.</p>
+        </div>
         <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>First time?</strong> Cogi downloads its model
-          (310 MB) when it first wakes up, which takes about a minute. Until then the status says
-          <code>"starting"</code> and Cogi finds things by their exact words only.</p></div>
+          (310 MB) when it first wakes up, about a minute. Until then it finds things by their exact words only.</p></div>
       </li>
     </ol>
 
@@ -85,38 +101,27 @@
 
     <details>
       <summary>Bring in your earlier sessions</summary>
-      <p>Cogi starts collecting from now on. To add every Claude Code session you had before, install the
-        <code>cogito-mem</code> terminal command and run it once:</p>
+      <p>Cogi collects from now on. To add every Claude Code session you had before:</p>
 <div class="cmd"><span class="label">Terminal</span><pre><code>uv tool install cogito-mem</code></pre></div>
 <div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem capture claude-code --all</code></pre></div>
-      <p class="small muted">If the terminal says <code>cogito-mem: command not found</code>, run
-        <code>uv tool update-shell</code>, open a new terminal and try again.</p>
+      <p class="small muted">Command not found? Run <code>uv tool update-shell</code>, open a new terminal and try
+        again.</p>
     </details>
 
     <details>
-      <summary>Prefer to install from inside Claude Code?</summary>
+      <summary>Install from inside Claude Code</summary>
       <p>Type these one at a time; pasting both at once runs them as one command.</p>
 <div class="cmd"><span class="label">In Claude Code</span><pre><code>/plugin marketplace add meridian21lab/cogito-mem</code></pre></div>
 <div class="cmd"><span class="label">In Claude Code</span><pre><code>/plugin install cogito-mem@cogito-mem</code></pre></div>
-      <p>Choose <strong>Install for you (user scope)</strong>, leave the name empty for <code>yourname-hollow</code>,
-        then run <code>/reload-plugins</code>.</p>
-      <div class="table">
-        <table>
-          <tr><th>Scope</th><th>Cogi remembers in</th><th>Who else is affected</th></tr>
-          <tr><td><strong>User</strong> (choose this)</td><td>every project</td><td>no one</td></tr>
-          <tr><td>Project</td><td>this repository only</td><td>everyone who opens it is asked to install Cogi too</td></tr>
-          <tr><td>Local</td><td>this repository only</td><td>no one</td></tr>
-        </table>
-      </div>
+      <p>Choose <strong>Install for you (user scope)</strong>, so Cogi remembers in every project, then run
+        <code>/reload-plugins</code>.</p>
     </details>
 
     <details id="other-ways">
       <summary>Other ways: Codex, Claude Desktop, Docker, Python</summary>
-      <p><strong>Every app it finds</strong> (Claude Code, Codex, Claude Desktop), with uv:</p>
+      <p><strong>Every app it finds</strong> (Claude Code, Codex, Claude Desktop):</p>
 <div class="cmd"><span class="label">Terminal</span><pre><code>uv tool install cogito-mem</code></pre></div>
 <div class="cmd"><span class="label">Terminal</span><pre><code>cogito-mem install</code></pre></div>
-      <p class="small muted">If the terminal says <code>cogito-mem: command not found</code>, run
-        <code>uv tool update-shell</code>, open a new terminal and try again.</p>
       <p><strong>Docker</strong>, then connect Claude Code by URL:</p>
 <div class="cmd"><span class="label">Terminal</span><pre><code>docker run -d --name cogito-mem -p 127.0.0.1:7327:7327 -v cogito-mem:/data ghcr.io/meridian21lab/cogito-mem</code></pre></div>
 <div class="cmd"><span class="label">Terminal</span><pre><code>claude mcp add --transport http cogito-mem http://127.0.0.1:7327/mcp</code></pre></div>
@@ -134,16 +139,15 @@
       <summary>Remove Cogi</summary>
 <div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin uninstall cogito-mem@cogito-mem</code></pre></div>
       <p>That keeps your memories. To erase them too:</p>
-<div class="cmd"><span class="label">Terminal</span><pre><code>rm -rf ~/.cogito-mem</code></pre></div>
+<div class="cmd unix"><span class="label">Terminal</span><pre><code>rm -rf ~/.cogito-mem</code></pre></div>
+<div class="cmd os-win"><span class="label">PowerShell</span><pre><code>Remove-Item -Recurse -Force ~\.cogito-mem</code></pre></div>
     </details>
 
     <h2>If something looks wrong</h2>
     <div class="table">
       <table>
         <tr><th>You see</th><th>Do this</th></tr>
-        <tr><td><code>/mcp</code> shows ✘ next to <code>cogi</code></td><td>Close Claude Code, open a new terminal (so uv is found) and start it again.</td></tr>
-        <tr><td><code>curl: … Connection refused</code></td><td>Cogi wakes up when Claude first saves or searches. Ask Claude anything, then try again.</td></tr>
-        <tr><td><code>"state": "starting"</code></td><td>The model is still downloading. Give it a minute.</td></tr>
+        <tr><td><code>/mcp</code> shows ✘ next to <code>cogi</code>, not ✔ 3 tools</td><td>Close Claude Code, open a new terminal (so it finds uv) and start it again.</td></tr>
         <tr><td><code>not a valid GitHub owner/repo</code></td><td>Two commands were pasted together. Run one at a time.</td></tr>
         <tr><td>Anything else</td><td>Logs are in <code>~/.cogito-mem/run/</code>. <a href="https://github.com/meridian21lab/cogito-mem/issues">Tell us</a>.</td></tr>
       </table>

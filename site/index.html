@@ -47,12 +47,14 @@
     </section>
 
     <h2 class="center">How it works</h2>
-    <div class="cards">
-      <div class="card"><span class="num">1</span><h3>Collect</h3>
-        <p>After every answer, Cogi picks up the new messages. You do nothing.</p></div>
-      <div class="card"><span class="num">2</span><h3>Keep</h3>
-        <p>Each message is stored word for word, with its date, in your hollow: a folder on your computer.</p></div>
-      <div class="card"><span class="num">3</span><h3>Find</h3>
+    <div class="flow">
+      <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#acorn"/></svg><h3>Collect</h3>
+        <p>After each answer, Cogi picks up the new messages. You do nothing.</p></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#hollow"/></svg><h3>Keep</h3>
+        <p>Word for word, with the date, in your hollow on your computer.</p></div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#find"/></svg><h3>Find</h3>
         <p>When Claude needs something from earlier, Cogi hands back the few messages that matter.</p></div>
     </div>
     <p class="center"><a href="how.html">How Cogi does it →</a></p>
@@ -88,13 +90,15 @@
 
     <h2>Why Cogi</h2>
     <div class="cards">
-      <div class="card"><h3>Private</h3><p>Your hollow is a folder on your computer. No cloud, no account.</p></div>
-      <div class="card"><h3>Exact</h3><p>You get the original words and the date they were said, never an AI's summary.</p></div>
-      <div class="card"><h3>Automatic</h3><p>It saves after every answer, with nothing to do. Ask Claude “do you remember…?” and it searches all of it.</p></div>
+      <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#lock"/></svg><h3>Private</h3><p>Your hollow is a folder on your computer. No cloud, no account.</p></div>
+      <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#quote"/></svg><h3>Exact</h3><p>You get the original words and the date they were said, never an AI's summary.</p></div>
+      <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#spark"/></svg><h3>Automatic</h3><p>It saves after every answer, with nothing to do. Ask Claude “do you remember…?” and it searches all of it.</p></div>
     </div>
 
     <h2>Get started</h2>
-    <p>One command in a terminal, with <a href="https://docs.astral.sh/uv/">uv</a> installed:</p>
+    <p>Paste this into Claude Code or Codex. Your agent checks your computer and installs everything:</p>
+<div class="cmd"><span class="label">Say to Claude or Codex</span><pre><code>Install Cogi for me: follow https://meridian21lab.github.io/cogito-mem/install.md</code></pre></div>
+    <p>Or run one command yourself, with <a href="https://docs.astral.sh/uv/">uv</a> installed:</p>
 <div class="cmd"><span class="label">Terminal</span><pre><code>claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem</code></pre></div>
     <p><a href="start.html">The full guide, with what you should see at each step →</a></p>
 
@@ -108,6 +112,13 @@
         <tr><td>Claude Desktop chat</td><td class="part">Partly</td><td>Save and search tools, but no automatic saving</td></tr>
         <tr><td>Cloud sessions, claude.ai</td><td class="no">Not yet</td><td>On the roadmap</td></tr>
       </table>
+    </div>
+    <p class="small muted">On macOS and Linux. Windows is experimental.</p>
+
+    <div class="outro">
+      <img src="assets/cogi.svg" alt="">
+      <p>Give Claude a memory. Cogi minds the nuts.</p>
+      <a class="btn primary" href="start.html">Install in 2 minutes</a>
     </div>
   </main>
   <footer class="foot">

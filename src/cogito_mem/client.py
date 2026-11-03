@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -16,6 +17,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
+from . import __version__
 from .errors import ApiError
 
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -29,6 +31,17 @@ def default_root() -> Path:
 
 def default_port() -> int:
     return int(os.environ.get("COGITO_MEM_PORT", 7327))
+
+
+def is_older(running: Any, ours: str) -> bool:
+    """True if the running service's version is an older release than ours; an unknown version never is."""
+
+    def release(version: Any) -> tuple[int, ...] | None:
+        match = re.match(r"\d+(\.\d+)*", version) if isinstance(version, str) else None
+        return tuple(int(part) for part in match.group().split(".")) if match else None
+
+    theirs, mine = release(running), release(ours)
+    return theirs is not None and mine is not None and theirs < mine
 
 
 @contextmanager
@@ -75,16 +88,21 @@ class Client:
         self.autostart = autostart and not self.explicit_url
         self.timeout = timeout
         self.serve_args = serve_args or []
+        self._version_checked = not self.autostart
+
+    def _run_info(self) -> dict:
+        """What the running service wrote to ``run/server.json``: pid, url, version."""
+        try:
+            info = json.loads((self.root / "run" / "server.json").read_text())
+        except (OSError, ValueError):
+            return {}
+        return info if isinstance(info, dict) else {}
 
     @property
     def url(self) -> str:
         if self.explicit_url:
             return self.explicit_url.rstrip("/")
-        run_file = self.root / "run" / "server.json"
-        try:
-            return json.loads(run_file.read_text())["url"]
-        except (OSError, ValueError, KeyError):
-            return f"http://127.0.0.1:{default_port()}"
+        return self._run_info().get("url") or f"http://127.0.0.1:{default_port()}"
 
     # ------------------------------------------------------------------ requests
 
@@ -104,6 +122,10 @@ class Client:
                 return exc.code, {"error": {"code": "internal", "message": raw.decode("utf-8", "replace")}}
 
     def handle(self, body: dict) -> dict:
+        if not self._version_checked:  # once per client: an update must not keep talking to the old service
+            self._version_checked = True
+            if is_older(self._run_info().get("version"), __version__):
+                self.start_server()
         try:
             status, resp = self._request("POST", "/v1/memory", body)
         except (urllib.error.URLError, ConnectionError, TimeoutError, OSError):
@@ -154,20 +176,43 @@ class Client:
         with open(run / "server.log", "ab") as out:
             return subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT, **kwargs)
 
+    def _running_current(self) -> bool:
+        """True if a service runs that is not older than this client. An older one is stopped.
+
+        Only the service this root's run file names is stopped: anything can answer on the port
+        and report a pid, so a pid the run file does not hold is never signalled.
+        Call it holding ``start.lock``, so two clients never replace the same service at once.
+        """
+        info = self.status()
+        if info is None:
+            return False
+        if not is_older(info.get("version"), __version__):
+            return True
+        if info.get("pid") is None or info.get("pid") != self._run_info().get("pid"):
+            return True
+        self.stop_server()
+        return False
+
     def start_in_background(self) -> bool:
-        """Start the service without waiting for it, unless it runs or has a fixed URL. True if started."""
+        """Start the service without waiting for it, unless it runs or has a fixed URL. True if started.
+
+        A running service older than this client is stopped and replaced.
+        """
         if self.explicit_url:
             return False
         with _file_lock(self.root / "run" / "start.lock"):
-            if self.status() is not None:
+            if self._running_current():
                 return False
             self._spawn()
             return True
 
     def start_server(self) -> None:
-        """Start ``cogito-mem serve`` in the background, unless another client just did."""
+        """Start ``cogito-mem serve`` in the background, unless another client just did.
+
+        A running service older than this client is stopped and replaced.
+        """
         with _file_lock(self.root / "run" / "start.lock"):
-            if self.status() is not None:
+            if self._running_current():
                 return
             run = self.root / "run"
             proc = self._spawn()
