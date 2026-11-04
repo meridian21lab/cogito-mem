@@ -1,6 +1,9 @@
 """Speed of BM25 + a tiny System-1 picker (bekko-system-one v0) on a LongMemEval_M history, CPU only.
 
     python bench_bekko.py MODEL_DIR DATA.json [N ...]
+    BEKKO_DEVICE=mps python bench_bekko.py ...      # Apple GPU (Metal); cuda for NVIDIA; cpu by default
+    BEKKO_THREADS=8 python bench_bekko.py ...       # CPU threads (default 4)
+    BEKKO_COMPILE=1 python bench_bekko.py ...       # bekko's compile_inference() (torch.compile, Inductor)
 
 Loads one M question into a keyword-only cogito-mem memory, takes the BM25 top N messages, and times
 bekko's Choice over them (one decision, N options: a probability for every message). Also a toy check.
@@ -18,7 +21,10 @@ sys.path.insert(0, model_dir)  # the audited inference_v0.py shipped with the we
 
 import torch  # noqa: E402
 
-torch.set_num_threads(4)
+import os  # noqa: E402
+
+DEVICE = os.environ.get("BEKKO_DEVICE", "cpu")
+torch.set_num_threads(int(os.environ.get("BEKKO_THREADS", "4")))
 from inference_v0 import BekkoSentenceTransformer  # noqa: E402
 
 from cogito_mem.api import parse_query  # noqa: E402
@@ -46,8 +52,10 @@ def pick(model, question, texts, **limits):
 
 
 t0 = time.perf_counter()
-model = BekkoSentenceTransformer(model_dir, device="cpu", local_files_only=True, trust_remote_code=True)
-print(f"loaded {model_dir.rsplit('/', 1)[-1]} in {time.perf_counter() - t0:.1f} s; torch threads {torch.get_num_threads()}")
+model = BekkoSentenceTransformer(model_dir, device=DEVICE, local_files_only=True, trust_remote_code=True)
+if os.environ.get("BEKKO_COMPILE"):
+    model.compile_inference()
+print(f"loaded {model_dir.rsplit('/', 1)[-1]} on {DEVICE} in {time.perf_counter() - t0:.1f} s; torch threads {torch.get_num_threads()}")
 
 toy = ["user: Let's call the staging server \"acorn\".", "assistant: Sure, I'll refer to the staging server as acorn.",
        "user: Can you give me a recipe for banana bread?", "assistant: The production database runs on Postgres 16.",

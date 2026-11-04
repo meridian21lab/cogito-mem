@@ -515,6 +515,52 @@ relevance the way a 0.6B model does: trained, or distilled from the slower model
 editable, but it is an English model, and no wording changes a head that names one option. The per-question rows
 and the scripts are in `evals/baselines/system1-20261101/bekko/`.
 
+### 11.1 bekko on other hardware: measured here, estimated for an i7 and a Mac
+
+Measured on the VM (4 cores, Xeon @ 2.8 GHz, AVX-512 and VNNI, no AMX), bekko's Choice over the keyword top N, ms per
+query, the better of eager PyTorch and bekko's `compile_inference()` (`torch.compile`, 5–27 % faster):
+
+| | 10 messages × 128 tokens | 30 × 64 | 100 × 64 |
+|---|---|---|---|
+| bekko-17m | 89 | 122 | 347 |
+| bekko-68m | 551 | 798 | 2,331 |
+
+The VM's hosts differ: on the 2.1 GHz Xeon of §7 the 17M did 30 × 64 in 90 ms, here in 122. What else was measured:
+
+- **A fixed cost per query.** A query with one tiny candidate takes 20 ms for the 17M on one thread or four (tokenizing and
+  building the request in Python) and 75 ms for the 68M. The rest is model compute, which grows with the tokens read
+  and gains only 2.2–2.9× from one thread to four, since the matrices are small.
+- **Runtimes, on bekko's backbones** (the ettin-reranker 17m and 68m encoders, a 30-message query): OpenVINO int8
+  runs them **1.8× (17m) and 2.0× (68m) faster** than PyTorch fp32; ONNX Runtime int8 1.1–1.3×; ONNX Runtime fp32
+  and OpenVINO fp32 about the same as PyTorch. PyTorch's own dynamic int8 quantization barely helped the 17M and
+  changed the 68M's picks. Using OpenVINO would mean exporting bekko's shared-prefix forward and checking its picks.
+- **Calibration against an i7-13700K.** The ettin card's CPU benchmark (natural-questions pairs, 512 tokens, fp32,
+  batch 32) gives 72.6 pairs/s here for ettin-17m and 7.0 for ettin-68m, against the card's 267.4 and 31.2 on an
+  i7-13700K: **the i7 is 3.7× and 4.5× faster** on these backbones.
+
+**Estimates.** For the i7, the model-compute part scales by the calibration (optimistic end) or by 2× (pessimistic: one
+small query does not fill 24 threads like the card's large batches), and the fixed part by the i7's faster single core
+(1.4–1.8×). For a Mac, from the operations each query needs (4M and 42M active parameters: about 16 and 170 GFLOP for
+30 × 64 tokens) at 3–6 TFLOPS effective through PyTorch's Metal backend (llama.cpp's Metal reached about 12 on the
+M5 Max with Qwen3-Reranker, about 20 ms a message), plus kernel launches and a 10 ms Python floor; bekko's code
+names `cpu` and `cuda`, so Metal (`mps`) is untested. These are estimates; `evals/baselines/system1-20261101/bekko/bench_bekko.py`
+measures them (`BEKKO_DEVICE=mps|cuda|cpu`, `BEKKO_THREADS`, `BEKKO_COMPILE=1`).
+
+| ms per query (estimated) | 10 × 128 | 30 × 64 | 100 × 64 |
+|---|---|---|---|
+| bekko-17m, i7-13700K, PyTorch | 30–50 | 40–65 | 100–180 |
+| bekko-17m, i7-13700K, OpenVINO int8 | 20–35 | 25–45 | 60–105 |
+| bekko-17m, Apple M5 Max, Metal | 15–25 | 15–25 | 20–35 |
+| bekko-68m, i7-13700K, PyTorch | 130–280 | 185–400 | 500–1,200 |
+| bekko-68m, i7-13700K, OpenVINO int8 | 70–150 | 100–210 | 270–600 |
+| bekko-68m, Apple M5 Max, Metal | 35–55 | 45–70 | 105–195 |
+| *for scale: RTX 3090, from the ettin card (compute only)* | *17m about 1 ms, 68m about 5* | *17m 1–2, 68m about 7* | *17m about 5, 68m about 25* |
+
+So within 100 ms: on an i7, the 17M reads 30–50 messages (60–100 with OpenVINO int8) and the 68M about 10 only with
+OpenVINO int8; on a Mac's GPU, the 17M reads 100 or more and the 68M 30 to 50. Faster hardware lets the 68M, which
+picks a little better (§11), into the budget, but it does not change §11's finding that both pick worse than hybrid
+search.
+
 ## 12. Reproduce
 
 Every run behind this note, with per-question rows to pair against, is in
