@@ -1,0 +1,46 @@
+{
+  "engine": "rust-probe",
+  "items": 69948,
+  "messages": 41357,
+  "open_s": 0.845,
+  "query": {
+    "all/hybrid": {
+      "max_ms": 6.027,
+      "median_ms": 3.6,
+      "n": 1000,
+      "p95_ms": 4.432
+    },
+    "all/hybrid_f16": {
+      "max_ms": 5.901,
+      "median_ms": 2.513,
+      "n": 1000,
+      "p95_ms": 3.088
+    },
+    "all/keyword": {
+      "max_ms": 1.115,
+      "median_ms": 0.17,
+      "n": 1000,
+      "p95_ms": 0.428
+    },
+    "all/vector": {
+      "max_ms": 19.736,
+      "median_ms": 3.344,
+      "n": 1000,
+      "p95_ms": 3.929
+    },
+    "all/vector_f16": {
+      "max_ms": 8.173,
+      "median_ms": 2.189,
+      "n": 1000,
+      "p95_ms": 2.903
+    }
+  },
+  "ready_s": 1.413,
+  "rss_mb": {
+    "after_open": 131.90234375,
+    "after_queries": 238.11328125,
+    "before": 3.29296875
+  },
+  "terms": 66306,
+  "vectors_found": 69948
+}

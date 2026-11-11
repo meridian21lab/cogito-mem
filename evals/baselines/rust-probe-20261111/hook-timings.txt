@@ -1,0 +1,22 @@
+# UserPromptSubmit hook, warm, 50 runs each: wall time of the whole process, in ms (median / p95 / min).
+# Each run makes the hook's two queries against a 10M-token memory (69,948 items, keyword search, no embedding model).
+# 4-core VM (Intel Xeon @ 2.1 GHz), uv 0.11.32, CPython 3.12.3 in the venv, 11 Nov 2026.
+
+## against the Python service (cogito-mem serve)
+uvx cogito-mem==0.3.0 recall claude-code        (today)                 159.8 / 194.3 / 138.7      (second round: 156.4 / 181.5 / 132.1)
+cogito-mem recall claude-code                   (no uvx)                129.4 / 154.5 / 113.2
+uvx --from cogito-mem==0.3.0 python lean_hook.py (Python, few imports)   76.2 /  84.7 /  60.4
+python lean_hook.py                             (the same, no uvx)       39.8 /  52.8 /  33.4
+uvx --from <rust wheel> cogi-hook               (Rust through uvx)       45.8 /  60.4 /  38.2      (second round: 46.7 / 65.9 / 35.2)
+cogi-hook                                       (Rust, no uvx)            9.3 /  10.9 /   7.5
+
+## against the Rust service (cogi serve)
+cogito-mem recall claude-code                   (Python hook, no uvx)   131.8 / 168.5 / 113.5
+uvx --from <rust wheel> cogi-hook                                        36.4 /  60.1 /  28.5
+cogi-hook                                                                 3.0 /   4.8 /   2.5
+
+## launch cost alone
+uvx ruff==0.14.4 --version                      (a native binary from PyPI through uvx)   38.9 / 51.0 / 31.3
+<uv cache>/bin/ruff --version                   (the same binary, directly)                2.9 /  3.4 /  2.0
+python -c pass                                                                            18.1 / 20.6 / 13.7
+/bin/true                                                                                  1.1 /  1.5 /  0.9

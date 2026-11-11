@@ -1,0 +1,29 @@
+{
+  "python_today": {
+    "cogito_mem_wheel_kb": 158,
+    "wheel_platforms": "one, py3-none-any",
+    "numpy_2.5.4_wheel_mb": {
+      "macosx_14_0_arm64": 5.4,
+      "manylinux_x86_64": 16.7,
+      "manylinux_aarch64": 15.7,
+      "win_amd64": 12.6
+    },
+    "uv_cache_after_cold_uvx_mb_linux_x86_64": 59,
+    "cold_uvx_first_run_s": 3.3
+  },
+  "rust_probe": {
+    "cogi_binary_mb": 5.93,
+    "cogi_hook_binary_mb": 0.51,
+    "wheel_mb": 3.15,
+    "wheel": "cogi_probe-0.1.0-py3-none-manylinux_2_34_x86_64.whl (maturin, bin bindings; cogi 2.87 MB and cogi-hook 0.26 MB compressed)",
+    "crates_in_cargo_lock": 112,
+    "lines_of_rust": 930,
+    "profile": "opt-level 3, fat LTO, 1 codegen unit, panic abort, stripped; x86-64 baseline with AVX2 chosen at run time",
+    "uv_cache_after_cold_uvx_mb_linux_x86_64": 6.5
+  },
+  "process_memory_mb": {
+    "python_mcp_bridge_per_session_rss": 24.0,
+    "python_service_keyword_only_rss": 180.4,
+    "rust_service_keyword_only_rss": 136.4
+  }
+}
