@@ -1,0 +1,127 @@
+{
+  "engine": "sqlite",
+  "queries": 1000,
+  "memory_before_open": {
+    "rss_mb": 48.0,
+    "uss_mb": 31.0,
+    "peak_rss_mb": 48.4
+  },
+  "import_s": 0.001,
+  "open_s": 0.001,
+  "first_keyword_query_s": 0.013,
+  "ready_s": 0.057,
+  "first_query_found": [
+    100,
+    100
+  ],
+  "memory_after_open": {
+    "rss_mb": 131.2,
+    "uss_mb": 114.1,
+    "peak_rss_mb": 131.2
+  },
+  "items": 69948,
+  "query": {
+    "all/keyword": {
+      "n": 1000,
+      "median_ms": 8.574,
+      "p95_ms": 21.463,
+      "max_ms": 60.652,
+      "mean_ms": 9.972
+    },
+    "all/vector": {
+      "n": 1000,
+      "median_ms": 33.338,
+      "p95_ms": 47.398,
+      "max_ms": 68.09,
+      "mean_ms": 35.147
+    },
+    "all/hybrid": {
+      "n": 1000,
+      "median_ms": 44.395,
+      "p95_ms": 65.244,
+      "max_ms": 132.923,
+      "mean_ms": 46.864
+    },
+    "thread/keyword": {
+      "n": 500,
+      "median_ms": 2.735,
+      "p95_ms": 6.266,
+      "max_ms": 13.163,
+      "mean_ms": 3.087
+    },
+    "thread/vector": {
+      "n": 500,
+      "median_ms": 7.774,
+      "p95_ms": 10.449,
+      "max_ms": 15.789,
+      "mean_ms": 7.73
+    },
+    "thread/hybrid": {
+      "n": 500,
+      "median_ms": 11.073,
+      "p95_ms": 17.252,
+      "max_ms": 21.5,
+      "mean_ms": 11.6
+    },
+    "before/keyword": {
+      "n": 500,
+      "median_ms": 4.511,
+      "p95_ms": 11.053,
+      "max_ms": 24.487,
+      "mean_ms": 5.231
+    },
+    "before/vector": {
+      "n": 500,
+      "median_ms": 17.253,
+      "p95_ms": 23.583,
+      "max_ms": 34.979,
+      "mean_ms": 18.14
+    },
+    "before/hybrid": {
+      "n": 500,
+      "median_ms": 23.164,
+      "p95_ms": 33.837,
+      "max_ms": 53.062,
+      "mean_ms": 24.328
+    }
+  },
+  "memory_after_queries": {
+    "rss_mb": 147.6,
+    "uss_mb": 145.4,
+    "peak_rss_mb": 147.4
+  },
+  "append": {
+    "n": 200,
+    "append_call": {
+      "n": 200,
+      "median_ms": 0.125,
+      "p95_ms": 0.551,
+      "max_ms": 11.223,
+      "mean_ms": 0.277
+    },
+    "store_vector": {
+      "n": 200,
+      "median_ms": 0.143,
+      "p95_ms": 0.221,
+      "max_ms": 9.515,
+      "mean_ms": 0.249
+    },
+    "found_by_keyword_right_after": 200
+  },
+  "query_after_appends": {
+    "all/hybrid": {
+      "n": 200,
+      "median_ms": 44.627,
+      "p95_ms": 62.757,
+      "max_ms": 79.314,
+      "mean_ms": 46.114
+    }
+  },
+  "memory_end": {
+    "rss_mb": 155.6,
+    "uss_mb": 153.4,
+    "peak_rss_mb": 155.4
+  },
+  "disk_mb": 98.3,
+  "disk_mb_after_appends": 102.3
+}

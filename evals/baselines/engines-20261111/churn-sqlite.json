@@ -1,0 +1,56 @@
+{
+  "engine": "sqlite",
+  "items": 69948,
+  "steps": [
+    {
+      "appended": 0,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 44.143,
+        "p95_ms": 61.649,
+        "max_ms": 77.217,
+        "mean_ms": 46.334
+      }
+    },
+    {
+      "appended": 500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 48.117,
+        "p95_ms": 72.016,
+        "max_ms": 88.308,
+        "mean_ms": 50.042
+      }
+    },
+    {
+      "appended": 1000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 49.529,
+        "p95_ms": 70.693,
+        "max_ms": 83.537,
+        "mean_ms": 50.987
+      }
+    },
+    {
+      "appended": 1500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 46.189,
+        "p95_ms": 65.535,
+        "max_ms": 73.864,
+        "mean_ms": 47.491
+      }
+    },
+    {
+      "appended": 2000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 47.991,
+        "p95_ms": 70.654,
+        "max_ms": 94.69,
+        "mean_ms": 49.636
+      }
+    }
+  ]
+}

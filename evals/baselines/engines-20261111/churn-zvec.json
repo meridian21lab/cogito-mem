@@ -1,0 +1,64 @@
+{
+  "engine": "zvec",
+  "items": 69948,
+  "steps": [
+    {
+      "appended": 0,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 5.995,
+        "p95_ms": 7.744,
+        "max_ms": 17.48,
+        "mean_ms": 6.246
+      }
+    },
+    {
+      "appended": 500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 13.659,
+        "p95_ms": 16.956,
+        "max_ms": 31.394,
+        "mean_ms": 14.066
+      }
+    },
+    {
+      "appended": 1000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 15.04,
+        "p95_ms": 18.315,
+        "max_ms": 37.847,
+        "mean_ms": 15.672
+      }
+    },
+    {
+      "appended": 1500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 16.991,
+        "p95_ms": 20.721,
+        "max_ms": 35.669,
+        "mean_ms": 17.447
+      }
+    },
+    {
+      "appended": 2000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 18.091,
+        "p95_ms": 22.259,
+        "max_ms": 27.424,
+        "mean_ms": 18.505
+      }
+    }
+  ],
+  "optimize_s": 9.15,
+  "after_optimize": {
+    "n": 200,
+    "median_ms": 12.58,
+    "p95_ms": 14.652,
+    "max_ms": 18.81,
+    "mean_ms": 12.633
+  }
+}

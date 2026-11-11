@@ -1,0 +1,69 @@
+{
+  "items": 1000000,
+  "queries": 500,
+  "pool": 100,
+  "visible": 700001,
+  "numpy": {
+    "n": 500,
+    "median_ms": 89.288,
+    "p95_ms": 106.999,
+    "max_ms": 252.902,
+    "mean_ms": 92.019,
+    "ram_mb": 976.6
+  },
+  "sqlite-vec": {
+    "n": 500,
+    "median_ms": 372.954,
+    "p95_ms": 443.213,
+    "max_ms": 612.48,
+    "mean_ms": 380.3,
+    "build_s": 53.4,
+    "disk_mb": 1008.7,
+    "recall@10": 0.9986,
+    "recall@100": 0.9994
+  },
+  "zvec-flat": {
+    "n": 500,
+    "median_ms": 66.743,
+    "p95_ms": 80.824,
+    "max_ms": 329.588,
+    "mean_ms": 71.0,
+    "build_s": 29.0,
+    "disk_mb": 566.0,
+    "recall@10": 1.0,
+    "recall@100": 1.0
+  },
+  "zvec-hnsw-ef100": {
+    "n": 500,
+    "median_ms": 2.038,
+    "p95_ms": 2.672,
+    "max_ms": 5.095,
+    "mean_ms": 2.157,
+    "build_s": 225.9,
+    "disk_mb": 715.6,
+    "recall@10": 0.9996,
+    "recall@100": 0.999
+  },
+  "zvec-hnsw-ef200": {
+    "n": 500,
+    "median_ms": 2.595,
+    "p95_ms": 19.592,
+    "max_ms": 30.306,
+    "mean_ms": 6.208,
+    "build_s": 225.9,
+    "disk_mb": 715.6,
+    "recall@10": 1.0,
+    "recall@100": 0.9998
+  },
+  "zvec-hnsw-ef400": {
+    "n": 500,
+    "median_ms": 2.443,
+    "p95_ms": 3.207,
+    "max_ms": 8.752,
+    "mean_ms": 2.557,
+    "build_s": 225.9,
+    "disk_mb": 715.6,
+    "recall@10": 1.0,
+    "recall@100": 0.9998
+  }
+}

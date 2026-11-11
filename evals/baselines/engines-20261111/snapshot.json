@@ -1,0 +1,11 @@
+{
+  "open_s": 5.002,
+  "open_without_bm25_s": 0.592,
+  "snapshot_write_s": 6.462,
+  "snapshot_mb": 69.0,
+  "snapshot_load_s": 0.334,
+  "terms": 66309,
+  "rows": 69948,
+  "vectors": 69948,
+  "estimated_open_with_snapshot_s": 0.926
+}

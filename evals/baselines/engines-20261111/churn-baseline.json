@@ -1,0 +1,56 @@
+{
+  "engine": "baseline",
+  "items": 69948,
+  "steps": [
+    {
+      "appended": 0,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 4.572,
+        "p95_ms": 6.202,
+        "max_ms": 8.083,
+        "mean_ms": 4.772
+      }
+    },
+    {
+      "appended": 500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 4.441,
+        "p95_ms": 5.807,
+        "max_ms": 14.277,
+        "mean_ms": 4.669
+      }
+    },
+    {
+      "appended": 1000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 4.501,
+        "p95_ms": 6.815,
+        "max_ms": 10.363,
+        "mean_ms": 4.908
+      }
+    },
+    {
+      "appended": 1500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 4.772,
+        "p95_ms": 6.755,
+        "max_ms": 14.425,
+        "mean_ms": 5.081
+      }
+    },
+    {
+      "appended": 2000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 4.918,
+        "p95_ms": 6.263,
+        "max_ms": 7.812,
+        "mean_ms": 5.04
+      }
+    }
+  ]
+}

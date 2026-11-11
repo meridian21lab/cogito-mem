@@ -1,0 +1,130 @@
+{
+  "engine": "baseline",
+  "queries": 1000,
+  "memory_before_open": {
+    "rss_mb": 47.9,
+    "uss_mb": 45.7,
+    "peak_rss_mb": 48.3
+  },
+  "import_s": 0.0,
+  "open_s": 5.104,
+  "first_keyword_query_s": 5.106,
+  "ready_s": 6.545,
+  "first_query_found": [
+    100,
+    100
+  ],
+  "memory_after_open": {
+    "rss_mb": 261.8,
+    "uss_mb": 259.6,
+    "peak_rss_mb": 321.2
+  },
+  "items": 69948,
+  "query": {
+    "all/keyword": {
+      "n": 1000,
+      "median_ms": 0.571,
+      "p95_ms": 0.998,
+      "max_ms": 4.798,
+      "mean_ms": 0.633
+    },
+    "all/vector": {
+      "n": 1000,
+      "median_ms": 3.208,
+      "p95_ms": 4.434,
+      "max_ms": 22.58,
+      "mean_ms": 3.49
+    },
+    "all/hybrid": {
+      "n": 1000,
+      "median_ms": 4.213,
+      "p95_ms": 5.55,
+      "max_ms": 9.571,
+      "mean_ms": 4.343
+    },
+    "thread/keyword": {
+      "n": 500,
+      "median_ms": 0.526,
+      "p95_ms": 0.827,
+      "max_ms": 1.227,
+      "mean_ms": 0.539
+    },
+    "thread/vector": {
+      "n": 500,
+      "median_ms": 0.113,
+      "p95_ms": 0.188,
+      "max_ms": 0.248,
+      "mean_ms": 0.123
+    },
+    "thread/hybrid": {
+      "n": 500,
+      "median_ms": 0.638,
+      "p95_ms": 0.947,
+      "max_ms": 1.432,
+      "mean_ms": 0.659
+    },
+    "before/keyword": {
+      "n": 500,
+      "median_ms": 0.597,
+      "p95_ms": 0.954,
+      "max_ms": 3.172,
+      "mean_ms": 0.635
+    },
+    "before/vector": {
+      "n": 500,
+      "median_ms": 3.513,
+      "p95_ms": 4.231,
+      "max_ms": 6.907,
+      "mean_ms": 3.582
+    },
+    "before/hybrid": {
+      "n": 500,
+      "median_ms": 4.158,
+      "p95_ms": 5.399,
+      "max_ms": 9.331,
+      "mean_ms": 4.238
+    }
+  },
+  "memory_after_queries": {
+    "rss_mb": 266.7,
+    "uss_mb": 249.6,
+    "peak_rss_mb": 321.2
+  },
+  "append": {
+    "n": 200,
+    "append_call": {
+      "n": 200,
+      "median_ms": 1.043,
+      "p95_ms": 2.076,
+      "max_ms": 4.206,
+      "mean_ms": 1.1
+    },
+    "store_vector": {
+      "n": 1,
+      "median_ms": 10.473,
+      "p95_ms": 10.473,
+      "max_ms": 10.473,
+      "mean_ms": 10.473
+    },
+    "found_by_keyword_right_after": 200
+  },
+  "query_after_appends": {
+    "all/hybrid": {
+      "n": 200,
+      "median_ms": 4.557,
+      "p95_ms": 6.116,
+      "max_ms": 9.139,
+      "mean_ms": 4.788
+    }
+  },
+  "memory_end": {
+    "rss_mb": 274.2,
+    "uss_mb": 257.1,
+    "peak_rss_mb": 321.2
+  },
+  "disk_mb": {
+    "log_mb": 60.4,
+    "embedding_cache_mb": 46.0
+  },
+  "disk_mb_after_appends": 63.0
+}

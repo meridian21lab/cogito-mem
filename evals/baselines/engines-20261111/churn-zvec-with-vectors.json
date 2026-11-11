@@ -1,0 +1,65 @@
+{
+  "engine": "zvec",
+  "items": 69948,
+  "with_vectors": true,
+  "steps": [
+    {
+      "appended": 0,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 6.8,
+        "p95_ms": 8.671,
+        "max_ms": 16.431,
+        "mean_ms": 6.885
+      }
+    },
+    {
+      "appended": 500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 7.502,
+        "p95_ms": 9.333,
+        "max_ms": 15.151,
+        "mean_ms": 7.65
+      }
+    },
+    {
+      "appended": 1000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 8.631,
+        "p95_ms": 11.183,
+        "max_ms": 18.744,
+        "mean_ms": 8.87
+      }
+    },
+    {
+      "appended": 1500,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 9.091,
+        "p95_ms": 11.084,
+        "max_ms": 13.33,
+        "mean_ms": 9.139
+      }
+    },
+    {
+      "appended": 2000,
+      "hybrid": {
+        "n": 200,
+        "median_ms": 10.612,
+        "p95_ms": 13.283,
+        "max_ms": 15.643,
+        "mean_ms": 10.797
+      }
+    }
+  ],
+  "optimize_s": 8.42,
+  "after_optimize": {
+    "n": 200,
+    "median_ms": 6.534,
+    "p95_ms": 8.44,
+    "max_ms": 12.93,
+    "mean_ms": 6.719
+  }
+}

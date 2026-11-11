@@ -1,0 +1,170 @@
+{
+  "sqlite": {
+    "all/keyword": {
+      "queries": 200,
+      "overlap@10": 0.9925,
+      "overlap@100": 0.9915,
+      "same_top10_order": 0.685
+    },
+    "all/vector": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 0.9999,
+      "same_top10_order": 0.99
+    },
+    "all/hybrid": {
+      "queries": 200,
+      "overlap@10": 0.9925,
+      "overlap@100": 0.9962,
+      "same_top10_order": 0.855
+    },
+    "thread/keyword": {
+      "queries": 200,
+      "overlap@10": 0.9995,
+      "overlap@100": 1.0,
+      "same_top10_order": 0.975
+    },
+    "thread/vector": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 0.995
+    },
+    "thread/hybrid": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 0.98
+    },
+    "before/keyword": {
+      "queries": 200,
+      "overlap@10": 0.9935,
+      "overlap@100": 0.9901,
+      "same_top10_order": 0.67
+    },
+    "before/vector": {
+      "queries": 200,
+      "overlap@10": 0.9995,
+      "overlap@100": 0.9998,
+      "same_top10_order": 0.985
+    },
+    "before/hybrid": {
+      "queries": 200,
+      "overlap@10": 0.993,
+      "overlap@100": 0.9955,
+      "same_top10_order": 0.84
+    }
+  },
+  "zvec": {
+    "all/keyword": {
+      "queries": 200,
+      "overlap@10": 0.9995,
+      "overlap@100": 0.9993,
+      "same_top10_order": 0.925
+    },
+    "all/vector": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 0.935
+    },
+    "all/hybrid": {
+      "queries": 200,
+      "overlap@10": 0.9975,
+      "overlap@100": 0.9997,
+      "same_top10_order": 0.935
+    },
+    "thread/keyword": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 0.99
+    },
+    "thread/vector": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 1.0
+    },
+    "thread/hybrid": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 1.0
+    },
+    "before/keyword": {
+      "queries": 200,
+      "overlap@10": 0.998,
+      "overlap@100": 0.9997,
+      "same_top10_order": 0.935
+    },
+    "before/vector": {
+      "queries": 200,
+      "overlap@10": 0.9995,
+      "overlap@100": 1.0,
+      "same_top10_order": 0.98
+    },
+    "before/hybrid": {
+      "queries": 200,
+      "overlap@10": 0.9985,
+      "overlap@100": 0.9997,
+      "same_top10_order": 0.97
+    }
+  },
+  "lance": {
+    "all/keyword": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 0.9995,
+      "same_top10_order": 0.89
+    },
+    "all/vector": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 1.0
+    },
+    "all/hybrid": {
+      "queries": 200,
+      "overlap@10": 0.999,
+      "overlap@100": 0.9998,
+      "same_top10_order": 0.94
+    },
+    "thread/keyword": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 0.99
+    },
+    "thread/vector": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 1.0
+    },
+    "thread/hybrid": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 1.0
+    },
+    "before/keyword": {
+      "queries": 200,
+      "overlap@10": 0.999,
+      "overlap@100": 0.9994,
+      "same_top10_order": 0.955
+    },
+    "before/vector": {
+      "queries": 200,
+      "overlap@10": 1.0,
+      "overlap@100": 1.0,
+      "same_top10_order": 1.0
+    },
+    "before/hybrid": {
+      "queries": 200,
+      "overlap@10": 0.999,
+      "overlap@100": 0.9997,
+      "same_top10_order": 0.98
+    }
+  }
+}
