@@ -4,6 +4,9 @@
 Results: [`evals/baselines/rust-probe-20261111/`](../../evals/baselines/rust-probe-20261111/). Nothing in
 `src/` changed.*
 
+*Decision, 12 Nov 2026: no Rust rewrite. This was an experiment. It is kept on the branch
+`cogi-rust-experimental` and is not to be merged into `main`.*
+
 **In short.** We built a Rust version of the two parts where speed could matter: the hook that runs with
 every prompt, and the core that opens the log and ranks. We checked both against Python on the 10M-token
 memory from [`search_engines_20261111.md`](search_engines_20261111.md), then timed them.
