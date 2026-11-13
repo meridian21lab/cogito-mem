@@ -2,7 +2,7 @@
 title: "Your memory stays home."
 date: 2026-11-13
 status: draft for the author's review
-files: "out/02-stays-home/shorts.mp4 (1080x1920, 48 s) for YouTube Shorts; out/02-stays-home/feed.mp4 (1080x1350) for LinkedIn; cover-shorts.jpg, cover-feed.jpg"
+files: "out/02-stays-home/shorts.mp4 (1080x1920, 49.7 s) for YouTube Shorts; out/02-stays-home/feed.mp4 (1080x1350) for LinkedIn; cover-shorts.jpg, cover-feed.jpg"
 after_upload: "YouTube Studio → Subtitles → unpublish the automatic track (captions are burned in)."
 claims: "README, 'Private and free' and 'What Cogi runs, downloads and stores'. Redaction is not claimed in the film."
 ---
