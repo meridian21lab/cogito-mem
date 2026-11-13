@@ -14,12 +14,16 @@ export const shelfSlot = (n: number) => {
   return {x: -100 + i * HOLLOW.gap, y: HOLLOW.shelves[shelf] - 4};
 };
 
-export const SmallAcorn = ({x, y, s = 1, rot = 0, tag, tagOpacity = 1, tagLow = false}: {x: number; y: number; s?: number; rot?: number; tag?: string; tagOpacity?: number; tagLow?: boolean}) => (
+export const SmallAcorn = ({x, y, s = 1, rot = 0, tag, tagOpacity = 1, tagLow = false, tagOnly = false}: {x: number; y: number; s?: number; rot?: number; tag?: string; tagOpacity?: number; tagLow?: boolean; tagOnly?: boolean}) => (
   <g transform={`translate(${x} ${y}) rotate(${rot}) scale(${s})`}>
-    <ellipse cx="0" cy="-17" rx="14" ry="17" fill={A.nut} />
-    <ellipse cx="-5" cy="-21" rx="4" ry="7" fill={A.light} opacity="0.7" />
-    <path d="M -17 -26 Q 0 -50 17 -26 Z" fill={A.cap} />
-    <rect x="-2" y="-52" width="4" height="9" rx="2" fill={A.cap} />
+    {tagOnly ? null : (
+      <>
+        <ellipse cx="0" cy="-17" rx="14" ry="17" fill={A.nut} />
+        <ellipse cx="-5" cy="-21" rx="4" ry="7" fill={A.light} opacity="0.7" />
+        <path d="M -17 -26 Q 0 -50 17 -26 Z" fill={A.cap} />
+        <rect x="-2" y="-52" width="4" height="9" rx="2" fill={A.cap} />
+      </>
+    )}
     {tag ? (
       <g opacity={tagOpacity}>
         <path d={tagLow ? 'M 8 -18 L 20 -14' : 'M 6 -30 L 22 -40'} stroke={theme.cream} strokeWidth="1.6" />
@@ -108,8 +112,13 @@ export const Tree = ({x, y, ground, frame, shelf = 0, tags = 0, labels = [], sig
       ))}
       {Array.from({length: Math.floor(shelf)}, (_, n) => {
         const s = shelfSlot(n);
+        return <SmallAcorn key={n} x={s.x} y={s.y} s={0.95} rot={(n * 37) % 9 - 4} />;
+      })}
+      {/* tags in a second pass, so the next acorn never covers a tag's letters */}
+      {Array.from({length: Math.floor(shelf)}, (_, n) => {
+        const s = shelfSlot(n);
         const t = Math.max(0, Math.min(1, tags - n));
-        return <SmallAcorn key={n} x={s.x} y={s.y} s={0.95} rot={(n * 37) % 9 - 4} tag={t > 0 ? labels[n] ?? '13 NOV' : undefined} tagOpacity={t} tagLow={n % 2 === 1} />;
+        return t > 0 ? <SmallAcorn key={`t${n}`} x={s.x} y={s.y} s={0.95} rot={(n * 37) % 9 - 4} tag={labels[n] ?? '13 NOV'} tagOpacity={t} tagLow={n % 2 === 1} tagOnly /> : null;
       })}
       {/* lip of the hollow, level with the desk */}
       <path d={`M ${-w / 2 - 22} 2 Q 0 26 ${w / 2 + 22} 2`} fill="none" stroke="#9B6B45" strokeWidth="16" strokeLinecap="round" />

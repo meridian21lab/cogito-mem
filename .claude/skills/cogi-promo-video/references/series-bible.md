@@ -29,6 +29,11 @@ Something important gets said. The assistant forgets it. Cogi has kept it. Every
   - a bonk on the glass;
   - happy sparkle eyes when the words come back.
 
+**The cloud** (`src/cast/Cloud.tsx`, from film 02)
+- **Character:** "someone else's cloud". A big, fluffy, smiling salesman, a little too eager. Never named after or styled like a real company; it stands for the generic idea, so the README's comparison table is the only source for what it asks for.
+- **Signature beats:** gulping chats; popping up placards ("Sign up!", "API key?"); reading glasses and a magnifier ("an AI to read it all"); a shocked "o" when refused; turning grey, frowning and raining on Cogi; puffing its cheeks and huffing off.
+- **Pose controls:** tilt, squash, look, blink, mouth (grin, smile, open, frown, o) and how wide it opens, brow, grump, glasses, grey, puff. `CloudArm` draws a puffy arm to whatever it holds.
+
 **The developer** is seen only as hands, sleeves, a laptop and a mug. The developer is "you".
 
 ## The world
@@ -50,7 +55,10 @@ An enthusiastic wildlife presenter who finds all this thrilling. Present tense, 
 
 ## Running gags and devices
 
-- **Species cards (lower third, top left):** "The AI assistant, *Carassius forgetfulus*" and "The squirrel, *Sciurus archivus*". Each new character gets mock Latin.
+- **Species cards (lower third, top left):** "The AI assistant, *Carassius forgetfulus*", "The squirrel, *Sciurus archivus*", "The chat, *Garrulus migratorius*" and "The cloud, *Cumulus signupensis*". Each new character gets mock Latin.
+- **The rebel acorn:** one acorn on the shelf keeps growing wings and trying to leave; Cogi catches it every time (film 02 ends with Cogi chomping it into its cheek without even looking).
+- **The brass plate** "~/.cogito-mem" over the hollow, under the "your computer" sign: the real folder, shown once it matters.
+- **Paws over the eyes** (`cover` pose): Cogi not looking at what you marked private.
 - **The binocular iris** opens a film.
 - **Cogi's tail wipe** is the transition into the title card.
 - **A lone cricket** fills the silence after something is forgotten.

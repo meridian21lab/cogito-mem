@@ -26,13 +26,13 @@ export const LowerThird = ({title, latin, from, to, format}: {title: string; lat
   );
 };
 
-/** A binocular view that opens from `from` to `to`, revealing the full frame. */
-export const Binoculars = ({from, to, format}: {from: number; to: number; format: FormatId}) => {
+/** A binocular view that opens from `from` to `to`, revealing the full frame; `r0` is each lens's starting radius. */
+export const Binoculars = ({from, to, format, r0 = 400}: {from: number; to: number; format: FormatId; r0?: number}) => {
   const frame = useCurrentFrame();
   if (frame > to) return null;
   const {width: W, height: H} = FORMATS[format];
   const t = ease(frame, [from, to], [0, 1], EASE.in);
-  const r = 400 + t * 1300;
+  const r = r0 + t * 1300;
   const dx = 220 + t * 300;
   return (
     <AbsoluteFill>

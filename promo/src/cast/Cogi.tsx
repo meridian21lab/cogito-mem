@@ -39,6 +39,8 @@ export type CogiPose = {
   mouth: CogiMouth;
   /** Paws 0 at the chest .. 1 held forward (presenting) .. 2 raised high .. -1 tucked back (wind-up). */
   paws: number;
+  /** Paws over the eyes, 0..1 ("I'm not looking"). */
+  cover: number;
   acorn: boolean;
   acornLabel?: string;
   /** Feet lift for scurrying, -1..1 (alternating). */
@@ -49,7 +51,7 @@ export type CogiPose = {
 
 export const COGI_REST: CogiPose = {
   x: 0, y: 0, scale: 1, flip: 1, lean: 0, squash: 1, lift: 0, headRot: 0, headY: 0, earL: 0, earR: 0, tail: 0, tailCurl: 0,
-  eye: [0, 0], blink: 0, lid: 0, brow: 0, cheek: 0, mouth: 'smile', paws: 0, acorn: true, run: 0, sparkle: 0,
+  eye: [0, 0], blink: 0, lid: 0, brow: 0, cheek: 0, mouth: 'smile', paws: 0, cover: 0, acorn: true, run: 0, sparkle: 0,
 };
 
 /** The life underneath any pose: breathing, blinks, ear flicks and a lazy tail. */
@@ -183,10 +185,25 @@ export const Cogi = ({pose}: {pose: Partial<CogiPose>}) => {
           <circle cx="146" cy="99" r="5" fill={C.pink} opacity=".6" />
         </g>
         {/* paws and acorn: lift forward and up to present */}
-        <g transform={`translate(${pawLift * 22} ${-pawLift * 8 - Math.max(0, pawLift - 1) * 30}) rotate(${-pawLift * 10} 145 128)`}>
+        <g transform={`translate(${pawLift * 22 + p.cover * 4} ${-pawLift * 8 - Math.max(0, pawLift - 1) * 30 - p.cover * 50}) rotate(${-pawLift * 10} 145 128)`}>
           {p.acorn ? <AcornShape label={p.acornLabel} /> : null}
-          <ellipse cx="141" cy="134" rx="6.5" ry="5" fill={C.mid} />
-          <ellipse cx="161" cy="136" rx="6.5" ry="5" fill={C.mid} />
+          {p.cover > 0.05 ? (
+            // over the face the paws need a rim and toes, or they vanish into the head's colour
+            [
+              [145, 135, -18],
+              [157, 137, 14],
+            ].map(([cx, cy, r]) => (
+              <g key={cx} transform={`rotate(${r * p.cover} ${cx} ${cy})`}>
+                <ellipse cx={cx} cy={cy} rx={6.5 + p.cover * 2.5} ry={5 + p.cover * 2.8} fill={C.mid} stroke={C.dark} strokeWidth={1.6} />
+                <path d={`M ${cx - 3.2} ${cy - 6} L ${cx - 3.2} ${cy - 2.5} M ${cx} ${cy - 7} L ${cx} ${cy - 3.5} M ${cx + 3.2} ${cy - 6} L ${cx + 3.2} ${cy - 2.5}`} stroke={C.dark} strokeWidth={1.2} strokeLinecap="round" opacity={p.cover} />
+              </g>
+            ))
+          ) : (
+            <>
+              <ellipse cx="141" cy="134" rx="6.5" ry="5" fill={C.mid} />
+              <ellipse cx="161" cy="136" rx="6.5" ry="5" fill={C.mid} />
+            </>
+          )}
         </g>
       </g>
     </g>

@@ -13,14 +13,14 @@ The series runs on one joke: your AI assistant forgets, Cogi doesn't.
 Each film makes **one point with one proof**, in 35–50 s, and is funny first.
 
 The factory is `promo/`, a Remotion (React) project. A film is two files: `script.ts` (narration, sounds, music) and `Film.tsx` (the scenes). Everything else is shared:
-- the cast (`src/cast`) and the world (`src/world`);
+- the cast (`src/cast`: Cogi, Goldie, the cloud) and the world (`src/world`: the set, props such as winged chats and acorns, placards, a magnifier, a leaf umbrella and rain, and the shared title and end cards in `Ending.tsx`);
 - the camera, captions, film finish, overlays, motion and sound (`src/kit`);
 - the ElevenLabs scripts, checks and render (`scripts/`).
 
 Read these before writing a film:
 - `references/series-bible.md`: who is who, the world, the running gags.
 - `references/craft.md`: motion, camera, light, type and sound rules, with numbers.
-- `src/films/01-claude-forgets/`: the reference film.
+- `src/films/01-claude-forgets/` and `src/films/02-stays-home/`: the reference films.
 
 The design is in `docs/superpowers/specs/2026-11-13-cogi-film-factory-design.md`.
 
@@ -146,4 +146,7 @@ Copy the author writes or signs (`publish.md`, post text) follows the author's r
 - **Remotion's `volume` is kept at 1 or below.** `Sound.tsx` scales every gain together and `render.sh` brings the master up to −14 LUFS.
 - **The YouTube overlays cover the top 9%, the bottom 12% and the right edge from 70% down.** Captions sit at y 1450 in 9:16 and y 1165 in 4:5, inside both. In close-ups, check that props (signs, labels) don't land on the caption band.
 - **The 4:5 cut shows only the central band** (y 285–1635 of the 9:16 frame). Anything above y ≈ 650 in world space falls out of it in a 2× close-up. Check `sheet-feed.jpg`.
+- **Same colour, no outline, invisible.** The cast is drawn flat without outlines, so a part laid over a part of the same colour vanishes (Cogi's paws over its head). Give it a rim or a different shade there, and check close-ups at full size.
+- **One render, many frames.** To inspect beats, render one half-size draft and cut frames out of it with ffmpeg (`select=eq(n\,F)`); launching many `remotion still` runs at once is far slower.
+- **Reuse paid audio.** Cache keys don't include the film, so a sound or line with the same prompt or text as an earlier film can be copied from its `public/films/<film>/` folder instead of bought again (the tagline and end-card lines are shared).
 - **This Homebrew ffmpeg has no `drawtext` filter.** The contact sheets carry no timestamps; read them as one frame per second, left to right.

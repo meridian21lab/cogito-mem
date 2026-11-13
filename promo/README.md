@@ -22,8 +22,8 @@ One point per film, each with one proof from the README.
 
 | # | Working title | The one point | Proof | Status |
 |---|---|---|---|---|
-| 1 | Claude forgets. Cogi doesn't. | The goldfish forgets when the chat ends; Cogi keeps your exact words, with the date, on your computer, and gives them back | The acorn demo | Pilot made on 2026-11-13, awaiting the author's review |
-| 2 | Your memory stays home | One folder on your computer: no account, no API key, no AI calls to save a message. Common secrets are redacted and `<private>` text is skipped | README, "Private and free" and "Stores" | Idea |
+| 1 | Claude forgets. Cogi doesn't. | The goldfish forgets when the chat ends; Cogi keeps your exact words, with the date, on your computer, and gives them back | The acorn demo | Style accepted 2026-11-13; on the NAS |
+| 2 | Your memory stays home | One folder on your computer: no account, no API key, no AI calls to save a message; `<private>` text is skipped (redaction left out: it goes by patterns) | README, "Private and free" and "Stores" | Made on 2026-11-13, awaiting the author's review |
 | 3 | A needle in 1.2 million tokens | Finds the right past session in a huge history, ahead of four other local memory plugins, in milliseconds | 93.0% vs 86.6–89.8%; 26 ms over 10M tokens | Idea |
 | 4 | Read nine times less | The 1,000 tokens Cogi hands back give 95% of the answer quality of rereading the whole conversation | LoCoMo: 89.4% vs 94.1% | Idea |
 | 5 | "What did we decide about…?" | How to use it: ask Claude to check its memory | A real session, with permission | Idea |
