@@ -222,7 +222,12 @@ __marimo__/
 /research_notes/
 .*.swp
 
-# Promo video builds: rebuild with promo/videos/<video>/make_video.py; keep them with `bash promo/nas.sh push`
+# Promo film builds: paid ElevenLabs audio and renders; keep them with `bash promo/nas.sh push`
+promo/node_modules/
+promo/out/
+promo/public/films/*/voice/
+promo/public/films/*/sfx/
+promo/public/films/*/music/
 promo/videos/*/*.mp4
 promo/videos/*/cover*.jpg
 promo/videos/*/audio/

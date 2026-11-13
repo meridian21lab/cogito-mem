@@ -1,0 +1,30 @@
+{
+  "name": "cogi-films",
+  "private": true,
+  "description": "Cogi promo film factory: Remotion scenes, ElevenLabs voice/sfx/music scripts, checks and renders",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "voice": "tsx scripts/voice.ts",
+    "sfx": "tsx scripts/sfx.ts",
+    "music": "tsx scripts/music.ts",
+    "check": "tsx scripts/check.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/fonts": "4.0.539",
+    "@remotion/media-utils": "4.0.539",
+    "@remotion/noise": "4.0.539",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.3.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}
