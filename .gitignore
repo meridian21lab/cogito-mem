@@ -221,3 +221,13 @@ __marimo__/
 /reports/
 /research_notes/
 .*.swp
+
+# Promo video builds: rebuild with promo/videos/<video>/make_video.py; keep them with `bash promo/nas.sh push`
+promo/videos/*/*.mp4
+promo/videos/*/cover*.jpg
+promo/videos/*/audio/
+promo/videos/*/raw/
+promo/videos/*/stills*/
+
+# Claude Code's local worktrees (project skills in .claude/skills/ are committed)
+.claude/worktrees/
