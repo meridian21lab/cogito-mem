@@ -24,13 +24,13 @@ export type FilmScript = {
 
 export type WordTiming = {text: string; start: number; end: number};
 
-export type VoiceLine = {file: string; duration: number; words: WordTiming[]};
+export type VoiceLine = {file: string; duration: number; lufs?: number; words: WordTiming[]};
 
 /** voice.json: per line, the clip (relative to public/) and its word timings in seconds. */
 export type VoiceData = Record<string, VoiceLine>;
 
 /** sounds.json: per sound name, its takes (files relative to public/). */
-export type SoundData = Record<string, string[]>;
+export type SoundData = Record<string, {file: string; lufs: number}[]>;
 
 /** music.json: the bed (relative to public/) and its length in seconds. */
-export type MusicData = {file: string; seconds: number};
+export type MusicData = {file: string; seconds: number; lufs: number};

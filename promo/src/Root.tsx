@@ -1,13 +1,37 @@
-import {AbsoluteFill, Composition} from 'remotion';
-import {FORMATS, FPS} from './kit/formats';
-import {loadFonts, theme} from './kit/theme';
+import {Composition, Still} from 'remotion';
+import {CastSheet} from './CastSheet';
+import {Cover as Cover01, Film as Film01} from './films/01-claude-forgets/Film';
+import {script as script01} from './films/01-claude-forgets/script';
+import {filmMetadata} from './kit/film';
+import {FORMATS, FPS, type FormatId} from './kit/formats';
+import {loadFonts} from './kit/theme';
 
 loadFonts();
 
-const Placeholder = () => <AbsoluteFill style={{background: theme.cream}} />;
+const films = [{slug: 'claude-forgets', script: script01, component: Film01, cover: Cover01}];
 
 export const Root = () => (
   <>
-    <Composition id="placeholder" component={Placeholder} durationInFrames={FPS} fps={FPS} width={FORMATS.shorts.width} height={FORMATS.shorts.height} />
+    {films.flatMap(({slug, cover}) =>
+      (Object.keys(FORMATS) as FormatId[]).map((format) => (
+        <Still key={`${slug}-cover-${format}`} id={`${slug}-cover-${format}`} component={cover} width={FORMATS[format].width} height={FORMATS[format].height} defaultProps={{format}} />
+      )),
+    )}
+    {films.flatMap(({slug, script, component}) =>
+      (Object.keys(FORMATS) as FormatId[]).map((format) => (
+        <Composition
+          key={`${slug}-${format}`}
+          id={`${slug}-${format}`}
+          component={component}
+          durationInFrames={FPS}
+          fps={FPS}
+          width={FORMATS[format].width}
+          height={FORMATS[format].height}
+          defaultProps={{format, mix: null}}
+          calculateMetadata={filmMetadata(script)}
+        />
+      )),
+    )}
+    <Composition id="cast-sheet" component={CastSheet} durationInFrames={90} fps={FPS} width={1080} height={1920} />
   </>
 );

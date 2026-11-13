@@ -1,113 +1,149 @@
 ---
 name: cogi-promo-video
-description: Make short narrated promo videos of Cogi (cogito-mem) for YouTube Shorts (9:16) and LinkedIn (4:5), about 45-60 s, with an ElevenLabs voiceover and burned-in captions, drawn frame by frame with Pillow and encoded with ffmpeg. Use when the user asks for a Cogi promo, a Short, a reel, a LinkedIn video, the next episode of the promo series, or to change or re-render one in promo/videos/.
+description: Make short, funny, character-animated promo films of Cogi (cogito-mem) for YouTube Shorts (9:16) and LinkedIn (4:5) with the Remotion film factory in promo/. A wildlife-documentary narrator (ElevenLabs) tells the story while Cogi the squirrel and Goldie the goldfish act it out. Use when the user asks for a Cogi promo, a Short, a reel, a LinkedIn video, the next film of the series, or to change, re-voice or re-render one.
 ---
 
-# Cogi Promo Video
+# Cogi Promo Films
 
-A promo video shows one thing Cogi does, in about a minute: a title card, 5-7 animated scenes, a voiceover and captions. Each one sends people to install Cogi or read the results. The engine, the squirrel and the fonts are in `promo/kit/`; each video is one folder in `promo/videos/`. The series plan is in `promo/README.md`.
+The series runs on one joke: your AI assistant forgets, Cogi doesn't.
+- **Goldie the goldfish** is the cheerful, forgetful assistant. Its bowl is the context window.
+- **Cogi the squirrel** keeps every word as a dated acorn in its tree, and digs out the right one when it's needed.
+- **An over-excited wildlife presenter** narrates it all.
 
-This skill is adapted from the author's `explainer-video` skill in ksopyla-ai-blog (`.cursor/skills/explainer-video/`), which made episode 1. The narration, visual and Shorts rules below come from its revision rounds. When a rule here changes for a reason that also applies to blog videos, say so, so the author can port it.
+Each film makes **one point with one proof**, in 35–50 s, and is funny first.
 
-## One Point Per Video
+The factory is `promo/`, a Remotion (React) project. A film is two files: `script.ts` (narration, sounds, music) and `Film.tsx` (the scenes). Everything else is shared:
+- the cast (`src/cast`) and the world (`src/world`);
+- the camera, captions, film finish, overlays, motion and sound (`src/kit`);
+- the ElevenLabs scripts, checks and render (`scripts/`).
 
-- **Each video makes one point** from the series plan, with one proof. Episode 1 is the overview; the rest go deeper on one thing each.
-- **The story is a user's moment, not a feature list**: something you said is gone, Cogi brings it back. Episode 1's arc works: the problem in the first 3 seconds (the acorn demo), what Cogi is, why you can trust it, the proof, how to get it.
-- **Close with one action**: the install command, or "see the results" with the site address on screen. The question for discussion belongs in the LinkedIn post text, not the video.
+Read these before writing a film:
+- `references/series-bible.md`: who is who, the world, the running gags.
+- `references/craft.md`: motion, camera, light, type and sound rules, with numbers.
+- `src/films/01-claude-forgets/`: the reference film.
 
-## What A Video May Claim
+The design is in `docs/superpowers/specs/2026-11-13-cogi-film-factory-design.md`.
 
-The README and the site are the marketing source, and every claim rests on data. Use only what they say today, in their words, and recheck the README before each new script, since numbers there change after evals.
+## Why it is built this way
+
+The author rejected the first, Pillow-drawn episode as "dull, too techie", "simple and unprofessional", with a voice that wasn't right. They asked for creative, funny, engaging, dynamic films in "super high quality".
+
+So:
+- characters act instead of slides;
+- a narrator with a dynamic voice tells the story;
+- every beat is tied to a spoken word;
+- quality comes from written craft rules and automatic checks, not from taste on the day.
+
+## What a film may claim
+
+The README is the marketing source. Recheck it before each script, because numbers change after evals.
 
 Quotable now (README, release 0.3.0):
-- Every message kept word for word, with its date; one folder on your computer; no account, no API key, no AI calls to save a message.
-- LongMemEval's long test: about 480 past sessions, some 1.2 million tokens, per question; the right past session is among the first five for 93.0% of 500 questions, with no AI model involved, ahead of four other local memory plugins on the same questions (86.6-89.8% at their best settings).
-- LoCoMo with GPT-5 mini answering: 1,000 tokens from Cogi answer 89.4% right against 94.1% from rereading the whole conversation, which is 95% of the quality from about 9 times fewer tokens.
-- A search over 10 million tokens takes 26 ms on a laptop CPU.
-- Install: `claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem`, or the agent prompt in `site/install.md`.
+- **What it keeps:** every message, word for word, with its date, in one folder on your computer. No account, no API key, no AI calls to save a message. When something drops out of the conversation, Claude searches Cogi and gets your exact words back.
+- **LongMemEval, long test:** about 480 past sessions and some 1.2 million tokens per question. The right past session is among the first five for 93.0% of 500 questions, with no AI model involved. That is ahead of four other local memory plugins on the same questions (86.6–89.8% at their best settings).
+- **LoCoMo, with GPT-5 mini answering:** 1,000 tokens from Cogi answer 89.4% right, against 94.1% from rereading the whole conversation. That is 95% of the quality from about 9× fewer tokens.
+- **Speed:** a search over 10 million tokens takes 26 ms on a laptop CPU.
+- **Install:** `claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem`, or the agent prompt in `site/install.md`. Free and open source (MIT).
 
 Never claim:
-- **Token or cost savings.** The eval has not run, so there is no number to quote.
+- **Token or cost savings.** There is no measured number.
 - **Reranker numbers.** The plugin ships plain hybrid search.
-- **That Claude "never forgets" or recalls everything by itself.** Automatic recall is far from complete; the honest line is that Claude can look back and gets your exact words. Episode 1's tip stands: "when it matters, ask Claude to check its memory".
-- **A listing in Claude's plugin directory.** There isn't one.
-- **Cogi plus Graphify gains.** The pairing has not been measured.
-- Any number that is not in the README, or a rounder version of one ("over 90%" is fine for 93.0%, "nearly perfect" is not).
+- **That Claude "never forgets"** or recalls everything by itself. "Claude forgets. Cogi doesn't." is the series tagline, said once per film. The honest mechanism is that Claude can look back and gets your exact words.
+- **A listing in Claude's plugin directory.**
+- **Cogi plus Graphify gains.**
+- **Any number not in the README,** or a rounder version of one. "Ninety-three times in a hundred" is fine; "nearly always" is not.
 
-## Voice
+Numbers are rare: at most one per film, said plainly by the narrator and shown big on screen.
 
-The author's rules, from the blog videos:
-- **Plain and specific, first person where it is his experience** ("I tested it on a public benchmark"). Modest, no hype words, no "revolutionary", no "In this video".
-- **No AI-sounding copy**: no "Wrong question. The better one:" twists, no arrow-bullet slogans, no paired slogan endings. "Claude forgets. Cogi doesn't." is the series line; use it at most once per video.
-- **Say exactly what is meant.** If a line is slightly off logically, he will correct it; get it right first.
-- **His edits are final.** Keep his rewrites; adapt only for flow, say that you did, and offer his exact wording.
+## Brand safety
 
-## Files
-
-```
-promo/
-├── README.md                  # series plan, how to render, where files live
-├── nas.sh                     # push / pull build outputs to the NAS
-├── kit/
-│   ├── video_kit.py           # engine: captions, TTS with caching, render, Shorts framing, CLI
-│   ├── cogi_art.py            # the squirrel, rasterised from site/assets/cogi.svg, and the brand palette
-│   └── fonts/                 # Outfit Bold, Work Sans (SIL OFL 1.1, licences beside them)
-└── videos/<nn>-<slug>/
-    ├── scenes.json            # title, size, fps, scenes [{id, visual, narration}]     (committed)
-    ├── make_video.py          # one draw function per visual + make_cover()            (committed)
-    ├── publish.md             # YouTube title/description/hashtags, LinkedIn caption   (committed)
-    ├── <slug>.mp4, <slug>-shorts.mp4, cover*.jpg                                      (gitignored, NAS)
-    ├── audio/                 # cached ElevenLabs clips + manifest                     (gitignored, NAS)
-    ├── raw/                   # screen recordings, if any                              (gitignored, NAS)
-    └── stills*/               # review PNGs                                            (gitignored)
-```
-
-Start a new video by copying the closest existing folder; `01-claude-forgets` is the reference for the brand look (cream page, ink text, orange accent, the squirrel, acorns as saved messages, a dark terminal).
+- Goldie is "your AI assistant", never drawn as Claude.
+- No Anthropic or Claude logos, and no Claude mascot.
+- Name "Claude" in narration only where the sentence needs it (the tagline, "Claude Code").
+- The narrator is a character, never an imitation of a real person.
 
 ## Requirements
 
-- `uv` and `ffmpeg`/`ffprobe` on PATH (`brew install ffmpeg`).
-- `ELEVENLABS_API_KEY` in the repo-root `.env` (`KEY=value` lines). Never print or commit it. The key is restricted: it can list voices and speak, but cannot read the credit balance, so check credits on the ElevenLabs site.
-- Voice: the kit's default is George (`JBFqnCBsd6RMkjVDRZzb`, warm British storyteller), used in episode 1. Keep one voice across the series; to change it, set `ELEVENLABS_VOICE_ID` in `.env` and re-render every episode with `--regen`.
+- **Node 24** and `npm install` in `promo/`. Remotion fetches its headless Chrome on the first render.
+- **`ffmpeg` and `ffprobe`** on PATH.
+- **`uv`**, for the local Whisper check.
+- **`ELEVENLABS_API_KEY`** in the repo-root `.env`, as a `KEY=value` line. Never print or commit it.
+  - The plan is paid (Starter): library voices, sound generation and music work.
+  - Starter allows `mp3_44100_128` at most; 192 kbps needs Creator.
+  - The key cannot read the balance, transcribe or design voices.
+- **Remotion licence:** free while the team making the films is 3 people or fewer.
 
-## Workflow
+## Making a film
 
-1. **Pick the episode** from `promo/README.md` and reread the README section it draws on.
-2. **Write `scenes.json`** (narration rules below). Show the narration to the author before spending TTS credits.
-3. **Draw the scenes** in `make_video.py`: `def scene_x(frame, t, dur, speech, sc)`, register it in `SCENES`, add `make_cover()`, end with `vk.run(HERE, SCENES, make_cover, "<slug>.mp4")`. The cover title is the video's hook.
-4. **Review with stills**: `--stills` (and `--stills --shorts`) writes the cover and each scene at 35% and 95% of its length, with no TTS and no encoding. Paste them into one contact sheet and look at every scene at once: overlaps, empty stretches, text near the caption band.
-5. **Render both cuts**: the default run makes the 4:5 LinkedIn video; `--shorts` makes the 9:16 Short from the same scenes. TTS is cached per scene by a hash of voice, model and narration, so the second cut costs nothing.
-6. **QA each mp4**: `ffprobe` (h264 + aac; 1080x1350 and 1080x1920); frames at the narration cue points (`ffmpeg -ss <t> -i v.mp4 -frames:v 1 f.png`) to check each visual lands with its words; captions present throughout.
-7. **Hand over**: send both mp4s and covers to the author with `publish.md` filled in. The author uploads; never post to his accounts.
-8. **Keep it**: once the author accepts a cut, `bash promo/nas.sh push <video>` copies the videos, covers, voice clips and raw recordings to the NAS.
+From `promo/`:
 
-## Publishing Notes (publish.md)
+1. **Brief.** Pick the point from `promo/README.md` and reread the README section behind it. In a comment at the top of `script.ts`, write the point, the proof and the comic engine.
+2. **Script.** Copy `src/films/01-claude-forgets/` to `src/films/<nn>-<slug>/` and rewrite `script.ts`:
+   - lines with ids;
+   - `gap` before each line (comic timing lives in the gaps);
+   - v4 audio tags (`[excited]`, `[whispers]`) inside the text;
+   - `aliases: {Cogi: 'Kogi'}`, so "Cogi" is said KOH-ghee, with a hard g;
+   - the sound prompts, the music prompt and the cover word.
 
-- **YouTube Short**: title = the hook plus `#Shorts`; description with what Cogi is, the install command, the site, the repo and the results page; 3 hashtags including `#Shorts`. After upload: YouTube Studio → Subtitles → unpublish the automatic track, since the captions are burned in. A changed render means a new upload: YouTube cannot replace a video file.
-- **LinkedIn**: upload the 4:5 mp4 natively and set the cover as the thumbnail; never post the YouTube link. Links go in the first comment, not the post.
+   About 80–110 words. Show the narration to the author before paying for the voice, unless they have said to go ahead.
+3. **Voice, sounds and music** (cached by content hash, so only changed lines cost credits):
+   ```bash
+   npm run voice -- <film>
+   npm run sfx -- <film>
+   npm run music -- <film>    # after voice, so the bed fits the film's length
+   ```
+   The voice script refuses a line whose spoken words don't match its caption words.
+4. **Hear it.** Run a local Whisper over the clips. Every line must come back as written, and "Cogi" as "Kogi" or "Cogi", never "Coji". The script lives in the session scratchpad: `uv run --with mlx-whisper`, with `HF_HUB_DISABLE_IMPLICIT_TOKEN=1` if a stale Hugging Face token gets in the way.
+5. **Block, then animate** `Film.tsx`:
+   - every beat takes its frame from `tl.word(lineId, word)`, never a hard-coded frame;
+   - register the film in `src/Root.tsx`, which creates `<slug>-shorts` and `<slug>-feed`.
 
-## Narration Rules
+   Iterate with half-size drafts and a contact sheet:
+   ```bash
+   npx remotion render src/index.ts <slug>-shorts out/drafts/s.mp4 --scale=0.5
+   bash scripts/sheet.sh out/drafts/s.mp4 out/drafts/sheet.jpg 1
+   ```
+   Look at the sheet yourself (Read the jpg). `npm run studio` opens Remotion Studio for scrubbing.
+6. **Render and check:**
+   ```bash
+   bash scripts/render.sh <film>   # both cuts, two-pass loudnorm, covers, contact sheets
+   npm run check -- <film>         # loudness -14 ±1 LUFS, true peak <= -1 dBTP, no still stretch > 3 s, 25-60 s
+   ```
+7. **Review.** Before the author sees a cut, give a fresh subagent only the contact sheets and a few full-size frames, not the code. Ask for the weakest scene, the first-2-second hook, phone readability, the 4:5 crop and brand risk. Fix what it finds that holds up.
+8. **Hand over.**
+   - Send the author both mp4s from `out/<film>/` and the covers.
+   - Fill in `publish.md` beside the script (see below).
+   - The author uploads; never post to their accounts.
+9. **Keep it.** Once the author accepts a cut, run `bash promo/nas.sh push <film>`. It copies the renders and the paid audio to the NAS. On a fresh checkout, `bash promo/nas.sh pull <film>` brings the audio back, so it isn't paid for twice.
 
-- 5-7 scenes, at most ~28 words each, 120-150 words in total. George reads about 2.5 words/s and each scene adds a 0.4 s pause: 140 words is about 57 s. Aim under 60 s; Shorts allow up to 3 minutes, but under a minute keeps viewers to the end.
-- Scene 1 is the hook: the problem within 3 seconds. Every sentence earns its place; no dangling references to things never said.
-- Spoken English: short sentences, contractions fine. Write numbers as spoken ("ninety-three percent") so TTS reads them right, and show the figure on screen.
-- One idea per scene.
+## Publishing notes (publish.md)
 
-## Visual Rules
+- **YouTube Short:**
+  - The title is the hook plus `#Shorts`.
+  - The description covers what Cogi is, the install command, the site, the repo and how it was tested. Use 3 hashtags, including `#Shorts`.
+  - After upload, open Studio → Subtitles and unpublish the automatic track, because the captions are burned in.
+  - A new render means a new upload.
+- **LinkedIn:**
+  - Upload the 4:5 mp4 natively, with the cover as the thumbnail.
+  - Put links in the first comment, never in the post. The end card says so.
 
-- **Format**: 1080x1350 (4:5), 30 fps, H.264 + AAC. The title card is held for 1 s as the first frame, so the feed thumbnail is never black.
-- **Layout**: visuals stay above `CONTENT_BOTTOM` (y=1060); captions centre at `CAPTION_Y` (y=1150), clear of the bottom ~10% where players draw their controls. Captions are burned in because both feeds autoplay muted.
-- **Shorts**: the 4:5 frame is placed full width below a 175 px top band on a blurred cover. YouTube covers the top ~9% (header, mute pill, its own captions), the bottom ~12% (channel and title) and the right edge from ~70% down (Like/Comment/Share). Keep the top band empty and nothing important bottom-right.
-- **One concrete metaphor per scene**, animated on its key phrase with `cue(narration, "phrase", default) * speech`. Cogi's: acorns are saved messages, the hollow is the store, the terminal is Claude Code, a grid of tiles is the history being searched.
-- **On-screen text adds to the captions**: a header, labels, at most ~8 extra words per scene; numbers on screen exactly as the README states them.
-- **Brand**: palette from `cogi_art.py` (`CREAM`, `INK`, `ACCENT`, `ACORN`, ...); set `vk.BG = CREAM` in each video. Fonts: Outfit Bold (`HEAD`), Work Sans (`BODY`), a system monospace (`mono`).
-- **Fit text**: measure with `d.textlength` and shrink long lines; nothing within 50 px of the edges.
+## Voice of the copy
+
+The narrator is a character: enthusiastic, observational, present tense, short sentences, with the jokes in timing and understatement.
+
+Copy the author writes or signs (`publish.md`, post text) follows the author's rules:
+- plain and specific;
+- no hype words;
+- no "In this video";
+- no AI-sounding twists ("Wrong question. The better one:");
+- the author's edits are final.
 
 ## Gotchas
 
-- An overlay layer **replaces** pixels instead of blending them: a shape or text drawn with alpha 0 erases what is underneath. `text_c` skips zero-alpha text; guard shapes with `if a > 0`, and do not cross-fade two labels in the same spot.
-- The bundled fonts lack some glyphs (✓, ↑): draw them (`check_mark`) or avoid them. "→", "…" and "–" work.
-- Colour emoji need Apple Color Emoji (Mac) or Noto Color Emoji (Linux); `paste_emoji` draws nothing without them, so every scene must still read without emoji.
-- Every animated value must be a pure function of `t`. Random layouts use a fixed seed (`random.Random(7)`), or they jump between frames.
-- A render takes about a minute per cut on the Mac. Iterate with `--stills`, not full renders.
-- `.env` lines must be `KEY=value`; the kit skips lines without `=`.
+- **Every animated value is a pure function of the frame.** Use the helpers in `src/kit/motion.ts` and seeded `rand()`, never `Math.random()`.
+- **SVG ids are global per frame.** Give each repeated `<defs>` id a unique suffix (the Bowl uses its x).
+- **Sound-generation lengths must be 0.5–30 s.** Music needs `voice.json` first.
+- **Remotion's `volume` is kept at 1 or below.** `Sound.tsx` scales every gain together and `render.sh` brings the master up to −14 LUFS.
+- **The YouTube overlays cover the top 9%, the bottom 12% and the right edge from 70% down.** Captions sit at y 1450 in 9:16 and y 1165 in 4:5, inside both. In close-ups, check that props (signs, labels) don't land on the caption band.
+- **The 4:5 cut shows only the central band** (y 285–1635 of the 9:16 frame). Anything above y ≈ 650 in world space falls out of it in a 2× close-up. Check `sheet-feed.jpg`.
+- **This Homebrew ffmpeg has no `drawtext` filter.** The contact sheets carry no timestamps; read them as one frame per second, left to right.
