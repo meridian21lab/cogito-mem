@@ -2,15 +2,16 @@
 
 <!-- mcp-name: io.github.meridian21lab/cogito-mem -->
 
-**Long-term memory for Claude Code, on your own machine.** Cogi the squirrel keeps every message you and Claude exchange, and finds the right one again, even in over a million tokens of history. No API key, no cloud, no AI calls to store.
+**Long-term memory for Claude Code, on your own machine.** Cogi the squirrel keeps every message you and Claude exchange, and finds the right one again, even in over a million tokens of history. No API key, no cloud, no AI calls to save a message.
 
 ![Cogi the squirrel: Claude forgets. Cogi doesn't.](site/assets/cogi-card.png)
 
 ## Why try it
 
-- **Claude can look back.** Every message and reply is kept word for word, with its date. When something has dropped out of the context window, or happened last month, Claude searches for it and gets your exact words back.
+- **Claude can look back.** Every message and reply is kept word for word, with its date. When something has dropped out of the context window, or was said last month, Claude searches for it and gets your exact words back. Ask *"do you remember…?"* and it searches on purpose.
 - **It remembers what you did, too.** The commands you ran (and whether they failed), the files you touched, what each sub-agent reported, and the lines of output that say how a command went: errors, metrics, how a long run ended.
-- **Private and free.** One folder on your computer. No account, no API key, no AI calls to save a message. Nothing leaves your machine.
+- **Private and free.** One folder on your computer. No account, no API key, no AI calls to save a message. Your memory never leaves your machine.
+- **One memory for your assistants.** Claude Code and Codex save into the same memory, and you can load past chats from a claude.ai or ChatGPT data export (`cogito-mem import claude <export.zip>`).
 - **Tested.** In LongMemEval's long test, each question hides its answer in about 480 past sessions, some 1.2 million tokens. The past session holding the answer is among the first five Cogi finds for 93.0% of 500 questions, with no AI model involved, ahead of four other local memory plugins we ran on the same questions (86.6–89.8% at their best settings). On the short test, with about 50 sessions, it is 99.0%, level with the best. On LoCoMo, with GPT-5 mini answering, the 1,000 tokens Cogi hands back answer 89.4% of questions right, against 94.1% from rereading the whole conversation: 95% of the quality while the model reads about 9 times fewer tokens. A search over 10 million tokens takes 26 ms on a laptop CPU. [See the results](https://meridian21lab.github.io/cogito-mem/results.html).
 
 ## Install
@@ -51,7 +52,7 @@ Every file, download and connection, with links to the source: [What you install
 | What comes back | **your exact words, with dates** | AI-written observations | extracted memories | graph facts and summaries | extracted memories |
 | Searchable after | **the same turn** | the observer's run | a batch (every 5 exchanges) | the next graph run | the background save |
 
-Keep your project's rules in `CLAUDE.md`, and let Cogi remember what happened.
+Keep your project's rules in `CLAUDE.md`, and let Cogi remember what happened. Claude's own memory keeps short notes about you; Cogi keeps the full record, word for word.
 
 ## Learn more
 
@@ -63,7 +64,7 @@ Keep your project's rules in `CLAUDE.md`, and let Cogi remember what happened.
 | [What you install](https://meridian21lab.github.io/cogito-mem/safety.html) · [Privacy](https://meridian21lab.github.io/cogito-mem/privacy.html) · [Terms](https://meridian21lab.github.io/cogito-mem/terms.html) | Every file, download and connection; privacy and terms |
 | [Development](https://github.com/meridian21lab/cogito-mem/blob/main/docs/development.md) | Running the tests and the evaluations |
 
-> **Early access.** v0.2 is new, built and tested (over 200 tests), and still being measured. Feedback and [issues](https://github.com/meridian21lab/cogito-mem/issues) are very welcome.
+> **Early access.** v0.3 is new, built and tested (over 200 tests), and still being measured. Feedback and [issues](https://github.com/meridian21lab/cogito-mem/issues) are very welcome.
 
 ## License
 

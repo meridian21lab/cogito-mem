@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>API & MCP · Cogi</title>
-  <meta name="description" content="Two operations on one endpoint, two MCP tools: append and query, with real requests and replies.">
+  <meta name="description" content="Two operations on one endpoint, three MCP tools: append, query and open, with real requests and replies.">
   <meta property="og:title" content="API & MCP · Cogi">
-  <meta property="og:description" content="Two operations on one endpoint, two MCP tools: append and query, with real requests and replies.">
+  <meta property="og:description" content="Two operations on one endpoint, three MCP tools: append, query and open, with real requests and replies.">
   <meta property="og:image" content="https://meridian21lab.github.io/cogito-mem/assets/cogi-card.png">
   <meta property="og:url" content="https://meridian21lab.github.io/cogito-mem/api.html">
   <meta name="twitter:card" content="summary_large_image">
@@ -33,7 +33,7 @@
     <p class="eyebrow">API &amp; MCP</p>
     <h1>Two things to do: store and find</h1>
     <p class="lead">One endpoint, <code>POST /v1/memory</code>, takes two operations. The same JSON works over HTTP, in
-      Python, from the terminal and through the two MCP tools.</p>
+      Python, from the terminal and through the MCP tools.</p>
     <ul class="toc">
       <li><a href="#store">Store</a></li>
       <li><a href="#find">Find</a></li>
@@ -101,6 +101,7 @@
         <tr><th>Tool</th><th>What it does</th><th>Takes</th></tr>
         <tr><td><code>memory_append</code></td><td>Save to memory</td><td><code>text</code>, <code>title</code></td></tr>
         <tr><td><code>memory_query</code></td><td>Search memory</td><td><code>text</code>, <code>valid_after</code>, <code>valid_before</code>, <code>max_tokens</code></td></tr>
+        <tr><td><code>memory_open</code></td><td>Read one message whole, with what was said around it</td><td><code>id</code>, <code>before</code>, <code>after</code>, <code>max_tokens</code></td></tr>
       </table>
     </div>
     <p>Connect any MCP client, by command (stdio) or by URL (Streamable HTTP):</p>

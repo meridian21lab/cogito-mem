@@ -18,6 +18,7 @@ The factory is `promo/`, a Remotion (React) project. A film is two files: `scrip
 - the ElevenLabs scripts, checks and render (`scripts/`).
 
 Read these before writing a film:
+- `references/marketing-brief.md`: what Cogi is, who it's for, our values, benefits, tone, and film ideas by audience. Read it first.
 - `references/series-bible.md`: who is who, the world, the running gags.
 - `references/craft.md`: motion, camera, light, type and sound rules, with numbers.
 - `src/films/01-claude-forgets/` and `src/films/02-stays-home/`: the reference films.
@@ -43,6 +44,7 @@ Quotable now (README, release 0.3.0):
 - **LongMemEval, long test:** about 480 past sessions and some 1.2 million tokens per question. The right past session is among the first five for 93.0% of 500 questions, with no AI model involved. That is ahead of four other local memory plugins on the same questions (86.6–89.8% at their best settings).
 - **LoCoMo, with GPT-5 mini answering:** 1,000 tokens from Cogi answer 89.4% right, against 94.1% from rereading the whole conversation. That is 95% of the quality from about 9× fewer tokens.
 - **Speed:** a search over 10 million tokens takes 26 ms on a laptop CPU.
+- **One memory for your assistants:** Claude Code and Codex save into the same memory; past chats load from a claude.ai or ChatGPT data export.
 - **Install:** `claude plugin install cogito-mem --marketplace meridian21lab/cogito-mem`, or the agent prompt in `site/install.md`. Free and open source (MIT).
 
 Never claim:
