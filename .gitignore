@@ -221,3 +221,11 @@ __marimo__/
 /reports/
 /research_notes/
 .*.swp
+
+# Promo film builds: paid ElevenLabs audio and renders; keep them with `bash promo/nas.sh push`
+promo/node_modules/
+promo/out/
+promo/public/films/
+
+# Claude Code's local worktrees (project skills in .claude/skills/ are committed)
+.claude/worktrees/

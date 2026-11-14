@@ -48,17 +48,17 @@
         <p>Word for word, with the date, in your hollow on your computer.</p></div>
       <div class="arrow" aria-hidden="true">→</div>
       <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#find"/></svg><h3>Find</h3>
-        <p>It searches by words and by meaning, and hands back the best few.</p></div>
+        <p>It searches by exact words and by meaning, and hands back the best few.</p></div>
     </div>
 
     <h2>Two ways nuts come back</h2>
     <div class="two">
       <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#spark"/></svg><h3>On their own</h3>
         <div class="big">~400 tokens</div>
-        <p>With each prompt, a few lines from before that fit it. A new session starts with how the last one ended.</p></div>
+        <p>With each prompt, a few lines from before that match it. A new session starts with how the last one ended.</p></div>
       <div class="card"><svg class="ico" aria-hidden="true"><use href="assets/icons.svg#ask"/></svg><h3>When Claude asks</h3>
         <div class="big">2,500 tokens</div>
-        <p>Ask <em>“do you remember…?”</em> and Claude searches your hollow itself.</p></div>
+        <p>Ask <em>“do you remember…?”</em> and Claude searches your hollow itself. This finds the most.</p></div>
     </div>
     <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>Each line has an id,</strong> so Claude can open the
       whole message and what was said around it.</p></div>
@@ -76,8 +76,8 @@
     </div>
 
     <h2>Your hollow</h2>
-    <p>One memory, named after you, like <code>ksirg-hollow</code>. Every session from every project goes in, so Claude can
-      recall across them all. To peek inside:</p>
+    <p>One memory, named after you, like <code>ksirg-hollow</code>. Every session from every project goes in, from Claude Code
+      and Codex alike, so Claude can recall across them all. To peek inside:</p>
 <div class="cmd"><span class="label">Terminal</span><pre><code>curl -s localhost:7327/v1/status</code></pre></div>
     <pre class="out">"ksirg-hollow": {
   "messages": 100,  <i>← nuts kept</i>
@@ -88,7 +88,7 @@
     <p class="small muted">A different name, through <code>COGITO_MEM_NAMESPACE</code>, starts a new, empty hollow.</p>
 
     <div class="tip"><img src="assets/cogi.svg" alt=""><p><strong>Cogi keeps what was said and what Claude did,</strong>
-      never file contents or secrets. Wrap anything in <code>&lt;private&gt;…&lt;/private&gt;</code> to keep it out.
+      never file contents, and it blanks out common secrets. Wrap anything in <code>&lt;private&gt;…&lt;/private&gt;</code> to keep it out.
       <a href="safety.html#saves">Everything it keeps →</a></p></div>
 
     <details>

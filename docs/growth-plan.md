@@ -37,7 +37,7 @@ Repository settings, from a terminal with the GitHub CLI:
 
 ```sh
 gh repo edit meridian21lab/cogito-mem \
-  --description "Local long-term memory for Claude Code: keeps every session word for word and brings back what Claude forgot. No API key, nothing leaves your machine." \
+  --description "Local long-term memory for Claude Code: keeps every session word for word and brings back what Claude forgot. No API key, and your memory never leaves your machine." \
   --homepage "https://meridian21lab.github.io/cogito-mem/" \
   --add-topic claude-code,claude-code-plugin,claude,mcp,mcp-server,agent-memory,ai-memory,long-term-memory,local-first,llama-cpp,embeddings,privacy
 ```

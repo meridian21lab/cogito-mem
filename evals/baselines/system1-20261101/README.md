@@ -42,6 +42,9 @@ keep = order[:60] + order[80:100]
 | `locomo/hybrid.json`, `keyword.json` | all 1,536 LoCoMo questions | `benchmarks.md` (reproduced) |
 | `locomo/hybrid-qwen-stride4.json` | 388 questions, hybrid + Qwen3-Reranker (own, RRF, 30) | `locomo/hybrid.json` |
 | `speed/*.json` | the idle-machine timings of the note's §7, 4 threads, scores never cached | |
+| `bekko/m-bekko17m.json`, `m-bekko68m.json` | 80 M questions (74 answerable): `base` = keyword search; `pickN_L` = keyword top N, each message cut to L tokens, bekko-system-one-v0 Choice over them, listed by its probability; `model_ms` per arm (4 threads, nothing else running) | `../long-history-20261101/m-final.json` |
+| `bekko/m-bekko17m-noul.json` | the same with bekko-17m's yes/no (Noul) per message | `m-final.json` |
+| `bekko/eval_bekko.py`, `bench_bekko.py` | the runs above and the note's §11 timings; they need a local copy of the bekko model and run its own `inference_v0.py` | |
 
 The quality runs shared the CPU (the embedding server and the System-1 server on 2 threads each), so their `query_ms`
 and `system1.model_ms` are slower than the `speed/` files; use those for time.
